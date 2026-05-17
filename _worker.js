@@ -761,7 +761,7 @@ const SITE_CONFIG = {
             <div class="dot red" onclick="navigate('home')"></div>
             <div class="dot yellow" onclick="navigate('tags')"></div>
             <div class="dot green" onclick="navigate('admin')"></div>
-            <div class="title" id="titleBar">TerminalBlog ~ zsh</div>
+            <div class="title" id="titleBar">\${SITE_CONFIG ? SITE_CONFIG.siteTitle : 'TerminalBlog'} ~ zsh</div>
         </div>
 
         <div class="term-body" id="termBody">
@@ -1130,14 +1130,14 @@ const SITE_CONFIG = {
 
             <div class="sysinfo">
                 <p><span class="highlight">$</span> uname -a</p>
-                <p>TerminalBlog 1.0.0 x86_64 Cloudflare/Pages UTF-8</p>
+                <p>TerminalBlog 1.0.0 RELEASE_X86_64 GNU/Linux UTF-8</p>
             </div>
 
             \${separator()}
 
             \${prompt('hacker', 'blog', 'cat ./welcome.txt')}
             <div class="output">
-                <p style="color: var(--green);">欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。</p>
+                <p style="color: var(--green);">\${SITE_CONFIG ? SITE_CONFIG.welcomeMessage : '欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。'}</p>
                 <p style="color: var(--gray);">共 \${stats.totalPosts} 篇文章 · 上次更新: \${stats.lastUpdate || 'N/A'} · 运行天数: \${stats.uptime} 天</p>
             </div>
 
@@ -1166,10 +1166,10 @@ const SITE_CONFIG = {
             \${prompt('hacker', 'blog', 'neofetch')}
             <div class="sysinfo">
                 <p><span class="warn">OS:</span> TerminalBlog 1.0.0</p>
-                <p><span class="warn">Host:</span> Cloudflare Pages + KV</p>
+                <p><span class="warn">Host:</span> localhost:8788</p>
+                <p><span class="warn">Engine:</span> Workers</p>
+                <p><span class="warn">Storage:</span> KV</p>
                 <p><span class="warn">Articles:</span> \${stats.totalPosts} posts</p>
-                <p><span class="warn">Engine:</span> Cloudflare Workers</p>
-                <p><span class="warn">Storage:</span> Cloudflare KV</p>
             </div>
 
             \${separator()}
