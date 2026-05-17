@@ -29,9 +29,6 @@ sed -i "s|icpNumber: '[^']*'|icpNumber: '$(echo "$ICP_NUMBER" | sed "s/'/\\\\'/g
 # 替换 HTML 中静态显示的标题（~ zsh 部分）
 sed -i "s/>TerminalBlog ~ zsh</>$(echo "$SITE_TITLE" | sed 's/</\\</g; s/>/\\>/g') ~ zsh</" /app/_worker.js
 
-# 替换页脚中的站点标题
-sed -i "s/> © 2026 TerminalBlog /> © 2026 $(echo "$SITE_TITLE" | sed 's/</\\</g; s/>/\\>/g') /" /app/_worker.js
-
 # 替换欢迎语（静态显示在首页）
 sed -i "s/>欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。</>$(echo "$WELCOME_MESSAGE" | sed 's/</\\</g; s/>/\\>/g; s/\//\\\//g')</" /app/_worker.js
 
