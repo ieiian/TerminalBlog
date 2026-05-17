@@ -2470,6 +2470,9 @@ async function handlePostCreate(env, request) {
     indexData.push(indexEntry);
     await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
 
+    // 更新标签索引
+    await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
+
     return jsonResponse({ message: '文章保存成功', id: postId });
 }
 
@@ -2548,6 +2551,9 @@ async function handlePostUpdate(env, request, id) {
         };
         await env.BLOG_KV.put('post:index', JSON.stringify(indexData));
     }
+
+    // 更新标签索引
+    await updateTagIndex(env, indexData.filter(function(p) { return !p.hidden; }));
 
     return jsonResponse({ message: '文章已更新', id: parseInt(id) });
 }
