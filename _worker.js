@@ -1161,7 +1161,17 @@ const SITE_CONFIG = {
                 <span class="loading"></span>
             </div>
 
-            \${separator('系统状态')}
+            \${separator('我的信息')}
+
+            \${prompt('hacker', 'blog', 'whoami')}
+            <div class="sysinfo">
+                <p><span class="highlight">User:</span> <span id="clientUser">guest</span></p>
+                <p id="clientIPRow" style="display:none;"><span class="highlight">IP:</span> <span id="clientIP">Loading...</span></p>
+                <p id="clientBrowserRow" style="display:none;"><span class="highlight">Browser:</span> <span id="clientBrowser">Loading...</span></p>
+                <p><span class="highlight">Time:</span> <span id="clientTime">Loading...</span></p>
+            </div>
+
+            \${separator('系统信息')}
 
             \${prompt('hacker', 'blog', 'neofetch')}
             <div class="sysinfo">
@@ -1191,6 +1201,62 @@ const SITE_CONFIG = {
         } catch (e) {
             const tagsEl = document.getElementById('homeTags');
             if (tagsEl) tagsEl.innerHTML = '<p class="error-text">标签加载失败</p>';
+        }
+
+        // Load client info asynchronously
+        try {
+            const clientInfo = await apiGet('/client-info');
+            const userEl = document.getElementById('clientUser');
+            const ipEl = document.getElementById('clientIP');
+            const ipRow = document.getElementById('clientIPRow');
+            const timeEl = document.getElementById('clientTime');
+            const browserEl = document.getElementById('clientBrowser');
+            const browserRow = document.getElementById('clientBrowserRow');
+
+            if (userEl) userEl.textContent = clientInfo.username || 'guest';
+
+            // IP: only show if available
+            if (ipEl && ipRow) {
+                if (clientInfo.ip) {
+                    ipEl.textContent = clientInfo.ip;
+                    ipRow.style.display = '';
+                } else {
+                    ipRow.style.display = 'none';
+                }
+            }
+
+            if (timeEl) timeEl.textContent = clientInfo.time || 'N/A';
+
+            // Browser: get from client-side navigator
+            if (browserEl && browserRow) {
+                const ua = navigator.userAgent;
+                if (ua) {
+                    // Parse browser info
+                    let browser = 'Unknown';
+                    if (ua.includes('Firefox')) {
+                        browser = 'Firefox ' + (ua.match(/Firefox\\/(\\d+)/) || ['', ''])[1];
+                    } else if (ua.includes('Edg/')) {
+                        browser = 'Edge ' + (ua.match(/Edg\\/(\\d+)/) || ['', ''])[1];
+                    } else if (ua.includes('Chrome')) {
+                        browser = 'Chrome ' + (ua.match(/Chrome\\/(\\d+)/) || ['', ''])[1];
+                    } else if (ua.includes('Safari') && !ua.includes('Chrome')) {
+                        browser = 'Safari ' + (ua.match(/Version\\/(\\d+)/) || ['', ''])[1];
+                    } else if (ua.includes('Opera') || ua.includes('OPR')) {
+                        browser = 'Opera';
+                    }
+                    browserEl.textContent = browser;
+                    browserRow.style.display = '';
+                } else {
+                    browserRow.style.display = 'none';
+                }
+            }
+        } catch (e) {
+            const ipRow = document.getElementById('clientIPRow');
+            const timeEl = document.getElementById('clientTime');
+            const browserRow = document.getElementById('clientBrowserRow');
+            if (ipRow) ipRow.style.display = 'none';
+            if (timeEl) timeEl.textContent = 'N/A';
+            if (browserRow) browserRow.style.display = 'none';
         }
     }
 
@@ -2201,6 +2267,43 @@ async function getNextId(env, existingPosts) {
     return nextId;
 }
 
+function handleClientInfo(request) {
+    // Get client IP from various headers (Cloudflare, etc.)
+    var ip = request.headers.get('CF-Connecting-IP') ||
+             request.headers.get('X-Forwarded-For') ||
+             request.headers.get('X-Real-IP') ||
+             null;
+    
+    // Clean up IP (take first IP if multiple)
+    if (ip && ip.includes(',')) {
+        ip = ip.split(',')[0].trim();
+    }
+    
+    // Handle localhost/loopback addresses - mark as unavailable
+    if (ip === '::1' || ip === '127.0.0.1' || ip === 'localhost') {
+        ip = null;
+    }
+    
+    // Get current time in Asia/Shanghai timezone (UTC+8)
+    var now = new Date();
+    var timeStr = now.toLocaleString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }) + ' (UTC/GMT+8)';
+    
+    return jsonResponse({
+        username: 'guest',
+        ip: ip,
+        time: timeStr
+    });
+}
+
 // ==================== API 处理函数 ====================
 
 async function handleStats(env) {
@@ -2756,6 +2859,11 @@ async function handleAPI(request, env, pathname) {
     // Tags
     if (pathname === '/api/tags' && method === 'GET') {
         return handleTags(env);
+    }
+
+    // Client info (IP, time, etc.)
+    if (pathname === '/api/client-info' && method === 'GET') {
+        return handleClientInfo(request);
     }
 
     // Post create

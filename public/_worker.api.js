@@ -93,6 +93,43 @@ async function getNextId(env, existingPosts) {
     return nextId;
 }
 
+function handleClientInfo(request) {
+    // Get client IP from various headers (Cloudflare, etc.)
+    var ip = request.headers.get('CF-Connecting-IP') ||
+             request.headers.get('X-Forwarded-For') ||
+             request.headers.get('X-Real-IP') ||
+             null;
+    
+    // Clean up IP (take first IP if multiple)
+    if (ip && ip.includes(',')) {
+        ip = ip.split(',')[0].trim();
+    }
+    
+    // Handle localhost/loopback addresses - mark as unavailable
+    if (ip === '::1' || ip === '127.0.0.1' || ip === 'localhost') {
+        ip = null;
+    }
+    
+    // Get current time in Asia/Shanghai timezone (UTC+8)
+    var now = new Date();
+    var timeStr = now.toLocaleString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }) + ' (UTC/GMT+8)';
+    
+    return jsonResponse({
+        username: 'guest',
+        ip: ip,
+        time: timeStr
+    });
+}
+
 // ==================== API 处理函数 ====================
 
 async function handleStats(env) {
@@ -648,6 +685,11 @@ async function handleAPI(request, env, pathname) {
     // Tags
     if (pathname === '/api/tags' && method === 'GET') {
         return handleTags(env);
+    }
+
+    // Client info (IP, time, etc.)
+    if (pathname === '/api/client-info' && method === 'GET') {
+        return handleClientInfo(request);
     }
 
     // Post create
