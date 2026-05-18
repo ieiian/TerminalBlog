@@ -2088,6 +2088,53 @@
         }
     })();
 
+
+    // // ============ Matrix Rain Background ============
+    // (function() {
+    //     var canvas = document.getElementById('matrix-bg');
+    //     if (!canvas) return;
+    //     var ctx = canvas.getContext('2d');
+    //     var cols, drops;
+
+    //     function resize() {
+    //         canvas.width = window.innerWidth;
+    //         canvas.height = window.innerHeight;
+    //         var fontSize = 11;
+    //         cols = Math.floor(canvas.width / fontSize);
+    //         drops = [];
+    //         for (var i = 0; i < cols; i++) {
+    //             drops[i] = Math.random() * -100;
+    //         }
+    //     }
+    //     resize();
+    //     window.addEventListener('resize', resize);
+
+    //     // var chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+    //     var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    //     var hue = 140; // green hue
+
+    //     function draw() {
+    //         ctx.fillStyle = 'rgba(13, 17, 23, 0.04)';
+    //         ctx.fillRect(0, 0, canvas.width, canvas.height);
+    //         ctx.font = '11px JetBrains Mono, monospace';
+
+    //         for (var i = 0; i < cols; i++) {
+    //             var char = chars[Math.floor(Math.random() * chars.length)];
+    //             // Head column brighter, tail fading
+    //             var brightness = Math.random() > 0.90 ? 1 : 0.35;
+    //             ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + (45 + brightness * 75) + '%, ' + (brightness * 0.85) + ')';
+    //             ctx.fillText(char, i * 11, drops[i] * 11);
+
+    //             if (drops[i] * 11 > canvas.height && Math.random() > 0.975) {
+    //                 drops[i] = 0;
+    //             }
+    //             drops[i] += 0.19;
+    //         }
+    //     }
+
+    //     setInterval(draw, 28);
+    // })();
+
     // ============ Matrix Rain Background ============
     (function() {
         var canvas = document.getElementById('matrix-bg');
@@ -2101,37 +2148,59 @@
             var fontSize = 11;
             cols = Math.floor(canvas.width / fontSize);
             drops = [];
+
             for (var i = 0; i < cols; i++) {
-                drops[i] = Math.random() * -100;
+
+                // 每列独立速度
+                drops[i] = {
+                    y: Math.random() * -100,
+                    speed: 0.12 + Math.random() * 0.22
+                };
             }
         }
         resize();
         window.addEventListener('resize', resize);
 
         var chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
-        var hue = 140; // green hue
+        // var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        var hue = 140;
 
         function draw() {
-            ctx.fillStyle = 'rgba(13, 17, 23, 0.04)';
+            // 尾巴加长
+            ctx.fillStyle = 'rgba(13, 17, 23, 0.025)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.font = '11px JetBrains Mono, monospace';
 
             for (var i = 0; i < cols; i++) {
-                var char = chars[Math.floor(Math.random() * chars.length)];
-                // Head column brighter, tail fading
-                var brightness = Math.random() > 0.90 ? 1 : 0.35;
-                ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + (45 + brightness * 75) + '%, ' + (brightness * 0.85) + ')';
-                ctx.fillText(char, i * 11, drops[i] * 11);
+                var char =
+                    chars[Math.floor(Math.random() * chars.length)];
+                var brightness =
+                    Math.random() > 0.90 ? 1 : 0.35;
+                ctx.fillStyle =
+                    'hsla(' +
+                    hue +
+                    ', 100%, ' +
+                    (45 + brightness * 75) +
+                    '%, ' +
+                    (brightness * 0.85) +
+                    ')';
+                ctx.fillText(char, i * 11, drops[i].y * 11);
 
-                if (drops[i] * 11 > canvas.height && Math.random() > 0.975) {
-                    drops[i] = 0;
+                if (drops[i].y * 11 > canvas.height &&
+                    Math.random() > 0.975) {
+                    drops[i].y = 0;
+                    // 重置时重新随机速度
+                    drops[i].speed =
+                        0.12 + Math.random() * 0.22;
                 }
-                drops[i] += 0.19;
+                // 使用独立速度
+                drops[i].y += drops[i].speed;
             }
         }
 
         setInterval(draw, 28);
     })();
+
 
     // ============ 初始化页脚信息 ============
     function initFooter() {
