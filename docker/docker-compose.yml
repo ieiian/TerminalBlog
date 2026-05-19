@@ -1,34 +1,35 @@
+# ============================================================
+# Terminal Blog - Docker Compose 配置
+# ============================================================
+# 使用方法:
+#   1. 在项目根目录创建 Markdown 和 download 目录
+#   2. 放入你的文章和下载文件
+#   3. 运行: docker-compose -f docker/docker-compose.yml up -d
+# ============================================================
+
 services:
-  terminal-blog:
-    image: terminal-blog:latest
-    # image: ieiian/terminal-blog:latest
+  blog:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-      args:
-        # 站点配置（在构建时嵌入 HTML）
-        SITE_TITLE: ${SITE_TITLE:-TerminalBlog}
-        WELCOME_MESSAGE: ${WELCOME_MESSAGE:-欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。}
-        SITE_URL: ${SITE_URL:-https://myURL.com}
-        ICP_NUMBER: ${ICP_NUMBER:-ICP粤B12345678号}
-    container_name: terminal-blog
+    container_name: terminal-blog-fs
+    restart: unless-stopped
     ports:
       - "8788:8788"
     volumes:
-      - blog-wrangler-state:/app/.wrangler/state
-      # Optional: mount local Markdown files for `docker exec terminal-blog npm run import`
       - ../Markdown:/app/Markdown
-      # Optional: reserved folder for download/export workflows
+      - ../images:/app/images
       - ../download:/app/download
     environment:
-      ADMIN_USER: ${ADMIN_USER:-admin}
-      ADMIN_PASS: ${ADMIN_PASS:-admin123}
-      PORT: ${PORT:-8788}
-      SITE_TITLE: ${SITE_TITLE:-TerminalBlog}
-      WELCOME_MESSAGE: ${WELCOME_MESSAGE:-欢迎来到我的终端博客。这里用代码记录世界，用键盘书写思考。}
-      SITE_URL: ${SITE_URL:-https://myURL.com}
-      ICP_NUMBER: ${ICP_NUMBER:-ICP粤B12345678号}
-    restart: unless-stopped
-
-volumes:
-  blog-wrangler-state:
+      - SITE_TITLE=TerminalBlog.Docker
+      - WELCOME_MESSAGE=欢迎来到我的终端博客docker版本
+      - SITE_URL=https://docker.example.com
+      - ICP_NUMBER=ICP粤B123docker号
+      - ADMIN_USER=admin
+      - ADMIN_PASS=admin123
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8788/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

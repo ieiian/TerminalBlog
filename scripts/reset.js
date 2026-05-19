@@ -1,72 +1,47 @@
 /**
- * 重置脚本 - 清空所有 KV 数据，恢复出厂状态
- *
- * 直接清空 post:index 和重置 nextId，
- * 不需要逐个删除文章（那些残留数据反正也访问不到）
+ * 重置脚本 - 清空 Markdown 目录，恢复出厂状态
  */
 
-async function main() {
-    const BASE_URL = process.env.SEED_URL || 'http://localhost:8788';
-    const adminUser = process.env.ADMIN_USER || 'admin';
-    const adminPass = process.env.ADMIN_PASS || 'admin123';
+const fs = require('fs');
+const path = require('path');
 
-    console.log('⚠️  即将清空所有数据，恢复出厂状态！');
-    console.log(`📡 目标地址: ${BASE_URL}\n`);
+const MARKDOWN_DIR = path.join(__dirname, '..', 'Markdown');
 
-    // 登录
-    let authToken = null;
-    try {
-        const loginRes = await fetch(`${BASE_URL}/api/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: adminUser, password: adminPass })
-        });
-        const loginData = await loginRes.json();
-        authToken = loginData.token;
-        if (!authToken) throw new Error(loginData.error || '登录失败');
-        console.log('🔐 登录成功\n');
-    } catch (e) {
-        console.log(`❌ 登录失败: ${e.message}\n`);
-        process.exit(1);
+function main() {
+    console.log('⚠️  即将清空所有文章数据，恢复出厂状态！');
+    console.log(`📁 目标目录: ${MARKDOWN_DIR}\n`);
+
+    if (!fs.existsSync(MARKDOWN_DIR)) {
+        console.log('  ℹ️  Markdown 目录不存在，无需清理\n');
+        console.log('🎉 重置完成！');
+        return;
     }
 
-    // 清空 post:index
-    console.log('🗑️  清空文章索引...');
-    try {
-        // 发送一个请求来清空数据（通过设置 post:index 为空数组）
-        const res = await fetch(`${BASE_URL}/api/reset-data`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        if (res.ok) {
-            console.log('  ✅ 文章索引已清空\n');
-        } else {
-            console.log('  ⚠️  无法清空数据，尝试备用方案...\n');
+    const files = fs.readdirSync(MARKDOWN_DIR);
+    const mdFiles = files.filter(f => f.endsWith('.md'));
+
+    if (mdFiles.length === 0) {
+        console.log('  ℹ️  没有文章文件，无需清理\n');
+        console.log('🎉 重置完成！');
+        return;
+    }
+
+    console.log(`🗑️  发现 ${mdFiles.length} 篇文章待删除...\n`);
+
+    let deleted = 0;
+    for (const file of mdFiles) {
+        const filePath = path.join(MARKDOWN_DIR, file);
+        try {
+            fs.unlinkSync(filePath);
+            deleted++;
+        } catch (e) {
+            console.log(`  ⚠️  删除失败: ${file}`);
         }
-    } catch (e) {
-        console.log(`  ⚠️  重置失败: ${e.message}\n`);
     }
 
-    // 重置 ID 计数器
-    console.log('🔄 重置 ID 计数器...');
-    try {
-        const resetRes = await fetch(`${BASE_URL}/api/reset-nextid`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-
-        if (resetRes.ok) {
-            const result = await resetRes.json();
-            console.log(`  ✅ ${result.message}\n`);
-        } else {
-            console.log('  ⚠️  ID 计数器重置失败\n');
-        }
-    } catch (e) {
-        console.log(`  ⚠️  ID 计数器重置失败: ${e.message}\n`);
-    }
-
+    console.log(`  ✅ 已删除 ${deleted} 篇文章\n`);
     console.log('🎉 重置完成！');
-    console.log('\n💡 提示: 请手动刷新浏览器访问首页\n');
+    console.log('\n💡 提示: 运行 npm run seed 可重新生成种子数据\n');
 }
 
-main().catch(console.error);
+main();

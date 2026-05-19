@@ -4,10 +4,10 @@ node_modules/
 .mf/
 
 # 过滤的文件和文件夹
-Markdown/
+Markdown/*
 CLAUDE.md
 INDEX.md
 .claude/
 
-xy131/
 download/*
+images/*

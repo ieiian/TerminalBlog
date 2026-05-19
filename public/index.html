@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terminal Blog</title>
-    <!-- SITE_CONFIG 将在构建时由 build-worker.js 注入 -->
+    <script src="/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@3.0.8/marked.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500;600;700&display=swap');
@@ -1094,6 +1094,9 @@
 
         // 页面渲染完成后初始化页脚
         initFooter();
+        
+        // 检查重复文章 ID
+        checkDuplicateIds();
     }
 
     async function renderHome(body) {
@@ -1161,10 +1164,7 @@
 
             ${prompt('hacker', 'blog', 'neofetch')}
             <div class="sysinfo">
-                <p><span class="warn">OS:</span> TerminalBlog 1.0.0</p>
-                <p><span class="warn">Host:</span> localhost:8788</p>
-                <p><span class="warn">Engine:</span> Workers</p>
-                <p><span class="warn">Storage:</span> KV</p>
+                <p><span class="warn">Storage:</span> FS</p>
                 <p><span class="warn">Articles:</span> ${stats.totalPosts} posts</p>
             </div>
 
@@ -1336,6 +1336,9 @@
     }
 
     async function renderPost(body) {
+        // 检查重复文章 ID
+        checkDuplicateIds();
+        
         // currentSlug now always contains the post ID
         var post;
         try {
@@ -2079,14 +2082,36 @@
     });
 
     // ============ Init ============
-    // Handle direct URL: /<ID> (numeric)
+    // Handle direct URL: /<ID> (numeric) - 支持任意位数的数字
     (function() {
-        var pathMatch = window.location.pathname.match(/^\/(\d{5,})\/?$/);
+        var pathMatch = window.location.pathname.match(/^\/(\d+)\/?$/);
         if (pathMatch) {
             currentView = 'post';
             currentSlug = pathMatch[1];
         }
     })();
+
+    // ============ Check for duplicate post IDs ============
+    let duplicateCheckDone = false;
+    async function checkDuplicateIds() {
+        if (duplicateCheckDone) return;
+        duplicateCheckDone = true;
+        
+        try {
+            const res = await fetch('/api/check-duplicates');
+            const data = await res.json();
+            
+            if (data.hasDuplicates) {
+                const dupList = data.duplicates.map(d => {
+                    const shortTitles = d.posts.map(p => p.title.charAt(0) + '...');
+                    return 'ID ' + d.id + ': ' + shortTitles.join(', ');
+                }).join('\n');
+                showToast('⚠️ 发现重复文章 ID，请联系管理员处理！\n' + dupList, 'error');
+            }
+        } catch (err) {
+            console.error('Failed to check duplicates:', err);
+        }
+    }
 
 
     // // ============ Matrix Rain Background ============

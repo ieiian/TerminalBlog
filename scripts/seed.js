@@ -1,16 +1,17 @@
 /**
- * 种子数据脚本 - 向 Cloudflare KV 写入初始博客数据
+ * 种子数据脚本 - 在 Markdown 目录下生成带 ID 的 .md 文件
  * 
  * 用法:
- *   1. 先启动本地开发服务器: npm run dev
- *   2. 然后运行: npm run seed
- * 
- * 或者直接调用 Cloudflare API 写入远程 KV
+ *   npm run seed
  */
+
+const fs = require('fs');
+const path = require('path');
+
+const MARKDOWN_DIR = path.join(__dirname, '..', 'Markdown');
 
 const POSTS = [
     {
-        slug: 'build-terminal-blog',
         title: '从零搭建属于自己的终端风格博客',
         tags: ['技术', '教程', '博客'],
         date: '2026-04-28',
@@ -31,9 +32,9 @@ const POSTS = [
 \`\`\`javascript
 const blog = {
     frontend: 'HTML + CSS + Vanilla JS',
-    backend: 'Cloudflare Pages Functions',
-    storage: 'Cloudflare KV',
-    deployment: 'Cloudflare Pages',
+    backend: 'Node.js API Server',
+    storage: 'File System (Markdown)',
+    deployment: 'Docker',
     theme: 'Terminal / Hacker'
 };
 \`\`\`
@@ -46,48 +47,46 @@ const blog = {
 terminal-blog/
 ├── public/           # 静态文件
 │   └── index.html    # SPA 主页
-├── functions/        # Cloudflare Pages Functions (API)
-│   └── api/
-│       ├── stats.js
-│       ├── posts.js
-│       ├── tags.js
-│       └── post/
-│           ├── index.js
-│           └── [slug].js
-├── wrangler.toml     # Cloudflare 配置
+├── server.js         # Node.js API 服务器
+├── Markdown/         # Markdown 文章目录
+├── docker/           # Docker 配置
 └── package.json
 \`\`\`
 
-### 2. KV 数据结构
+### 2. 文件存储结构
 
-> Cloudflare KV 是一个全球分布式键值存储。
+> 所有文章以 Markdown 文件形式存储在 Markdown 目录下。
 
-我们使用以下 KV 键：
+每个文件包含 frontmatter 元数据：
 
-- \`post:index\` — 文章列表索引 (JSON 数组)
-- \`post:{slug}\` — 单篇文章完整内容 (JSON)
-- \`tags:index\` — 标签列表 (JSON)
+\`\`\`yaml
+---
+id: 10001
+title: 文章标题
+date: 2026-04-28
+tags: ["标签1", "标签2"]
+---
+\`\`\`
 
 ### 3. 部署
 
 \`\`\`bash
-# 安装依赖
-npm install
+# Docker 部署
+docker compose -f docker/docker-compose.yml up -d --build
 
 # 本地开发
-npm run dev
-
-# 部署到 Cloudflare Pages
-npm run deploy
+npm install
+npm run seed  # 生成种子数据
+npm start
 \`\`\`
 
 ## 总结
 
-使用 Cloudflare Pages + KV 构建博客，我们获得了：
+使用 Node.js + 文件系统存储构建博客，我们获得了：
 
-1. **全球 CDN** — Cloudflare 的全球网络保证快速访问
-2. **无限扩展** — Serverless 架构，无需管理服务器
-3. **极低成本** — KV 免费额度足够个人博客使用
+1. **简单可靠** — 无需数据库，直接使用文件系统
+2. **易于备份** — 所有文章都是纯文本 Markdown 文件
+3. **版本控制** — 可以用 Git 管理文章历史
 4. **终端美学** — 独特的视觉体验
 
 ---
@@ -95,7 +94,6 @@ npm run deploy
 *Stay hungry, stay hacking.*`
     },
     {
-        slug: 'vim-philosophy',
         title: '用 Vim 的哲学写代码：效率提升指南',
         tags: ['Vim', '效率', '编辑器'],
         date: '2026-04-22',
@@ -146,7 +144,6 @@ vap  " 选择整个段落
 > 记住：Vim 的学习曲线是陡峭的，但一旦掌握，你将受益终生。`
     },
     {
-        slug: 'linux-desktop-i3wm-to-hyprland',
         title: 'Linux 桌面环境定制：从 i3wm 到 Hyprland',
         tags: ['Linux', '桌面', '开源'],
         date: '2026-04-15',
@@ -202,7 +199,6 @@ general {
 3. 注意 Wayland 兼容性问题`
     },
     {
-        slug: 'ssh-tunnel-guide',
         title: 'SSH 隧道与端口转发完全指南',
         tags: ['网络', 'SSH', '运维'],
         date: '2026-04-08',
@@ -258,7 +254,6 @@ Host my-tunnel
 \`\`\``
     },
     {
-        slug: 'regex-for-developers',
         title: '为什么每个开发者都应该学点正则',
         tags: ['正则', '效率', '技术'],
         date: '2026-04-01',
@@ -309,60 +304,93 @@ const ipv4 = /\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/;
 ];
 
 // ============ Main ============
-async function main() {
-    const BASE_URL = process.env.SEED_URL || 'http://localhost:8788';
+function getNextId(existingPosts) {
+    let maxId = 10000;
+    for (const post of existingPosts) {
+        if (post.id && post.id > maxId) {
+            maxId = post.id;
+        }
+    }
+    return maxId + 1;
+}
 
-    console.log('🌱 开始写入种子数据...');
-    console.log(`📡 目标地址: ${BASE_URL}\n`);
+function getExistingPosts() {
+    if (!fs.existsSync(MARKDOWN_DIR)) {
+        return [];
+    }
+    
+    const posts = [];
+    const files = fs.readdirSync(MARKDOWN_DIR);
+    
+    for (const file of files) {
+        if (!file.endsWith('.md')) continue;
+        
+        const filePath = path.join(MARKDOWN_DIR, file);
+        const content = fs.readFileSync(filePath, 'utf-8');
+        
+        const match = content.match(/^---\n([\s\S]*?)\n---/);
+        if (!match) continue;
+        
+        const lines = match[1].split('\n');
+        for (const line of lines) {
+            const colonIdx = line.indexOf(':');
+            if (colonIdx > 0 && line.slice(0, colonIdx).trim() === 'id') {
+                const id = parseInt(line.slice(colonIdx + 1).trim());
+                if (id) posts.push({ id });
+            }
+        }
+    }
+    
+    return posts;
+}
 
-    // 先登录获取 token
-    const adminUser = process.env.ADMIN_USER || 'admin';
-    const adminPass = process.env.ADMIN_PASS || 'admin123';
-    console.log(`🔐 登录管理员账户: ${adminUser}`);
+function generateFilename(title) {
+    return title
+        .replace(/[<>:"/\\|?*]/g, '')
+        .replace(/\s+/g, '-')
+        .substring(0, 50) + '.md';
+}
 
-    let authToken = null;
-    try {
-        const loginRes = await fetch(`${BASE_URL}/api/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: adminUser, password: adminPass })
-        });
-        const loginData = await loginRes.json();
-        authToken = loginData.token;
-        if (!authToken) throw new Error(loginData.error || '登录失败');
-        console.log('  ✅ 登录成功\n');
-    } catch (e) {
-        console.log(`  ❌ 登录失败: ${e.message}`);
-        console.log('  💡 提示: 确保 wrangler dev 已启动，且 ADMIN_USER/ADMIN_PASS 环境变量正确\n');
-        process.exit(1);
+function main() {
+    console.log('🌱 开始生成种子数据...\n');
+
+    // 确保目录存在
+    if (!fs.existsSync(MARKDOWN_DIR)) {
+        fs.mkdirSync(MARKDOWN_DIR, { recursive: true });
+        console.log(`📁 创建目录: ${MARKDOWN_DIR}\n`);
     }
 
-    console.log(`📝 共 ${POSTS.length} 篇文章待写入\n`);
+    const existingPosts = getExistingPosts();
+    let nextId = getNextId(existingPosts);
+
+    console.log(`📝 共 ${POSTS.length} 篇文章待生成\n`);
 
     for (const post of POSTS) {
-        try {
-            const res = await fetch(`${BASE_URL}/api/post`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}`
-                },
-                body: JSON.stringify(post)
-            });
+        const id = nextId++;
+        const filename = generateFilename(post.title);
+        const filePath = path.join(MARKDOWN_DIR, filename);
+        
+        const tagsStr = JSON.stringify(post.tags).replace(/"/g, "'");
+        
+        const fileContent = `---
+id: ${id}
+title: ${post.title}
+date: ${post.date}
+tags: ${tagsStr}
+---
 
-            if (res.ok) {
-                console.log(`  ✅ ${post.title}`);
-            } else {
-                const err = await res.text();
-                console.log(`  ❌ ${post.title}: ${err}`);
-            }
+${post.content}`;
+
+        try {
+            fs.writeFileSync(filePath, fileContent, 'utf-8');
+            console.log(`  ✅ ${post.title} (ID: ${id})`);
         } catch (e) {
             console.log(`  ❌ ${post.title}: ${e.message}`);
         }
     }
 
-    console.log('\n🎉 种子数据写入完成！');
-    console.log(`\n💡 访问 ${BASE_URL} 查看博客\n`);
+    console.log('\n🎉 种子数据生成完成！');
+    console.log(`\n💡 文章保存在 ${MARKDOWN_DIR} 目录\n`);
 }
 
-main().catch(console.error);
+main();
