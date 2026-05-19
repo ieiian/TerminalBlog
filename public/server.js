@@ -7,6 +7,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const archiver = require('archiver');
 
 // ==================== 配置 ====================
 const PORT = process.env.PORT || 8788;
@@ -657,6 +658,272 @@ async function handleRequest(req, res) {
             });
             res.end(content);
             return;
+        }
+
+        // ============ 导出 Markdown 文件为 ZIP ============
+        if (pathname === '/api/export' && method === 'GET') {
+            const posts = getAllPosts();
+            
+            if (posts.length === 0) {
+                return jsonResponse(res, { error: '没有文章可导出' }, 400);
+            }
+            
+            // 创建 ZIP 文件
+            const archive = archiver('zip', { zlib: { level: 9 } });
+            const chunks = [];
+            
+            archive.on('data', chunk => chunks.push(chunk));
+            
+            // 添加每个 Markdown 文件到 ZIP
+            for (const post of posts) {
+                const fileName = `${post.id}.md`;
+                const fileContent = buildMarkdownFile({
+                    id: post.id,
+                    title: post.title,
+                    date: post.date,
+                    tags: post.tags,
+                    hidden: post.hidden,
+                    locked: post.locked,
+                    lockPassword: post.lockPassword,
+                    content: post.body
+                });
+                archive.append(fileContent, { name: fileName });
+            }
+            
+            // 添加一个说明文件
+            const readmeContent = `# TerminalBlog Markdown Export
+
+导出时间: ${new Date().toISOString()}
+文章数量: ${posts.length}
+
+使用方法:
+1. 解压此 ZIP 文件
+2. 将 .md 文件放入博客的 Markdown 目录
+3. 博客将自动识别这些文章
+
+文章列表:
+${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
+`;
+            archive.append(readmeContent, { name: 'README.md' });
+            
+            archive.finalize();
+            
+            // 等待 archive 完成
+            await new Promise((resolve, reject) => {
+                archive.on('end', resolve);
+                archive.on('error', reject);
+            });
+            
+            const zipBuffer = Buffer.concat(chunks);
+            const date = new Date().toISOString().split('T')[0];
+            
+            res.writeHead(200, {
+                'Content-Type': 'application/zip',
+                'Content-Disposition': `attachment; filename="terminalblog-export-${date}.zip"`,
+                'Content-Length': zipBuffer.length
+            });
+            res.end(zipBuffer);
+            return;
+        }
+
+        // ============ 导入单个 Markdown 文件 ============
+        if (pathname === '/api/import-markdown' && method === 'POST') {
+            const data = await parseBody(req);
+            
+            if (!data.content) {
+                return jsonResponse(res, { error: '请提供 Markdown 文件内容' }, 400);
+            }
+            
+            const content = data.content;
+            const filename = data.filename || 'imported.md';
+            const { frontmatter, body } = parseFrontmatter(content);
+            
+            const existingIds = new Set(getAllPosts().map(p => p.id));
+            const maxId = existingIds.size > 0 ? Math.max(...existingIds) : 0;
+            let nextId = maxId + 1;
+            
+            let postId = frontmatter.id ? parseInt(frontmatter.id) : null;
+            let title = frontmatter.title || filename.replace(/\.md$/, '');
+            let date = frontmatter.date || new Date().toISOString().split('T')[0];
+            let tags = Array.isArray(frontmatter.tags) ? frontmatter.tags : [];
+            let hidden = frontmatter.hidden === true || frontmatter.hidden === 'true';
+            let locked = frontmatter.locked === true || frontmatter.locked === 'true';
+            let lockPassword = frontmatter.lockPassword || '';
+            
+            // 如果 ID 已存在，跳过
+            if (postId && existingIds.has(postId)) {
+                return jsonResponse(res, {
+                    message: '文章 ID 已存在',
+                    imported: 0,
+                    skipped: 1,
+                    failed: 0,
+                    total: 1,
+                    results: [{ file: filename, status: 'skipped', reason: 'ID 已存在' }]
+                });
+            }
+            
+            // 分配新 ID
+            if (!postId) {
+                postId = nextId;
+            }
+            
+            // 保存文件
+            const postData = {
+                id: postId,
+                title: title,
+                date: date,
+                tags: tags,
+                hidden: hidden,
+                locked: locked,
+                lockPassword: lockPassword,
+                content: body
+            };
+            
+            try {
+                savePost(postData);
+                return jsonResponse(res, {
+                    message: '导入完成',
+                    imported: 1,
+                    skipped: 0,
+                    failed: 0,
+                    total: 1,
+                    results: [{ file: filename, status: 'imported', id: postId, title: title }]
+                });
+            } catch (e) {
+                return jsonResponse(res, {
+                    message: '导入失败',
+                    imported: 0,
+                    skipped: 0,
+                    failed: 1,
+                    total: 1,
+                    results: [{ file: filename, status: 'failed', reason: e.message }]
+                });
+            }
+        }
+
+        // ============ 导入 Markdown 文件 (支持 ZIP) ============
+        if (pathname === '/api/import' && method === 'POST') {
+            // 获取原始请求体（可能是 multipart 或 base64 编码的文件）
+            const contentType = req.headers['content-type'] || '';
+            let importData;
+            
+            if (contentType.includes('application/json')) {
+                importData = await parseBody(req);
+            } else {
+                // 尝试获取 base64 编码的文件
+                const rawBody = await new Promise((resolve, reject) => {
+                    let body = '';
+                    req.on('data', chunk => body += chunk);
+                    req.on('end', () => resolve(body));
+                    req.on('error', reject);
+                });
+                
+                try {
+                    importData = JSON.parse(rawBody);
+                } catch (e) {
+                    return jsonResponse(res, { error: '无效的请求数据' }, 400);
+                }
+            }
+            
+            if (!importData.file && !importData.base64) {
+                return jsonResponse(res, { error: '请提供要导入的文件' }, 400);
+            }
+            
+            let zipBuffer;
+            if (importData.base64) {
+                // Base64 编码的 ZIP 文件
+                const base64Data = importData.base64.replace(/^data:application\/zip;base64,/, '');
+                zipBuffer = Buffer.from(base64Data, 'base64');
+            } else if (importData.file) {
+                // 直接的文件数据
+                const base64Data = importData.file.replace(/^data:application\/zip;base64,/, '').replace(/^data:application\/x-zip-compressed;base64,/, '');
+                zipBuffer = Buffer.from(base64Data, 'base64');
+            }
+            
+            if (!zipBuffer || zipBuffer.length === 0) {
+                return jsonResponse(res, { error: '无效的 ZIP 文件数据' }, 400);
+            }
+            
+            // 解压 ZIP 文件
+            try {
+                const AdmZip = require('adm-zip');
+                const zip = new AdmZip(zipBuffer);
+                const entries = zip.getEntries();
+                
+                const existingIds = new Set(getAllPosts().map(p => p.id));
+                const maxId = existingIds.size > 0 ? Math.max(...existingIds) : 0;
+                let nextId = maxId + 1;
+                
+                let imported = 0;
+                let skipped = 0;
+                let failed = 0;
+                const results = [];
+                
+                for (const entry of entries) {
+                    // 只处理 .md 文件，跳过目录和其他文件类型
+                    if (entry.isDirectory || !entry.entryName.endsWith('.md')) continue;
+                    // 跳过 README.md（导出时生成的说明文件）
+                    if (entry.entryName === 'README.md') continue;
+                    // 跳过 macOS 的元数据文件（如 ._xxx.md）
+                    if (entry.entryName.includes('._')) continue;
+                    
+                    try {
+                        const content = zip.readAsText(entry);
+                        const { frontmatter, body } = parseFrontmatter(content);
+                        
+                        let postId = frontmatter.id ? parseInt(frontmatter.id) : null;
+                        let title = frontmatter.title || entry.entryName.replace(/\.md$/, '');
+                        let date = frontmatter.date || new Date().toISOString().split('T')[0];
+                        let tags = Array.isArray(frontmatter.tags) ? frontmatter.tags : [];
+                        let hidden = frontmatter.hidden === true || frontmatter.hidden === 'true';
+                        let locked = frontmatter.locked === true || frontmatter.locked === 'true';
+                        let lockPassword = frontmatter.lockPassword || '';
+                        
+                        // 如果 ID 已存在，跳过
+                        if (postId && existingIds.has(postId)) {
+                            skipped++;
+                            results.push({ file: entry.entryName, status: 'skipped', reason: 'ID 已存在' });
+                            continue;
+                        }
+                        
+                        // 分配新 ID
+                        if (!postId) {
+                            postId = nextId++;
+                        }
+                        
+                        // 保存文件
+                        const postData = {
+                            id: postId,
+                            title: title,
+                            date: date,
+                            tags: tags,
+                            hidden: hidden,
+                            locked: locked,
+                            lockPassword: lockPassword,
+                            content: body
+                        };
+                        
+                        savePost(postData);
+                        existingIds.add(postId);
+                        imported++;
+                        results.push({ file: entry.entryName, status: 'imported', id: postId, title: title });
+                    } catch (e) {
+                        failed++;
+                        results.push({ file: entry.entryName, status: 'failed', reason: e.message });
+                    }
+                }
+                
+                return jsonResponse(res, {
+                    message: '导入完成',
+                    imported: imported,
+                    skipped: skipped,
+                    failed: failed,
+                    total: entries.filter(e => !e.isDirectory && e.entryName.endsWith('.md') && e.entryName !== 'README.md').length,
+                    results: results
+                });
+            } catch (e) {
+                return jsonResponse(res, { error: '解压文件失败: ' + e.message }, 400);
+            }
         }
 
         // SPA fallback - 所有未匹配的路径返回 index.html

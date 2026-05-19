@@ -9,5 +9,9 @@
     "seed": "node scripts/seed.js",
     "reset": "node scripts/reset.js",
     "import": "node scripts/import.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.17",
+    "archiver": "^6.0.2"
   }
 }

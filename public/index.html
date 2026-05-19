@@ -1568,7 +1568,7 @@
                 <div style="display: flex; gap: 8px;">
                     <button class="admin-btn" style="padding: 4px 10px; font-size: 0.75em; color: var(--cyan); border-color: var(--cyan);" onclick="document.getElementById('importFile').click()" title="导入">↙️</button>
                     <button class="admin-btn" style="padding: 4px 10px; font-size: 0.75em;" onclick="exportPosts()" title="导出">↗️</button>
-                    <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importPosts(event)" />
+                    <input type="file" id="importFile" accept=".zip,.md,.tar,.gz" style="display:none;" onchange="importPosts(event)" />
                 </div>
             </div>
 
@@ -1973,9 +1973,10 @@
     }
 
 
-    // ============ 导出/导入 ============
+    // ============ 导出/导入 (ZIP 格式) ============
     async function exportPosts() {
         try {
+            showToast('正在导出文章...', 'info');
             var headers = { 'Content-Type': 'application/json' };
             if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
             var res = await fetch('/api/export', { headers: headers });
@@ -1987,12 +1988,12 @@
             var url = URL.createObjectURL(blob);
             var a = document.createElement('a');
             a.href = url;
-            a.download = 'blog-export-' + new Date().toISOString().split('T')[0] + '.json';
+            a.download = 'terminalblog-export-' + new Date().toISOString().split('T')[0] + '.zip';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            showToast('✅ 导出成功', 'success');
+            showToast('✅ 导出成功 (ZIP 格式)', 'success');
         } catch (err) {
             showToast('[ERROR] ' + escapeHtml(err.message), 'error');
         }
@@ -2002,17 +2003,74 @@
         var file = event.target.files[0];
         if (!file) return;
 
-        try {
-            var text = await file.text();
-            var data = JSON.parse(text);
-            if (!data.posts || !Array.isArray(data.posts)) {
-                throw new Error('无效的导出文件格式');
-            }
+        var fileName = file.name.toLowerCase();
+        var isZip = fileName.endsWith('.zip');
+        var isMarkdown = fileName.endsWith('.md');
 
-            showToast('确认导入？所有文章将被重新分配新的 ID。', 'info', [
-                { label: '确认', confirm: true, action: function() { doImport(data); } },
-                { label: '取消', action: function() {} }
-            ]);
+        try {
+            if (isZip) {
+                // ZIP 文件导入
+                showToast('正在处理 ZIP 文件...', 'info');
+                
+                // 读取文件为 base64
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var base64 = e.target.result;
+                    
+                    var headers = { 'Content-Type': 'application/json' };
+                    if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+                    
+                    fetch('/api/import', {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({ base64: base64 })
+                    }).then(function(res) {
+                        return res.json();
+                    }).then(function(result) {
+                        if (result.error) {
+                            showToast('[ERROR] ' + escapeHtml(result.error), 'error');
+                        } else {
+                            showToast('✅ 导入完成 (成功: ' + result.imported + ', 跳过: ' + result.skipped + ', 失败: ' + result.failed + ')', 'success');
+                            loadAdminPosts();
+                        }
+                    }).catch(function(err) {
+                        showToast('[ERROR] ' + escapeHtml(err.message), 'error');
+                    });
+                };
+                reader.readAsDataURL(file);
+            } else if (isMarkdown) {
+                // 单个 Markdown 文件导入 - 直接发送文本内容
+                var text = await file.text();
+                var headers = { 'Content-Type': 'application/json' };
+                if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+                
+                showToast('正在导入 Markdown 文件...', 'info');
+                
+                var res = await fetch('/api/import-markdown', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ content: text, filename: file.name })
+                });
+                var result = await res.json();
+                if (result.error) {
+                    showToast('[ERROR] ' + escapeHtml(result.error), 'error');
+                } else {
+                    showToast('✅ 导入完成 (成功: ' + result.imported + ', 跳过: ' + result.skipped + ', 失败: ' + result.failed + ')', 'success');
+                    loadAdminPosts();
+                }
+            } else {
+                // 尝试作为 JSON 处理（向后兼容）
+                var text = await file.text();
+                var data = JSON.parse(text);
+                if (data.posts && Array.isArray(data.posts)) {
+                    showToast('确认导入？所有文章将被重新分配新的 ID。', 'info', [
+                        { label: '确认', confirm: true, action: function() { doImport(data); } },
+                        { label: '取消', action: function() {} }
+                    ]);
+                } else {
+                    throw new Error('不支持的文件格式，请上传 .zip 或 .md 文件');
+                }
+            }
         } catch (err) {
             showToast('[ERROR] ' + escapeHtml(err.message), 'error');
         }
