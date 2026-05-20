@@ -2118,6 +2118,49 @@
         }
     }
 
+    // ============ 浏览器后退/前进按钮支持 ============
+    window.addEventListener('popstate', function(e) {
+        var path = window.location.pathname;
+        var search = window.location.search;
+        
+        // 解析 URL 并恢复对应视图
+        var postMatch = path.match(/^\/(\d+)\/?$/);
+        var params = new URLSearchParams(search);
+        var view = params.get('view');
+        var tag = params.get('tag');
+        
+        if (postMatch) {
+            // 文章详情页
+            var postId = postMatch[1];
+            currentView = 'post';
+            currentSlug = postId;
+            render();
+        } else if (view === 'tags') {
+            // 标签列表页
+            currentView = 'tags';
+            currentTag = null;
+            render();
+        } else if (view === 'tag' && tag) {
+            // 标签筛选页
+            currentView = 'tag';
+            currentTag = decodeURIComponent(tag);
+            render();
+        } else if (view === 'admin') {
+            // 管理后台
+            currentView = 'admin';
+            currentTag = null;
+            render();
+        } else {
+            // 首页
+            currentView = 'list';
+            currentTag = null;
+            currentSlug = null;
+            render();
+        }
+        
+        window.scrollTo(0, 0);
+    });
+
     // ============ Copy Code Button ============
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('copy-btn')) {
