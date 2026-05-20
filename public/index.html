@@ -2293,7 +2293,7 @@
 
         function draw() {
             // 尾巴加长
-            ctx.fillStyle = 'rgba(13, 17, 23, 0.025)';
+            ctx.fillStyle = 'rgba(13, 17, 23, 0.0025)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.font = '11px JetBrains Mono, monospace';
 
@@ -2310,7 +2310,12 @@
                     '%, ' +
                     (brightness * 0.85) +
                     ')';
-                ctx.fillText(char, i * 11, drops[i].y * 11);
+                // ctx.fillText(char, i * 11, drops[i].y * 11);
+                ctx.fillText(
+                    char,
+                    i * 11,
+                    Math.floor(drops[i].y) * 11
+                );
 
                 if (drops[i].y * 11 > canvas.height &&
                     Math.random() > 0.975) {
