@@ -2215,121 +2215,142 @@
     }
 
 
-    // // ============ Matrix Rain Background ============
-    // (function() {
-    //     var canvas = document.getElementById('matrix-bg');
-    //     if (!canvas) return;
-    //     var ctx = canvas.getContext('2d');
-    //     var cols, drops;
-
-    //     function resize() {
-    //         canvas.width = window.innerWidth;
-    //         canvas.height = window.innerHeight;
-    //         var fontSize = 11;
-    //         cols = Math.floor(canvas.width / fontSize);
-    //         drops = [];
-    //         for (var i = 0; i < cols; i++) {
-    //             drops[i] = Math.random() * -100;
-    //         }
-    //     }
-    //     resize();
-    //     window.addEventListener('resize', resize);
-
-    //     // var chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
-    //     var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    //     var hue = 140; // green hue
-
-    //     function draw() {
-    //         ctx.fillStyle = 'rgba(13, 17, 23, 0.04)';
-    //         ctx.fillRect(0, 0, canvas.width, canvas.height);
-    //         ctx.font = '11px JetBrains Mono, monospace';
-
-    //         for (var i = 0; i < cols; i++) {
-    //             var char = chars[Math.floor(Math.random() * chars.length)];
-    //             // Head column brighter, tail fading
-    //             var brightness = Math.random() > 0.90 ? 1 : 0.35;
-    //             ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + (45 + brightness * 75) + '%, ' + (brightness * 0.85) + ')';
-    //             ctx.fillText(char, i * 11, drops[i] * 11);
-
-    //             if (drops[i] * 11 > canvas.height && Math.random() > 0.975) {
-    //                 drops[i] = 0;
-    //             }
-    //             drops[i] += 0.19;
-    //         }
-    //     }
-
-    //     setInterval(draw, 28);
-    // })();
-
     // ============ Matrix Rain Background ============
     (function() {
         var canvas = document.getElementById('matrix-bg');
         if (!canvas) return;
         var ctx = canvas.getContext('2d');
+        
         var cols, drops;
+        var fontSize = 11;
+        var hue = 140; // 经典的黑客绿
 
+        // 字符集配置
+        var CHAR_SETS = {
+            matrix: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン',
+            latin: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+            binary: '01',
+            chinese: '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥'
+        };
+
+        // 模式控制: 'matrix' / 'latin' / 'binary' / 'chinese' / 'startup_random' / 'mixed_random'
+        var currentMode = 'startup_random';
+        
+        // 优化1：解耦启动模式变量，锁定初始化状态
+        var lockedMode = null; 
+
+        // 获取当前生命周期内应当使用的字符集
+        function getChars() {
+            // 如果是纯混合模式，每次调用都随机返回一个字符集
+            if (currentMode === 'mixed_random') {
+                var keys = Object.keys(CHAR_SETS);
+                return CHAR_SETS[keys[Math.floor(Math.random() * keys.length)]];
+            }
+
+            // 如果是启动随机模式
+            if (currentMode === 'startup_random') {
+                if (!lockedMode) {
+                    var keys = Object.keys(CHAR_SETS);
+                    // 50% 概率抽到某种固定模式，50% 概率抽到动态混合模式
+                    var pool = keys.concat(['mixed_random']); 
+                    lockedMode = pool[Math.floor(Math.random() * pool.length)];
+                }
+                
+                if (lockedMode === 'mixed_random') {
+                    var mixKeys = Object.keys(CHAR_SETS);
+                    return CHAR_SETS[mixKeys[Math.floor(Math.random() * mixKeys.length)]];
+                }
+                return CHAR_SETS[lockedMode];
+            }
+
+            // 固定模式
+            return CHAR_SETS[currentMode];
+        }
+
+        // 优化2：视口改变时保持现有粒子的属性，仅做增量计算，防止风格和画面断层
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            var fontSize = 11;
-            cols = Math.floor(canvas.width / fontSize);
+            
+            var newCols = Math.floor(canvas.width / fontSize);
+            var oldDrops = drops || [];
             drops = [];
 
-            for (var i = 0; i < cols; i++) {
-
-                // 每列独立速度
-                drops[i] = {
-                    y: Math.random() * -100,
-                    speed: 0.12 + Math.random() * 0.22
-                };
+            for (var i = 0; i < newCols; i++) {
+                // 如果原本该列已经有雨滴数据，直接继承，避免窗口缩放时画面闪烁
+                if (oldDrops[i]) {
+                    drops[i] = oldDrops[i];
+                } else {
+                    var chars = getChars();
+                    drops[i] = {
+                        y: Math.random() * -100,
+                        speed: 0.12 + Math.random() * 0.22,
+                        currentChar: chars[Math.floor(Math.random() * chars.length)],
+                        lastRow: -1,
+                        brightness: 0.35 // 优化4：初始化亮度基准
+                    };
+                }
             }
+            cols = newCols;
         }
+        
         resize();
         window.addEventListener('resize', resize);
 
-        var chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
-        // var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        var hue = 140;
-
         function draw() {
-            // 尾巴加长
-            ctx.fillStyle = 'rgba(13, 17, 23, 0.0025)';
+            // 拖尾渐变层（0.005 维持超长暗色尾迹）
+            ctx.fillStyle = 'rgba(13, 17, 23, 0.005)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.font = '11px JetBrains Mono, monospace';
+            
+            ctx.font = fontSize + 'px "JetBrains Mono", monospace';
 
             for (var i = 0; i < cols; i++) {
-                var char =
-                    chars[Math.floor(Math.random() * chars.length)];
-                var brightness =
-                    Math.random() > 0.90 ? 1 : 0.35;
-                ctx.fillStyle =
-                    'hsla(' +
-                    hue +
-                    ', 100%, ' +
-                    (45 + brightness * 75) +
-                    '%, ' +
-                    (brightness * 0.85) +
-                    ')';
-                // ctx.fillText(char, i * 11, drops[i].y * 11);
-                ctx.fillText(
-                    char,
-                    i * 11,
-                    Math.floor(drops[i].y) * 11
-                );
-
-                if (drops[i].y * 11 > canvas.height &&
-                    Math.random() > 0.975) {
-                    drops[i].y = 0;
-                    // 重置时重新随机速度
-                    drops[i].speed =
-                        0.12 + Math.random() * 0.22;
+                var drop = drops[i];
+                
+                // 雨滴向下平滑移动
+                drop.y += drop.speed;
+                var row = Math.floor(drop.y);
+                
+                // 跨行时才更换字符
+                if (row !== drop.lastRow) {
+                    drop.lastRow = row;
+                    var chars = getChars();
+                    drop.currentChar = chars[Math.floor(Math.random() * chars.length)];
                 }
-                // 使用独立速度
-                drops[i].y += drops[i].speed;
+
+                // 优化4：平滑高亮尾焰逻辑（替代原本突兀的每帧乱闪）
+                // 10% 概率触发高亮闪烁，否则向基准亮度（0.35）平滑淡出
+                if (Math.random() > 0.90) {
+                    drop.brightness = 1.0; 
+                } else {
+                    drop.brightness += (0.35 - drop.brightness) * 0.08; 
+                }
+
+                // 渲染字符：计算 HSLA 颜色
+                var lightness = 45 + drop.brightness * 55; // 亮度区间在 45% ~ 100% 之间
+                var alpha = drop.brightness * 0.85;        // 透明度跟随亮度变化
+                
+                ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + lightness + '%, ' + alpha + ')';
+                ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
+
+                // 越界重置逻辑
+                if (drop.y * fontSize > canvas.height && Math.random() > 0.975) {
+                    drop.y = 0;
+                    drop.lastRow = -1;
+                    drop.speed = 0.12 + Math.random() * 0.22;
+                    drop.brightness = 0.35;
+                }
             }
         }
 
-        setInterval(draw, 28);
+        // 优化3：使用 requestAnimationFrame 代替 setInterval，自动匹配显示器刷新率（60Hz/120Hz/144Hz）
+        function tick() {
+            draw();
+            requestAnimationFrame(tick);
+        }
+        
+        // 启动动画循环
+        requestAnimationFrame(tick);
     })();
 
 
