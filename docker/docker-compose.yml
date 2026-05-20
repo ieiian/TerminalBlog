@@ -30,7 +30,7 @@ services:
       # MATRIX_RAIN_STARTUP_RANDOM: true/false 是否开启启动随机切换模式
       - MATRIX_RAIN_STARTUP_RANDOM=true
       # MATRIX_RAIN_FIXED_MODE: 当 startup_random 为 false 时生效(1, 2, 3, 4, 1+2, 1+3...)
-      - MATRIX_RAIN_FIXED_MODE=1
+      - MATRIX_RAIN_FIXED_MODE=1+2
       # MATRIX_RAIN_RANDOM_POOL: 当 startup_random 为 true 时，参与随机抽签的候选池(1, 2, 3, 4, 1+2, 1+3...)
       - MATRIX_RAIN_RANDOM_POOL=1,1+2,3+4,1+2+3+4
     healthcheck:

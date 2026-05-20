@@ -27,9 +27,9 @@ const SITE_CONFIG = {
     // 1. 是否开启启动随机切换模式: true (每次刷新必换个花样) / false (固定走下方配置)
     matrixRainStartupRandom: ${MATRIX_RAIN_STARTUP_RANDOM:-true},
     // 2. 当 startup_random 为 false 时，生效的固定模式组合(1, 2, 3, 4, 1+2, 1+3...):
-    matrixRainFixedMode: '${MATRIX_RAIN_FIXED_MODE:-1}',
+    matrixRainFixedMode: '${MATRIX_RAIN_FIXED_MODE:-1+2}',
     // 3. 当 startup_random 为 true 时，参与随机抽签的候选池(1, 2, 3, 4, 1+2, 1+3...):
-    matrixRainRandomPool: [${MATRIX_RAIN_RANDOM_POOL:-"1", "1+2", "3+4", "1+2+3+4"}]
+    matrixRainRandomPool: [${MATRIX_RAIN_RANDOM_POOL:-1,1+2,3+4,1+2+3+4}]
 
 };
 

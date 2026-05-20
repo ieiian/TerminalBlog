@@ -2233,17 +2233,34 @@
             '4': '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥临兵斗者皆阵列在前'
         };
 
-        // 安全获取全局配置项
+        // ==========================================
+        // 1. 安全获取全局配置项并进行跨平台兼容（同时兼容本地与Docker环境）
+        // ==========================================
         var config = window.SITE_CONFIG || {};
-        var isStartupRandom = config.matrixRainStartupRandom === true;
-        var fixedMode = config.matrixRainFixedMode || '1';
-        var rainRandomPool = config.matrixRainRandomPool || ['1', '1+2', '3+4', '1+2+3+4'];
+        
+        // 兼容 Docker：同时判断真正的布尔值 true 和 字符串形式的 'true'
+        var isStartupRandom = config.matrixRainStartupRandom === true || config.matrixRainStartupRandom === 'true';
+        
+        // 确保转换为纯字符串类型，防止纯数字配置导致后续无法处理
+        var fixedMode = String(config.matrixRainFixedMode || '1');
+        
+        // 兼容 Docker：智能解构随机池
+        var rainRandomPool = ['1', '1+2', '3+4', '1+2+3+4']; // 声明默认兜底数组
+        if (config.matrixRainRandomPool) {
+            if (Array.isArray(config.matrixRainRandomPool)) {
+                // 情况 A（本地运行）：如果原本手写的就是真正的 JS 数组，直接使用
+                rainRandomPool = config.matrixRainRandomPool;
+            } else if (typeof config.matrixRainRandomPool === 'string') {
+                // 情况 B（Docker运行）：如果是被脚本注入成了逗号分隔的纯文本字符串 "1,1+2,3+4"，将其动态切开
+                rainRandomPool = config.matrixRainRandomPool.split(',');
+            }
+        }
 
         // 最终运行时被选中的模式（存储如：'1+2'）
         var activeMode = '1'; 
 
         // ==========================================
-        // 诉求优化：利用 SessionStorage 实现跨刷新绝对去重
+        // 2. 路由分流与去重抽签逻辑
         // ==========================================
         if (!isStartupRandom) {
             // 如果关闭随机，直接锁定用户配置的模式
@@ -2251,16 +2268,22 @@
         } else {
             // 从浏览器获取上一次运行的模式记录
             var lastMode = sessionStorage.getItem('matrix_rain_last_mode');
+            
             // 过滤候选池：剔除上一次的模式，防止连续刷新抽到同一种
             var filteredPool = rainRandomPool.filter(function(mode) {
-                return mode !== lastMode;
+                // 去除可能存在的首尾空格，防止 Docker 传参时带有额外空格导致比对失效
+                return mode.trim() !== (lastMode ? lastMode.trim() : '');
             });
+            
             // 容错处理：如果过滤后池子空了（比如配置里一共就写了一个模式），就用回原池
             if (filteredPool.length === 0) {
                 filteredPool = rainRandomPool;
             }
-            // 随机抽取一种
-            activeMode = filteredPool[Math.floor(Math.random() * filteredPool.length)];
+            
+            // 随机抽取一种，并去除可能残留的空格
+            var chosenMode = filteredPool[Math.floor(Math.random() * filteredPool.length)];
+            activeMode = typeof chosenMode === 'string' ? chosenMode.trim() : String(chosenMode);
+            
             // 将本次抽中的结果存入缓存，供下一次刷新时做比对排除
             sessionStorage.setItem('matrix_rain_last_mode', activeMode);
         }
