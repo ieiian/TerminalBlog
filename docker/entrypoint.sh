@@ -35,7 +35,10 @@ window.SITE_CONFIG = {
 
     // 3. 当 startup_random 为 true 时，参与随机抽签的候选池
     // 刷新时会从中随机挑一个（且绝对不与上一次相同）
-    matrixRainRandomPool: '${MATRIX_RAIN_RANDOM_POOL:-1,1+2,3+4,1+2+3+4}'
+    matrixRainRandomPool: '${MATRIX_RAIN_RANDOM_POOL:-1,1+2,3+4,1+2+3+4}',
+
+    // 4. 是否开启“佛”字特效（仅在包含“佛”字的模式下生效）
+    matrixRainEnableBuddhaEffect: '${MATRIX_RAIN_ENABLE_BUDDHA_EFFECT:-false}',
 };
 
 // 管理后台配置

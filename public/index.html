@@ -44,7 +44,8 @@
             inset: 0;
             pointer-events: none;
             z-index: -1;
-            opacity: 0.07;
+            /* 代码雨的整体不透明度，之前从 0.07 调整为 0.05 */
+            opacity: 0.05;
         }
 
         /* Scanline effect */
@@ -2225,12 +2226,17 @@
         var fontSize = 11;
         var hue = 140; // 经典的黑客绿
 
+        // 检测是否为移动端
+        var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        // 移动端使用更高的清除透明度，避免残影问题
+        var clearAlpha = isMobile ? 0.08 : 0.005;
+
         // 映射基础字符集
         var BASE_SETS = {
             '1': 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン',
             '2': '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
             '3': '01',
-            '4': '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥临兵斗者皆阵列在前'
+            '4': '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥临兵斗者皆阵列在前佛'
         };
 
         var config = window.SITE_CONFIG || {};
@@ -2303,7 +2309,7 @@
         window.addEventListener('resize', resize);
 
         function draw() {
-            ctx.fillStyle = 'rgba(13, 17, 23, 0.005)';
+            ctx.fillStyle = 'rgba(13, 17, 23, ' + clearAlpha + ')';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.font = fontSize + 'px "JetBrains Mono", monospace';
             for (var i = 0; i < cols; i++) {
@@ -2319,16 +2325,46 @@
                 } else {
                     drop.brightness += (0.35 - drop.brightness) * 0.08; 
                 }
-                // 九字真言符文检测
+
+                // ============================================================
+                // 【佛字特殊特效开关】 
+                // true  => 开启“佛”字发光及独立放大特效
+                // false => 关闭特效，“佛”字将作为普通字符处理（跟随普通字符的颜色和亮度）
+                // ============================================================
+                var enableBuddhaEffect = config.matrixRainEnableBuddhaEffect === true || config.matrixRainEnableBuddhaEffect === 'true'; 
+
+                // 特殊字符检测：九字真言
                 var isSpell = '临兵斗者皆阵列在前'.indexOf(drop.currentChar) !== -1;
-                if (isSpell) {
-                    ctx.fillStyle = 'hsla(45, 100%, 70%, 1)'; // 金黄色高亮
+                
+                // 只有在开关打开、且当前字符是“佛”时，才触发特效判断
+                var isBuddha = enableBuddhaEffect && drop.currentChar === '佛';
+
+                if (isBuddha) {
+                    // 【佛光普照特效】
+                    ctx.save(); // 保存当前画布状态
+                    ctx.fillStyle = '#FFFFFF'; // 佛字本身用纯白，看起来像在发光核心
+                    ctx.shadowColor = 'rgba(255, 215, 0, 1)'; // 金黄色佛光
+                    ctx.shadowBlur = 15; // 扩散半径，数值越大光晕越宽
+
+                    // 如果你想让佛字大一点，可以临时加大字体
+                    ctx.font = 'bold ' + (fontSize + 1) + 'px monospace';
+
+                    ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
+                    ctx.restore(); // 恢复画布状态，立即关闭发光和字体放大，不影响下一个字符
+
+                } else if (isSpell) {
+                    // 九字真言：金黄色
+                    ctx.fillStyle = 'hsla(45, 100%, 70%, 1)';
+                    ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
                 } else {
+                    // 普通字符（当开关关闭时，“佛”字也会自动走到这里，作为普通雨幕字符渲染）
                     var lightness = 45 + drop.brightness * 55;
                     var alpha = drop.brightness * 0.85;
                     ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + lightness + '%, ' + alpha + ')';
+                    ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
                 }
-                ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
+
+                // 下落及触底重置逻辑
                 if (drop.y * fontSize > canvas.height && Math.random() > 0.975) {
                     drop.y = 0;
                     drop.lastRow = -1;
