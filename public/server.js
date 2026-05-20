@@ -218,7 +218,7 @@ function getPostById(id) {
 
 function getNextPostId() {
     const posts = getAllPosts();
-    if (posts.length === 0) return 1;
+    if (posts.length === 0) return 1001;
     return Math.max(...posts.map(p => p.id)) + 1;
 }
 
@@ -739,7 +739,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             const { frontmatter, body } = parseFrontmatter(content);
             
             const existingIds = new Set(getAllPosts().map(p => p.id));
-            const maxId = existingIds.size > 0 ? Math.max(...existingIds) : 0;
+            const maxId = existingIds.size > 0 ? Math.max(...existingIds) : 1000;
             let nextId = maxId + 1;
             
             let postId = frontmatter.id ? parseInt(frontmatter.id) : null;
@@ -851,7 +851,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                 const entries = zip.getEntries();
                 
                 const existingIds = new Set(getAllPosts().map(p => p.id));
-                const maxId = existingIds.size > 0 ? Math.max(...existingIds) : 0;
+                const maxId = existingIds.size > 0 ? Math.max(...existingIds) : 1000;
                 let nextId = maxId + 1;
                 
                 let imported = 0;
