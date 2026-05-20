@@ -14,7 +14,10 @@ const SITE_CONFIG = {
     siteTitle: '${SITE_TITLE:-TerminalBlog}',
     welcomeMessage: '${WELCOME_MESSAGE:-欢迎来到我的终端博客}',
     siteUrl: '${SITE_URL:-}',
-    icpNumber: '${ICP_NUMBER:-}'
+    icpNumber: '${ICP_NUMBER:-}',
+
+    // 代码雨背景的模式控制: 'matrix' / 'latin' / 'binary' / 'chinese' / 'startup_random' / 'mixed_random'
+    matrixRainCurrentMode: '${MATRIX_RAIN_MODE:-startup_random}'
 };
 
 // 管理后台配置

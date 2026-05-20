@@ -2230,13 +2230,13 @@
             matrix: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン',
             latin: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
             binary: '01',
-            chinese: '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥'
+            chinese: '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥临兵斗者皆阵列在前',
         };
 
         // 模式控制: 'matrix' / 'latin' / 'binary' / 'chinese' / 'startup_random' / 'mixed_random'
-        var currentMode = 'startup_random';
-        
-        // 优化1：解耦启动模式变量，锁定初始化状态
+        var currentMode = SITE_CONFIG.matrixRainCurrentMode || 'startup_random';
+
+        // 解耦启动模式变量，锁定初始化状态
         var lockedMode = null; 
 
         // 获取当前生命周期内应当使用的字符集
@@ -2267,7 +2267,7 @@
             return CHAR_SETS[currentMode];
         }
 
-        // 优化2：视口改变时保持现有粒子的属性，仅做增量计算，防止风格和画面断层
+        // 视口改变时保持现有粒子的属性，仅做增量计算，防止风格和画面断层
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -2287,7 +2287,7 @@
                         speed: 0.12 + Math.random() * 0.22,
                         currentChar: chars[Math.floor(Math.random() * chars.length)],
                         lastRow: -1,
-                        brightness: 0.35 // 优化4：初始化亮度基准
+                        brightness: 0.35 // 初始化亮度基准
                     };
                 }
             }
@@ -2318,7 +2318,6 @@
                     drop.currentChar = chars[Math.floor(Math.random() * chars.length)];
                 }
 
-                // 优化4：平滑高亮尾焰逻辑（替代原本突兀的每帧乱闪）
                 // 10% 概率触发高亮闪烁，否则向基准亮度（0.35）平滑淡出
                 if (Math.random() > 0.90) {
                     drop.brightness = 1.0; 
@@ -2327,10 +2326,17 @@
                 }
 
                 // 渲染字符：计算 HSLA 颜色
-                var lightness = 45 + drop.brightness * 55; // 亮度区间在 45% ~ 100% 之间
-                var alpha = drop.brightness * 0.85;        // 透明度跟随亮度变化
-                
-                ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + lightness + '%, ' + alpha + ')';
+                // 判断当前字符是不是九字真言
+                var isSpell = '临兵斗者皆阵列在前'.indexOf(drop.currentChar) !== -1;
+                if (isSpell) {
+                    // 1. 如果是咒语字符：触发金色符文特效 (Hue 45 是金色/黄色)
+                    ctx.fillStyle = 'hsla(45, 100%, 70%, 1)'; 
+                } else {
+                    // 2. 如果是普通字符：走原有的阻尼绿色特效
+                    var lightness = 45 + drop.brightness * 55;
+                    var alpha = drop.brightness * 0.85;
+                    ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + lightness + '%, ' + alpha + ')';
+                }
                 ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
 
                 // 越界重置逻辑
@@ -2343,7 +2349,7 @@
             }
         }
 
-        // 优化3：使用 requestAnimationFrame 代替 setInterval，自动匹配显示器刷新率（60Hz/120Hz/144Hz）
+        // 使用 requestAnimationFrame 代替 setInterval，自动匹配显示器刷新率（60Hz/120Hz/144Hz）
         function tick() {
             draw();
             requestAnimationFrame(tick);
