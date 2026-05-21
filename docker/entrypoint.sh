@@ -29,15 +29,18 @@ window.SITE_CONFIG = {
     // 1. 是否开启启动随机切换模式: true (每次刷新必换个花样) / false (固定走下方配置)
     matrixRainStartupRandom: '${MATRIX_RAIN_STARTUP_RANDOM:-true}',
 
-    // 2. 当 startup_random 为 false 时，生效的固定模式组合。
-    // 填法示例: '1' (纯matrix), '1+2' (矩阵+英文), '1+2+3+4' (全家桶混合)
-    matrixRainFixedMode: '${MATRIX_RAIN_FIXED_MODE:-1+2}',
+    // 2. 随机选取算法模式 ('average' (等概率轮替) / 'decay' (断崖式梯度递减))
+    matrixRainRandomAlgorithm: '${MATRIX_RAIN_RANDOM_ALGORITHM:-average}',
 
     // 3. 当 startup_random 为 true 时，参与随机抽签的候选池
     // 刷新时会从中随机挑一个（且绝对不与上一次相同）
-    matrixRainRandomPool: '${MATRIX_RAIN_RANDOM_POOL:-1,1+2,3+4,1+2+3+4}',
+    matrixRainRandomPool: '${MATRIX_RAIN_RANDOM_POOL:-1,2,3,4,2+3,1+4,1+2+3+4}',
 
-    // 4. 是否开启“佛”字特效（仅在包含“佛”字的模式下生效）
+    // 4. 当 startup_random 为 false 时，生效的固定模式组合
+    // 填法示例: '1' (纯matrix), '1+2' (矩阵+英文), '1+2+3+4' (全家桶混合)
+    matrixRainFixedMode: '${MATRIX_RAIN_FIXED_MODE:-2+3}',
+
+    // 5. 是否开启“佛”字特效（仅在包含“佛”字的模式下生效）
     matrixRainEnableBuddhaEffect: '${MATRIX_RAIN_ENABLE_BUDDHA_EFFECT:-false}',
 };
 

@@ -2228,21 +2228,33 @@
 
         // 检测是否为移动端
         var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        // 移动端使用更高的清除透明度，避免残影问题
-        var clearAlpha = isMobile ? 0.08 : 0.005;
+        var clearAlpha = isMobile ? 0.05 : 0.005;
 
         // 映射基础字符集
         var BASE_SETS = {
             '1': 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン',
             '2': '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
             '3': '01',
-            '4': '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥临兵斗者皆阵列在前佛'
+            '4': '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥临兵斗者皆阵列在前天地神佛'
         };
 
+        // 获取全局配置
         var config = window.SITE_CONFIG || {};
         var isStartupRandom = config.matrixRainStartupRandom === true || config.matrixRainStartupRandom === 'true';
         var fixedMode = String(config.matrixRainFixedMode || '1');
-        var rainRandomPool = ['1', '1+2', '3+4', '1+2+3+4']; // 声明兜底默认数组
+
+        // 【新增参数控制】随机算法模式: 'average'(等概率) / 'decay'(指数递减概率)
+        var randomAlgorithm = config.matrixRainRandomAlgorithm || 'average';
+
+        // 默认兜底数组（为了体现梯度递减，默认池子可以配置更长，供算法筛选）
+        var rainRandomPool = ['1', '2', '3', '4', '2+3', '1+4', '1+2+3+4']; 
+
+        // 九字真言，作为特殊符号单独处理，增加辨识度和趣味性
+        var spellChars = '临兵斗者皆阵列在前';
+
+        // 佛字单独成一档，触发特殊效果
+        var buddhaChar = '佛';
+        var enableBuddhaEffect = config.matrixRainEnableBuddhaEffect === true || config.matrixRainEnableBuddhaEffect === 'true'; 
 
         if (config.matrixRainRandomPool) {
             if (Array.isArray(config.matrixRainRandomPool)) {
@@ -2257,19 +2269,36 @@
             activeMode = fixedMode;
         } else {
             var lastMode = sessionStorage.getItem('matrix_rain_last_mode');
+            
             var filteredPool = rainRandomPool.filter(function(mode) {
                 var modeStr = typeof mode === 'string' ? mode.trim() : String(mode);
                 var lastModeStr = lastMode ? lastMode.trim() : '';
                 return modeStr !== lastModeStr;
             });
+            
             if (filteredPool.length === 0) {
                 filteredPool = rainRandomPool;
             }
-            var chosenMode = filteredPool[Math.floor(Math.random() * filteredPool.length)];
+
+            // 核心算法分流层
+            var chosenMode = filteredPool[0]; // 默认兜底选第一个
+
+            if (randomAlgorithm === 'decay' && filteredPool.length > 1) {
+                var index = 0;
+                var maxIndex = filteredPool.length - 1;
+                
+                while (Math.random() < 0.50 && index < maxIndex) {
+                    index++;
+                }
+                chosenMode = filteredPool[index];
+            } else {
+                chosenMode = filteredPool[Math.floor(Math.random() * filteredPool.length)];
+            }
+
             activeMode = typeof chosenMode === 'string' ? chosenMode.trim() : String(chosenMode);
             sessionStorage.setItem('matrix_rain_last_mode', activeMode);
         }
-        console.log('当前雨幕运行模式确定为:', activeMode);
+        console.log('当前雨幕运行模式确定为:', activeMode, '【使用的是 ' + randomAlgorithm + ' 随机算法】');
 
         function getMixedChars(modeString) {
             var parts = modeString.split('+');
@@ -2280,7 +2309,7 @@
                     combined += BASE_SETS[key];
                 }
             }
-            return combined || BASE_SETS['1']; // 兜底返回模式1
+            return combined || BASE_SETS['1'];
         }
         var cachedCharPool = getMixedChars(activeMode);
 
@@ -2326,45 +2355,29 @@
                     drop.brightness += (0.35 - drop.brightness) * 0.08; 
                 }
 
-                // ============================================================
-                // 【佛字特殊特效开关】 
-                // true  => 开启“佛”字发光及独立放大特效
-                // false => 关闭特效，“佛”字将作为普通字符处理（跟随普通字符的颜色和亮度）
-                // ============================================================
-                var enableBuddhaEffect = config.matrixRainEnableBuddhaEffect === true || config.matrixRainEnableBuddhaEffect === 'true'; 
-
-                // 特殊字符检测：九字真言
-                var isSpell = '临兵斗者皆阵列在前'.indexOf(drop.currentChar) !== -1;
-                
-                // 只有在开关打开、且当前字符是“佛”时，才触发特效判断
-                var isBuddha = enableBuddhaEffect && drop.currentChar === '佛';
+                // var isSpell = '临兵斗者皆阵列在前'.indexOf(drop.currentChar) !== -1;
+                var isSpell = spellChars.indexOf(drop.currentChar) !== -1;
+                // var isBuddha = enableBuddhaEffect && drop.currentChar === '佛';
+                var isBuddha = enableBuddhaEffect && drop.currentChar === buddhaChar;
 
                 if (isBuddha) {
-                    // 【佛光普照特效】
-                    ctx.save(); // 保存当前画布状态
-                    ctx.fillStyle = '#FFFFFF'; // 佛字本身用纯白，看起来像在发光核心
-                    ctx.shadowColor = 'rgba(255, 215, 0, 1)'; // 金黄色佛光
-                    ctx.shadowBlur = 15; // 扩散半径，数值越大光晕越宽
-
-                    // 如果你想让佛字大一点，可以临时加大字体
+                    ctx.save();
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.shadowColor = 'rgba(255, 215, 0, 1)';
+                    ctx.shadowBlur = 15;
                     ctx.font = 'bold ' + (fontSize + 1) + 'px monospace';
-
                     ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
-                    ctx.restore(); // 恢复画布状态，立即关闭发光和字体放大，不影响下一个字符
-
+                    ctx.restore();
                 } else if (isSpell) {
-                    // 九字真言：金黄色
                     ctx.fillStyle = 'hsla(45, 100%, 70%, 1)';
                     ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
                 } else {
-                    // 普通字符（当开关关闭时，“佛”字也会自动走到这里，作为普通雨幕字符渲染）
                     var lightness = 45 + drop.brightness * 55;
                     var alpha = drop.brightness * 0.85;
                     ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + lightness + '%, ' + alpha + ')';
                     ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
                 }
 
-                // 下落及触底重置逻辑
                 if (drop.y * fontSize > canvas.height && Math.random() > 0.975) {
                     drop.y = 0;
                     drop.lastRow = -1;
