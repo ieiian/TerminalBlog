@@ -15,6 +15,8 @@ const SITE_CONFIG = {
     welcomeMessage: '${WELCOME_MESSAGE:-欢迎来到我的终端博客}',
     siteUrl: '${SITE_URL:-}',
     icpNumber: '${ICP_NUMBER:-}',
+    maxUploadSizeBlogfilesMB: ${MAX_UPLOAD_BLOGFILES_MB:-100},
+    maxUploadSizeBlogimgsMB: ${MAX_UPLOAD_BLOGIMGS_MB:-10},
 };
 
 window.SITE_CONFIG = {

@@ -18,6 +18,48 @@ const PUBLIC_DIR = __dirname;
 const MARKDOWN_DIR = process.env.MARKDOWN_DIR || path.join(__dirname, '..', 'Markdown');
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123';
+const CONFIG_JS_PATH = path.join(PUBLIC_DIR, 'config.js');
+
+// 默认上传大小限制（字节）
+const DEFAULT_MAX_UPLOAD_BLOGFILES = 100 * 1024 * 1024;
+const DEFAULT_MAX_UPLOAD_BLOGIMGS = 10 * 1024 * 1024;
+
+// 从 config.js 解析上传大小限制（MB），未配置则使用默认值
+function loadUploadLimits() {
+    const limits = {
+        blogfiles: DEFAULT_MAX_UPLOAD_BLOGFILES,
+        blogimgs: DEFAULT_MAX_UPLOAD_BLOGIMGS
+    };
+    try {
+        if (!fs.existsSync(CONFIG_JS_PATH)) {
+            return limits;
+        }
+        const content = fs.readFileSync(CONFIG_JS_PATH, 'utf8');
+        const blogfilesMatch = content.match(/maxUploadSizeBlogfilesMB\s*:\s*(\d+)/);
+        const blogimgsMatch = content.match(/maxUploadSizeBlogimgsMB\s*:\s*(\d+)/);
+        if (blogfilesMatch) {
+            const mb = parseInt(blogfilesMatch[1], 10);
+            if (mb > 0) limits.blogfiles = mb * 1024 * 1024;
+        }
+        if (blogimgsMatch) {
+            const mb = parseInt(blogimgsMatch[1], 10);
+            if (mb > 0) limits.blogimgs = mb * 1024 * 1024;
+        }
+    } catch (e) {
+        console.error('读取上传限制配置失败，使用默认值:', e);
+    }
+    return limits;
+}
+
+function getMaxUploadSize(folder) {
+    const limits = loadUploadLimits();
+    return folder === 'blogimgs' ? limits.blogimgs : limits.blogfiles;
+}
+
+function formatMaxUploadHint(folder) {
+    const bytes = getMaxUploadSize(folder);
+    return formatFileSize(bytes);
+}
 
 // ==================== 工具函数 ====================
 function escapeHtml(str) {
@@ -176,6 +218,107 @@ function getRemoteFileList(remoteRef, logs) {
         timeout: 30000
     });
     return output.toString('utf8').split('\0').filter(Boolean);
+}
+
+// 递归收集本地 Markdown 目录下的相对文件路径（排除 .git）
+function getLocalFileList() {
+    const markdownRoot = path.resolve(MARKDOWN_DIR);
+    const results = [];
+
+    function walk(currentDir, prefix) {
+        const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+        for (const entry of entries) {
+            if (entry.name === '.git') continue;
+            const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+            const fullPath = path.join(currentDir, entry.name);
+            const resolved = path.resolve(fullPath);
+            if (!resolved.startsWith(markdownRoot + path.sep) && resolved !== markdownRoot) {
+                continue;
+            }
+            if (entry.isDirectory()) {
+                walk(fullPath, relPath);
+            } else if (entry.isFile()) {
+                results.push(relPath.replace(/\\/g, '/'));
+            }
+        }
+    }
+
+    if (!fs.existsSync(MARKDOWN_DIR)) {
+        return [];
+    }
+    walk(MARKDOWN_DIR, '');
+    return results.sort();
+}
+
+// 对比本地与远程文件列表，并统计同名文件内容是否一致（只读分析）
+function buildFileCompareReport(localFiles, remoteFiles, remoteRef, logs) {
+    const localSet = new Set(localFiles);
+    const remoteSet = new Set(remoteFiles);
+    const both = localFiles.filter((f) => remoteSet.has(f));
+    const localOnly = localFiles.filter((f) => !remoteSet.has(f));
+    const remoteOnly = remoteFiles.filter((f) => !localSet.has(f));
+
+    const identical = [];
+    const contentDiff = [];
+
+    for (const relPath of both) {
+        const normalizedFile = path.normalize(relPath);
+        const localPath = path.resolve(MARKDOWN_DIR, normalizedFile);
+        const markdownRoot = path.resolve(MARKDOWN_DIR);
+        if (
+            path.isAbsolute(relPath) ||
+            normalizedFile.startsWith('..') ||
+            !localPath.startsWith(markdownRoot + path.sep)
+        ) {
+            contentDiff.push({ path: relPath, reason: '路径异常，跳过内容比对' });
+            continue;
+        }
+        try {
+            const localHash = crypto
+                .createHash('sha256')
+                .update(fs.readFileSync(localPath))
+                .digest('hex');
+            const remoteBuffer = execFileSync('git', ['show', `${remoteRef}:${relPath}`], {
+                cwd: MARKDOWN_DIR,
+                env: getGitEnv(),
+                stdio: 'pipe',
+                timeout: 30000,
+                maxBuffer: 50 * 1024 * 1024
+            });
+            const remoteHash = crypto.createHash('sha256').update(remoteBuffer).digest('hex');
+            if (localHash === remoteHash) {
+                identical.push(relPath);
+            } else {
+                contentDiff.push({ path: relPath, reason: '内容不一致' });
+            }
+        } catch (e) {
+            contentDiff.push({ path: relPath, reason: e.message || '内容比对失败' });
+        }
+    }
+
+    logs.push({
+        type: 'stdout',
+        text:
+            `对比完成：本地 ${localFiles.length} 个，远程 ${remoteFiles.length} 个，` +
+            `路径重复 ${both.length} 个（内容相同 ${identical.length}，内容不同 ${contentDiff.length}），` +
+            `仅本地 ${localOnly.length} 个，仅远程 ${remoteOnly.length} 个。`
+    });
+
+    return {
+        branch: remoteRef.replace(/^origin\//, ''),
+        localCount: localFiles.length,
+        remoteCount: remoteFiles.length,
+        bothCount: both.length,
+        identicalCount: identical.length,
+        contentDiffCount: contentDiff.length,
+        localOnlyCount: localOnly.length,
+        remoteOnlyCount: remoteOnly.length,
+        localOnly,
+        remoteOnly,
+        both,
+        identical,
+        contentDiff
+    };
 }
 
 function importRemoteFilesToLocal(remoteRef, preferRemote, logs) {
@@ -529,8 +672,17 @@ async function handleRequest(req, res) {
         return;
     }
 
-    // 静态文件服务
-    if (pathname.startsWith('/public/') || pathname.endsWith('.js') || pathname.endsWith('.css') || pathname.endsWith('.html')) {
+    // 静态文件服务（仅 GET；API 与博客资源路径不得按扩展名误判为静态文件）
+    const isStaticAssetRequest =
+        method === 'GET' &&
+        !pathname.startsWith('/api/') &&
+        !pathname.startsWith('/blogfiles/') &&
+        !pathname.startsWith('/blogimgs/') &&
+        (pathname.startsWith('/public/') ||
+            pathname.endsWith('.js') ||
+            pathname.endsWith('.css') ||
+            pathname.endsWith('.html'));
+    if (isStaticAssetRequest) {
         let filePath;
         if (pathname.startsWith('/public/')) {
             filePath = path.join(__dirname, pathname);
@@ -1128,6 +1280,23 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
         }
 
         // ============ 文件管理 API ============
+        // 获取上传大小限制（与 config.js 同步）
+        if (pathname === '/api/files/limits' && method === 'GET') {
+            const limits = loadUploadLimits();
+            return jsonResponse(res, {
+                blogfiles: {
+                    maxBytes: limits.blogfiles,
+                    maxMB: Math.round(limits.blogfiles / (1024 * 1024)),
+                    hint: formatMaxUploadHint('blogfiles')
+                },
+                blogimgs: {
+                    maxBytes: limits.blogimgs,
+                    maxMB: Math.round(limits.blogimgs / (1024 * 1024)),
+                    hint: formatMaxUploadHint('blogimgs')
+                }
+            });
+        }
+
         // 获取文件列表
         const filesMatch = pathname.match(/^\/api\/files\/(\w+)$/);
         if (filesMatch && method === 'GET') {
@@ -1166,18 +1335,28 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             const contentType = req.headers['content-type'] || '';
             let data = [];
             let totalSize = 0;
-            const MAX_SIZE = 50 * 1024 * 1024; // 50MB 限制
+            const MAX_SIZE = getMaxUploadSize(folder);
+            const maxHint = formatMaxUploadHint(folder);
+            let sizeLimitExceeded = false;
             
             req.on('data', chunk => {
+                if (sizeLimitExceeded) return;
                 totalSize += chunk.length;
                 if (totalSize > MAX_SIZE) {
+                    sizeLimitExceeded = true;
                     req.destroy();
-                    return jsonResponse(res, { error: '文件大小超过限制 (最大 50MB)' }, 413);
+                    if (!res.headersSent) {
+                        return jsonResponse(res, { error: `文件大小超过限制 (最大 ${maxHint})` }, 413);
+                    }
+                    return;
                 }
                 data.push(chunk);
             });
             
             req.on('end', () => {
+                if (sizeLimitExceeded || res.headersSent) {
+                    return;
+                }
                 try {
                     const buffer = Buffer.concat(data);
                     const contentTypeHeader = contentType;
@@ -1595,6 +1774,124 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             } catch (err) {
                 logs.push({ type: 'stderr', text: '执行同步动作崩溃: ' + err.message });
                 return handleSyncError('执行同步动作崩溃: ' + err.message, 500);
+            }
+        }
+
+        // 5. 本地与远程文件对比检查（只读，不修改工作区与远程仓库）
+        if (pathname === '/api/git/compare' && method === 'POST') {
+            const logs = [];
+            try {
+                const config = loadGitConfig();
+                if (!config.repositoryUrl) {
+                    return jsonResponse(res, { error: '请先配置远程仓库 URL' }, 400);
+                }
+
+                const targetBranch = config.branch || 'markdown';
+                logs.push({ type: 'stdout', text: '开始对比检查（只读模式，不会推送、拉取或写入任何文章文件）...' });
+
+                if (!fs.existsSync(MARKDOWN_DIR)) {
+                    fs.mkdirSync(MARKDOWN_DIR, { recursive: true });
+                }
+
+                const localFiles = getLocalFileList();
+                logs.push({ type: 'stdout', text: `已扫描本地 Markdown 目录，共 ${localFiles.length} 个文件。` });
+
+                if (!fs.existsSync(path.join(MARKDOWN_DIR, '.git'))) {
+                    logs.push({
+                        type: 'stderr',
+                        text: '本地尚未初始化 Git 仓库，无法获取远程分支文件树。请先保存配置并执行一次连接测试或同步初始化。'
+                    });
+                    return jsonResponse(
+                        res,
+                        {
+                            success: false,
+                            error: '本地 Git 未初始化，无法对比远程文件列表',
+                            report: {
+                                localCount: localFiles.length,
+                                remoteCount: 0,
+                                bothCount: 0,
+                                localOnlyCount: localFiles.length,
+                                remoteOnlyCount: 0,
+                                localOnly: localFiles
+                            },
+                            logs
+                        },
+                        400
+                    );
+                }
+
+                let currentRemote = '';
+                try {
+                    currentRemote = execSync('git remote get-url origin', {
+                        cwd: MARKDOWN_DIR,
+                        stdio: 'pipe'
+                    })
+                        .toString('utf8')
+                        .trim();
+                } catch (e) {}
+
+                if (!currentRemote) {
+                    runCommandAndLog(`git remote add origin "${config.repositoryUrl}"`, MARKDOWN_DIR, logs);
+                } else if (currentRemote !== config.repositoryUrl) {
+                    runCommandAndLog(`git remote set-url origin "${config.repositoryUrl}"`, MARKDOWN_DIR, logs);
+                }
+
+                const fetchSuccess = runCommandAndLog('git fetch origin', MARKDOWN_DIR, logs);
+                if (!fetchSuccess) {
+                    return jsonResponse(
+                        res,
+                        { success: false, error: '获取远程文件列表失败，请检查网络或 SSH 权限', logs },
+                        400
+                    );
+                }
+
+                let hasRemoteBranch = false;
+                try {
+                    execSync(`git rev-parse "origin/${targetBranch}"`, {
+                        cwd: MARKDOWN_DIR,
+                        stdio: 'ignore'
+                    });
+                    hasRemoteBranch = true;
+                } catch (e) {}
+
+                if (!hasRemoteBranch) {
+                    logs.push({
+                        type: 'stderr',
+                        text: `远程仓库上不存在分支 "${targetBranch}"，无法完成对比。`
+                    });
+                    return jsonResponse(
+                        res,
+                        {
+                            success: false,
+                            error: `远程分支 "${targetBranch}" 不存在`,
+                            report: {
+                                branch: targetBranch,
+                                localCount: localFiles.length,
+                                remoteCount: 0,
+                                bothCount: 0,
+                                localOnlyCount: localFiles.length,
+                                remoteOnlyCount: 0,
+                                localOnly: localFiles
+                            },
+                            logs
+                        },
+                        400
+                    );
+                }
+
+                const remoteRef = `origin/${targetBranch}`;
+                const remoteFiles = getRemoteFileList(remoteRef, logs);
+                const report = buildFileCompareReport(localFiles, remoteFiles, remoteRef, logs);
+
+                return jsonResponse(res, {
+                    success: true,
+                    message: '对比检查完成（未对本地文章或远程仓库做任何修改）',
+                    report,
+                    logs
+                });
+            } catch (err) {
+                logs.push({ type: 'stderr', text: '对比检查失败: ' + err.message });
+                return jsonResponse(res, { success: false, error: '对比检查失败: ' + err.message, logs }, 500);
             }
         }
 

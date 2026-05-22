@@ -809,6 +809,26 @@
             padding-bottom: 6px;
             font-weight: bold;
         }
+        .git-panel-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+        }
+        .git-panel-title-row .git-panel-title {
+            margin-bottom: 0;
+            border-bottom: none;
+            padding-bottom: 0;
+            flex: 1;
+        }
+        .git-panel-title-row .git-btn {
+            flex-shrink: 0;
+            font-size: 0.75em;
+            padding: 4px 10px;
+        }
         .git-form-group {
             margin-bottom: 12px;
         }
@@ -1537,8 +1557,41 @@
             clearAuth();
             throw new Error('需要重新登录');
         }
-        if (!res.ok) throw new Error(`API Error: ${res.status}`);
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: res.statusText }));
+            throw new Error(err.error || `API Error: ${res.status}`);
+        }
         return res.json();
+    }
+
+    // 从 SITE_CONFIG 读取上传大小上限（字节）
+    function getUploadMaxBytes(folder) {
+        var cfg = typeof SITE_CONFIG !== 'undefined' ? SITE_CONFIG : {};
+        var mb = folder === 'blogimgs'
+            ? (cfg.maxUploadSizeBlogimgsMB != null ? cfg.maxUploadSizeBlogimgsMB : 10)
+            : (cfg.maxUploadSizeBlogfilesMB != null ? cfg.maxUploadSizeBlogfilesMB : 100);
+        mb = Number(mb);
+        if (!mb || mb <= 0) {
+            mb = folder === 'blogimgs' ? 10 : 100;
+        }
+        return mb * 1024 * 1024;
+    }
+
+    function formatBytesHint(bytes) {
+        if (bytes >= 1024 * 1024 * 1024) {
+            return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+        }
+        if (bytes >= 1024 * 1024) {
+            return Math.round(bytes / (1024 * 1024)) + ' MB';
+        }
+        if (bytes >= 1024) {
+            return Math.round(bytes / 1024) + ' KB';
+        }
+        return bytes + ' B';
+    }
+
+    function getUploadMaxHint(folder) {
+        return formatBytesHint(getUploadMaxBytes(folder));
     }
 
     async function apiPut(path, data) {
@@ -3016,7 +3069,7 @@
                              'ondrop="handleFileDrop(event, \'blogfiles\')">' +
                             '<input type="file" id="blogfilesUpload" multiple onchange="handleFileUpload(event, \'blogfiles\')" style="display:none;" />' +
                             '<label style="cursor:pointer;">点击或拖拽文件到此处上传</label>' +
-                            '<div class="hint">支持任意格式文件</div>' +
+                            '<div class="hint" id="blogfilesUploadHint">支持任意格式文件，单文件最大 ' + getUploadMaxHint('blogfiles') + '</div>' +
                         '</div>' +
                         '<div class="file-upload-progress" id="blogfilesUploadProgress">' +
                             '<div class="file-upload-progress-info">' +
@@ -3040,7 +3093,7 @@
                              'ondrop="handleFileDrop(event, \'blogimgs\')">' +
                             '<input type="file" id="blogimgsUpload" multiple accept="image/*" onchange="handleFileUpload(event, \'blogimgs\')" style="display:none;" />' +
                             '<label style="cursor:pointer;">点击或拖拽图片到此处上传</label>' +
-                            '<div class="hint">支持 jpg, png, gif, webp 等格式</div>' +
+                            '<div class="hint" id="blogimgsUploadHint">支持 jpg, png, gif, webp 等格式，单文件最大 ' + getUploadMaxHint('blogimgs') + '</div>' +
                         '</div>' +
                         '<div class="file-upload-progress" id="blogimgsUploadProgress">' +
                             '<div class="file-upload-progress-info">' +
@@ -3135,6 +3188,15 @@
     }
     
     async function uploadMultipleFiles(files, folder) {
+        var maxBytes = getUploadMaxBytes(folder);
+        var maxHint = getUploadMaxHint(folder);
+        for (var j = 0; j < files.length; j++) {
+            if ((files[j].size || 0) > maxBytes) {
+                showToast('[ERROR] ' + files[j].name + ' 超过大小限制（最大 ' + maxHint + '）', 'error');
+                return;
+            }
+        }
+
         var totalBytes = 0;
         for (var i = 0; i < files.length; i++) {
             totalBytes += files[i].size || 0;
@@ -3227,6 +3289,14 @@
     }
     
     async function uploadFile(file, folder, onProgress) {
+        var maxBytes = getUploadMaxBytes(folder);
+        var maxHint = getUploadMaxHint(folder);
+        if ((file.size || 0) > maxBytes) {
+            var sizeErr = file.name + ' 超过大小限制（最大 ' + maxHint + '）';
+            showToast('[ERROR] ' + sizeErr, 'error');
+            return Promise.reject(new Error(sizeErr));
+        }
+
         return new Promise(function(resolve, reject) {
             var formData = new FormData();
             formData.append('file', file);
@@ -3355,7 +3425,10 @@
                         
                         '<!-- 同步操作面板 -->'+
                         '<div class="git-panel">' +
-                            '<div class="git-panel-title">🔄 同步策略控制</div>' +
+                            '<div class="git-panel-title-row">' +
+                                '<div class="git-panel-title">🔄 同步策略控制</div>' +
+                                '<button class="git-btn" id="btnGitCompare" onclick="runGitCompareCheck()">对比检查</button>' +
+                            '</div>' +
                             
                             '<!-- 远程增量至本地 -->' +
                             '<div class="git-strategy-card">' +
@@ -3561,6 +3634,102 @@
         }
     }
     
+    async function runGitCompareCheck() {
+        if (isSyncing) return;
+
+        setSyncingState(true);
+        clearTerminal();
+        writeTerminalLog('info', '正在执行本地与远程文件对比检查（只读，不会修改任何文件）...');
+
+        try {
+            var response = await fetch('/api/git/compare', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': authToken ? 'Bearer ' + authToken : ''
+                },
+                body: JSON.stringify({})
+            });
+            var result = await response.json();
+
+            await renderLogsGradually(result.logs || []);
+
+            if (!response.ok || !result.success) {
+                if (result.report) {
+                    renderGitCompareReport(result.report, true);
+                }
+                showToast('❌ 对比检查未完成：' + (result.error || '请查看终端输出'), 'error');
+                return;
+            }
+
+            setTimeout(function() {
+                writeTerminalLog('stdout', '\n📊 ' + (result.message || '对比检查完成'));
+                if (result.report) {
+                    renderGitCompareReport(result.report, false);
+                }
+                showToast('📊 对比检查完成', 'success');
+            }, (result.logs || []).length * 150 + 100);
+        } catch (err) {
+            writeTerminalLog('stderr', '[ERROR] 对比检查通信异常: ' + err.message);
+            showToast('❌ 对比检查失败', 'error');
+        } finally {
+            setTimeout(function() {
+                setSyncingState(false);
+            }, 500);
+        }
+    }
+
+    function renderGitCompareReport(report, partial) {
+        if (!report) return;
+
+        var lines = [];
+        lines.push('════════ 文件对比报告 ' + (partial ? '(部分数据) ' : '') + '════════');
+        if (report.branch) {
+            lines.push('对比分支: origin/' + report.branch);
+        }
+        lines.push('本地文件总数: ' + (report.localCount ?? 0));
+        lines.push('远程文件总数: ' + (report.remoteCount ?? 0));
+        lines.push('路径重复（两边都有）: ' + (report.bothCount ?? 0));
+        if (report.identicalCount !== undefined) {
+            lines.push('  ├─ 内容相同: ' + report.identicalCount);
+            lines.push('  └─ 内容不同: ' + (report.contentDiffCount ?? 0));
+        }
+        lines.push('仅存在于本地: ' + (report.localOnlyCount ?? 0));
+        lines.push('仅存在于远程: ' + (report.remoteOnlyCount ?? 0));
+
+        function appendList(title, items, maxShow) {
+            if (!items || !items.length) return;
+            lines.push('');
+            lines.push(title + ' (' + items.length + '):');
+            var show = items.slice(0, maxShow || 30);
+            show.forEach(function(f) {
+                lines.push('  • ' + f);
+            });
+            if (items.length > show.length) {
+                lines.push('  ... 另有 ' + (items.length - show.length) + ' 个未列出');
+            }
+        }
+
+        appendList('仅本地文件', report.localOnly);
+        appendList('仅远程文件', report.remoteOnly);
+        if (report.contentDiff && report.contentDiff.length) {
+            lines.push('');
+            lines.push('路径重复但内容不同 (' + report.contentDiff.length + '):');
+            report.contentDiff.slice(0, 20).forEach(function(item) {
+                lines.push('  • ' + item.path + (item.reason ? ' — ' + item.reason : ''));
+            });
+            if (report.contentDiff.length > 20) {
+                lines.push('  ... 另有 ' + (report.contentDiff.length - 20) + ' 个未列出');
+            }
+        }
+        appendList('路径重复且内容相同', report.identical, 15);
+
+        lines.push('════════════════════════════════════');
+        lines.forEach(function(line) {
+            writeTerminalLog('info', line);
+        });
+    }
+
     function confirmGitSync(action) {
         if (isSyncing) return;
         
@@ -3655,6 +3824,7 @@
         var btnRemoteRemoteFirst = document.getElementById('btnGitRemoteRemoteFirst');
         var btnPush = document.getElementById('btnGitPush');
         var btnPull = document.getElementById('btnGitPull');
+        var btnCompare = document.getElementById('btnGitCompare');
         var testBtn = document.getElementById('gitTestBtn');
         var saveBtn = document.getElementById('gitSaveBtn');
         var statusSpan = document.getElementById('gitTerminalStatus');
@@ -3663,6 +3833,7 @@
         if (btnRemoteRemoteFirst) btnRemoteRemoteFirst.disabled = syncing;
         if (btnPush) btnPush.disabled = syncing;
         if (btnPull) btnPull.disabled = syncing;
+        if (btnCompare) btnCompare.disabled = syncing;
         if (testBtn) testBtn.disabled = syncing;
         if (saveBtn) saveBtn.disabled = syncing;
         
