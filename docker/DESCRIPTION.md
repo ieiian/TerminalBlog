@@ -97,13 +97,18 @@ services:
       - ADMIN_USER=admin
       - ADMIN_PASS=admin123
       # 字符雨参数配置
+      # MATRIX_RAIN_STARTUP_RANDOM: true/false 是否开启启动随机切换模式
       - MATRIX_RAIN_STARTUP_RANDOM=true
+      # 控制算法开关：想用等概率就写 average，想用递减概率就写 decay
       - MATRIX_RAIN_RANDOM_ALGORITHM=decay
+      # MATRIX_RAIN_RANDOM_POOL: 当 startup_random 为 true 时，参与随机抽签的候选池(1, 2, 3, 4, 1+2, 1+3...)
       - MATRIX_RAIN_RANDOM_POOL=1,2,3,4,2+3,1+4,1+2+3+4
+      # MATRIX_RAIN_FIXED_MODE: 当 startup_random 为 false 时生效(1, 2, 3, 4, 1+2, 1+3...)
       - MATRIX_RAIN_FIXED_MODE=2+3
+      # MATRIX_RAIN_ENABLE_BUDDHA_EFFECT: 是否开启“佛”字特效（true/false）
       - MATRIX_RAIN_ENABLE_BUDDHA_EFFECT=true
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8788/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8788/"]
       interval: 30s
       timeout: 10s
       retries: 3
