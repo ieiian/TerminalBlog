@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const archiver = require('archiver');
-const { execSync } = require('child_process');
+const { execFileSync, execSync } = require('child_process');
 
 // ==================== 配置 ====================
 const GIT_CONFIG_PATH = path.join(__dirname, '..', 'git_config.json');
@@ -165,6 +165,64 @@ function runCommandAndLog(cmd, cwd, logs) {
         logs.push({ type: 'stderr', text: errorMsg });
         return false;
     }
+}
+
+function getRemoteFileList(remoteRef, logs) {
+    logs.push({ type: 'command', text: `> git ls-tree -r -z --name-only "${remoteRef}"` });
+    const output = execFileSync('git', ['ls-tree', '-r', '-z', '--name-only', remoteRef], {
+        cwd: MARKDOWN_DIR,
+        env: getGitEnv(),
+        stdio: 'pipe',
+        timeout: 30000
+    });
+    return output.toString('utf8').split('\0').filter(Boolean);
+}
+
+function importRemoteFilesToLocal(remoteRef, preferRemote, logs) {
+    const files = getRemoteFileList(remoteRef, logs);
+    const markdownRoot = path.resolve(MARKDOWN_DIR);
+    let added = 0;
+    let overwritten = 0;
+    let skipped = 0;
+
+    for (const remoteFile of files) {
+        const normalizedFile = path.normalize(remoteFile);
+        const localPath = path.resolve(MARKDOWN_DIR, normalizedFile);
+        if (path.isAbsolute(remoteFile) || normalizedFile.startsWith('..') || !localPath.startsWith(markdownRoot + path.sep)) {
+            logs.push({ type: 'stderr', text: `跳过异常路径: ${remoteFile}` });
+            skipped++;
+            continue;
+        }
+
+        const localExists = fs.existsSync(localPath);
+        if (localExists && !preferRemote) {
+            skipped++;
+            continue;
+        }
+
+        const fileBuffer = execFileSync('git', ['show', `${remoteRef}:${remoteFile}`], {
+            cwd: MARKDOWN_DIR,
+            env: getGitEnv(),
+            stdio: 'pipe',
+            timeout: 30000,
+            maxBuffer: 50 * 1024 * 1024
+        });
+        fs.mkdirSync(path.dirname(localPath), { recursive: true });
+        fs.writeFileSync(localPath, fileBuffer);
+
+        if (localExists) {
+            overwritten++;
+        } else {
+            added++;
+        }
+    }
+
+    logs.push({
+        type: 'stdout',
+        text: `远程文件处理完成：新增 ${added} 个，覆盖 ${overwritten} 个，跳过 ${skipped} 个。`
+    });
+
+    return { total: files.length, added, overwritten, skipped };
 }
 
 function jsonResponse(res, data, status = 200) {
@@ -1351,9 +1409,9 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             const logs = [];
             try {
                 const body = await readJsonBody(req);
-                const action = body.action; // 'push' | 'pull' | 'merge'
+                const action = body.action; // 'push' | 'pull' | 'remoteToLocalLocalFirst' | 'remoteToLocalRemoteFirst'
 
-                if (!['push', 'pull', 'merge'].includes(action)) {
+                if (!['push', 'pull', 'remoteToLocalLocalFirst', 'remoteToLocalRemoteFirst'].includes(action)) {
                     return jsonResponse(res, { error: '无效的同步动作' }, 400);
                 }
 
@@ -1476,7 +1534,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
 
                     if (!hasRemoteBranch) {
                         logs.push({ type: 'stderr', text: `❌ [ERROR] 远程仓库上不存在分支 "${targetBranch}"，无法执行远程覆盖本地。` });
-                        return jsonResponse(res, { success: false, error: `远程分支 "${targetBranch}" 不存在。您必须先使用“双向合并”或“本地覆盖远程”初始化创建该远程分支。`, logs }, 400);
+                        return jsonResponse(res, { success: false, error: `远程分支 "${targetBranch}" 不存在。您必须先使用“本地覆盖远程”初始化创建该远程分支。`, logs }, 400);
                     }
 
                     let resetSuccess = runCommandAndLog(`git reset --hard "origin/${targetBranch}"`, MARKDOWN_DIR, logs);
@@ -1488,11 +1546,14 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     }
                 }
 
-                if (action === 'merge') {
-                    // 双向智能合并 (Merge)
+                if (action === 'remoteToLocalLocalFirst' || action === 'remoteToLocalRemoteFirst') {
+                    const preferRemote = action === 'remoteToLocalRemoteFirst';
+                    const strategyName = preferRemote ? '远程增量至本地（远程）' : '远程增加至本地（本地）';
+                    logs.push({ type: 'stdout', text: `准备执行：${strategyName}` });
+
                     runCommandAndLog('git add .', MARKDOWN_DIR, logs);
                     try {
-                        execSync('git commit -m "Sync: Local snapshot before Merge at ' + new Date().toLocaleString('zh-CN') + '"', {
+                        execSync('git commit -m "Sync: Local snapshot before Remote Import at ' + new Date().toLocaleString('zh-CN') + '"', {
                             cwd: MARKDOWN_DIR,
                             env: getGitEnv(),
                             stdio: 'ignore'
@@ -1502,7 +1563,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
 
                     const fetchSuccess = runCommandAndLog('git fetch origin', MARKDOWN_DIR, logs);
                     if (!fetchSuccess) {
-                        return handleSyncError('拉取远程改动失败，请检查网络');
+                        return handleSyncError('拉取远程文件列表失败，请检查网络或 SSH 权限。');
                     }
 
                     // 校验远程分支是否存在
@@ -1513,55 +1574,22 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     } catch (e) {}
 
                     if (!hasRemoteBranch) {
-                        logs.push({ type: 'stdout', text: `检测到远程仓库上不存在 "${targetBranch}" 分支（可能是一个全新空仓库），跳过合并，直接发起初始化推送...` });
-                        const pushInit = runCommandAndLog(`git push -u origin "${targetBranch}"`, MARKDOWN_DIR, logs);
-                        if (pushInit) {
-                            return jsonResponse(res, { success: true, message: `双向同步完成（空仓库/远程新分支 "${targetBranch}" 初始化推送成功）！`, logs });
-                        }
-                        return handleSyncError(`推送初始化分支 "${targetBranch}" 失败`);
+                        logs.push({ type: 'stderr', text: `❌ [ERROR] 远程仓库上不存在分支 "${targetBranch}"，已停止执行，未修改远程仓库。` });
+                        return jsonResponse(res, { success: false, error: `远程分支 "${targetBranch}" 不存在。请先确认配置，或使用“本地覆盖远程”初始化远程分支。`, logs }, 400);
                     }
 
-                    logs.push({ type: 'command', text: `> git merge "origin/${targetBranch}" --no-edit` });
                     try {
-                        const mergeOut = execSync(`git merge "origin/${targetBranch}" --no-edit`, {
-                            cwd: MARKDOWN_DIR,
-                            env: getGitEnv(),
-                            stdio: 'pipe',
-                            timeout: 20000
-                        });
-                        if (mergeOut) {
-                            logs.push({ type: 'stdout', text: mergeOut.toString('utf8').trim() });
-                        }
-
-                        logs.push({ type: 'stdout', text: `智能合并成功！正在将合并后的代码推回远程仓库分支 "${targetBranch}"...` });
-                        const pushSuccess = runCommandAndLog(`git push origin "${targetBranch}"`, MARKDOWN_DIR, logs);
-                        if (pushSuccess) {
-                            return jsonResponse(res, { success: true, message: `智能双向同步合并完成，已推送到远程 "${targetBranch}"！`, logs });
-                        } else {
-                            return handleSyncError(`推送到远程分支 "${targetBranch}" 失败`);
-                        }
+                        const result = importRemoteFilesToLocal(`origin/${targetBranch}`, preferRemote, logs);
+                        const message = preferRemote
+                            ? `远程增量至本地完成：新增 ${result.added} 个，远程覆盖 ${result.overwritten} 个，保留本地独有文件。`
+                            : `远程增加至本地完成：新增 ${result.added} 个，跳过本地已存在文件 ${result.skipped} 个。`;
+                        logs.push({ type: 'stdout', text: '本次操作只修改本地 Markdown 目录，没有向远程仓库推送任何内容。' });
+                        return jsonResponse(res, { success: true, message, logs });
                     } catch (err) {
                         let stderrStr = '';
                         if (err.stderr) stderrStr = err.stderr.toString('utf8').trim();
                         logs.push({ type: 'stderr', text: stderrStr || err.message });
-                        logs.push({ type: 'stderr', text: '⚠️ 检测到文件冲突！正在进行安全回退保护工作区...' });
-
-                        let conflictFiles = [];
-                        try {
-                            const files = execSync('git diff --name-only --diff-filter=U', { cwd: MARKDOWN_DIR });
-                            conflictFiles = files.toString('utf8').trim().split('\n').filter(Boolean);
-                        } catch (e) {}
-
-                        execSync('git merge --abort', { cwd: MARKDOWN_DIR });
-                        logs.push({ type: 'stdout', text: '✅ 已成功撤销冲突合并，本地工作区已恢复安全、干净的状态。' });
-
-                        return jsonResponse(res, {
-                            success: false,
-                            conflict: true,
-                            message: '双向合并冲突，已自动安全还原。',
-                            conflictFiles,
-                            logs
-                        }, 409);
+                        return handleSyncError('远程文件增量到本地失败，请检查仓库内容或本地文件权限。');
                     }
                 }
             } catch (err) {

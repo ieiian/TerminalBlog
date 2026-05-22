@@ -907,6 +907,15 @@
             width: 100%;
             margin-top: 8px;
         }
+        .git-btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .git-btn-row .git-btn.full {
+            margin-top: 0;
+        }
         
         .git-ssh-trigger {
             display: flex;
@@ -3346,18 +3355,21 @@
                         
                         '<!-- 同步操作面板 -->'+
                         '<div class="git-panel">' +
-                            '<div class="git-panel-title">🔄 同步同步策略控制</div>' +
+                            '<div class="git-panel-title">🔄 同步策略控制</div>' +
                             
-                            '<!-- 智能双向合并 -->' +
+                            '<!-- 远程增量至本地 -->' +
                             '<div class="git-strategy-card">' +
                                 '<div class="git-strategy-header">' +
-                                    '<span class="git-strategy-name">🔄 智能双向合并 (Merge)</span>' +
-                                    '<span class="git-strategy-badge safe">推荐 / 安全</span>' +
+                                    '<span class="git-strategy-name">⬇️ 远程增量至本地（选择同名文件优先级）</span>' +
+                                    '<span class="git-strategy-badge safe">本地操作</span>' +
                                 '</div>' +
                                 '<div class="git-strategy-desc">' +
-                                    '本地与远程变更智能双向融合。若远程分支不存在，自动发起首次初始化推送。非常适合日常协同。' +
+                                    '只从远程读取文件补充到本地，不会推送或修改远程仓库。左侧保留本地同名文件，右侧用远程同名文件覆盖本地。' +
                                 '</div>' +
-                                '<button class="git-btn primary full" id="btnGitMerge" onclick="confirmGitSync(\'merge\')">执行智能合并</button>' +
+                                '<div class="git-btn-row">' +
+                                    '<button class="git-btn primary full" id="btnGitRemoteLocalFirst" onclick="confirmGitSync(\'remoteToLocalLocalFirst\')">远程增加至本地（本地）</button>' +
+                                    '<button class="git-btn warning full" id="btnGitRemoteRemoteFirst" onclick="confirmGitSync(\'remoteToLocalRemoteFirst\')">远程增量至本地（远程）</button>' +
+                                '</div>' +
                             '</div>' +
 
                             '<!-- 本地覆盖远程 -->' +
@@ -3562,16 +3574,21 @@
                 { label: '💥 确认强制擦除重置', confirm: true, action: function() { doGitSync('pull'); } },
                 { label: '取消', action: function() {} }
             ]);
+        } else if (action === 'remoteToLocalRemoteFirst') {
+            showToast('⚠️ 确定要执行【远程增量至本地（远程）】吗？本地同名文件会被远程版本覆盖，本地独有文件会保留。', 'warning', [
+                { label: '确认远程增量', confirm: true, action: function() { doGitSync('remoteToLocalRemoteFirst'); } },
+                { label: '取消', action: function() {} }
+            ]);
         } else {
-            // Merge
-            doGitSync('merge');
+            // 远程增加至本地，本地同名文件优先保留
+            doGitSync('remoteToLocalLocalFirst');
         }
     }
     
     async function doGitSync(action) {
         setSyncingState(true);
         clearTerminal();
-        writeTerminalLog('info', '正在准备 Git 同步动作: ' + action.toUpperCase() + '...');
+        writeTerminalLog('info', '正在准备 Git 同步动作: ' + getGitActionLabel(action) + '...');
         writeTerminalLog('info', '与远程 GitHub 握手，开始收集变更日志，这需要一些时间，请稍候...');
         
         try {
@@ -3607,7 +3624,7 @@
                 await renderLogsGradually(result.logs || []);
                 setTimeout(function() {
                     writeTerminalLog('stdout', '\n🎉 ' + (result.message || '远程同步成功完成！'));
-                    showToast('🎉 同步同步成功！', 'success');
+                    showToast('🎉 同步成功！', 'success');
                 }, (result.logs || []).length * 150 + 100);
             }
             
@@ -3621,17 +3638,29 @@
             }, 1000);
         }
     }
+
+    function getGitActionLabel(action) {
+        var labels = {
+            push: '本地覆盖远程',
+            pull: '远程覆盖本地',
+            remoteToLocalLocalFirst: '远程增加至本地（本地）',
+            remoteToLocalRemoteFirst: '远程增量至本地（远程）'
+        };
+        return labels[action] || action;
+    }
     
     function setSyncingState(syncing) {
         isSyncing = syncing;
-        var btnMerge = document.getElementById('btnGitMerge');
+        var btnRemoteLocalFirst = document.getElementById('btnGitRemoteLocalFirst');
+        var btnRemoteRemoteFirst = document.getElementById('btnGitRemoteRemoteFirst');
         var btnPush = document.getElementById('btnGitPush');
         var btnPull = document.getElementById('btnGitPull');
         var testBtn = document.getElementById('gitTestBtn');
         var saveBtn = document.getElementById('gitSaveBtn');
         var statusSpan = document.getElementById('gitTerminalStatus');
         
-        if (btnMerge) btnMerge.disabled = syncing;
+        if (btnRemoteLocalFirst) btnRemoteLocalFirst.disabled = syncing;
+        if (btnRemoteRemoteFirst) btnRemoteRemoteFirst.disabled = syncing;
         if (btnPush) btnPush.disabled = syncing;
         if (btnPull) btnPull.disabled = syncing;
         if (testBtn) testBtn.disabled = syncing;
