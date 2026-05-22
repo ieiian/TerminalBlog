@@ -12,6 +12,6 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.17",
-    "archiver": "^6.0.2"
+    "archiver": "^8.0.0"
   }
 }
