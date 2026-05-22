@@ -1149,6 +1149,63 @@
             background: rgba(0, 255, 0, 0.05);
             box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
         }
+        .file-upload-progress {
+            display: none;
+            margin: 12px 0 14px;
+            padding: 10px 12px;
+            border: 1px solid rgba(0, 255, 0, 0.25);
+            border-radius: 4px;
+            background: rgba(0, 255, 0, 0.04);
+        }
+        .file-upload-progress.active {
+            display: block;
+        }
+        .file-upload-progress.error {
+            border-color: rgba(255, 0, 0, 0.35);
+            background: rgba(255, 0, 0, 0.05);
+        }
+        .file-upload-progress.done {
+            border-color: rgba(0, 255, 255, 0.35);
+            background: rgba(0, 255, 255, 0.04);
+        }
+        .file-upload-progress-info {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            color: var(--gray);
+            font-size: 0.75em;
+            margin-bottom: 8px;
+        }
+        .file-upload-progress-name {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .file-upload-progress-percent {
+            flex-shrink: 0;
+            color: var(--green);
+        }
+        .file-upload-progress.error .file-upload-progress-percent {
+            color: var(--red);
+        }
+        .file-upload-progress.done .file-upload-progress-percent {
+            color: var(--cyan);
+        }
+        .file-upload-progress-track {
+            height: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.35);
+        }
+        .file-upload-progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--green), var(--cyan));
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.35);
+            transition: width 0.16s ease;
+        }
         .file-list {
             max-height: 300px;
             overflow-y: auto;
@@ -2941,35 +2998,49 @@
                 '<div class="file-manager-body">' +
                     '<div class="file-section">' +
                         '<div class="file-section-header">' +
-                            '<span class="file-section-title">📥 下载文件 (download/)</span>' +
+                            '<span class="file-section-title">📥 博客文件 (blogfiles/)</span>' +
                         '</div>' +
-                        '<div class="file-upload-area" id="downloadUploadArea" ' +
-                             'onclick="if(event.target===this||this.contains(event.target)&&event.target.tagName!==\'INPUT\')document.getElementById(\'downloadUpload\').click()" ' +
+                        '<div class="file-upload-area" id="blogfilesUploadArea" ' +
+                             'onclick="if(event.target===this||this.contains(event.target)&&event.target.tagName!==\'INPUT\')document.getElementById(\'blogfilesUpload\').click()" ' +
                              'ondragover="event.preventDefault(); this.classList.add(\'dragover\');" ' +
                              'ondragleave="this.classList.remove(\'dragover\');" ' +
-                             'ondrop="handleFileDrop(event, \'download\')">' +
-                            '<input type="file" id="downloadUpload" multiple onchange="handleFileUpload(event, \'download\')" style="display:none;" />' +
+                             'ondrop="handleFileDrop(event, \'blogfiles\')">' +
+                            '<input type="file" id="blogfilesUpload" multiple onchange="handleFileUpload(event, \'blogfiles\')" style="display:none;" />' +
                             '<label style="cursor:pointer;">点击或拖拽文件到此处上传</label>' +
                             '<div class="hint">支持任意格式文件</div>' +
                         '</div>' +
-                        '<div class="file-list" id="downloadFileList">' +
+                        '<div class="file-upload-progress" id="blogfilesUploadProgress">' +
+                            '<div class="file-upload-progress-info">' +
+                                '<span class="file-upload-progress-name">等待上传</span>' +
+                                '<span class="file-upload-progress-percent">0%</span>' +
+                            '</div>' +
+                            '<div class="file-upload-progress-track"><div class="file-upload-progress-bar"></div></div>' +
+                        '</div>' +
+                        '<div class="file-list" id="blogfilesFileList">' +
                             '<span class="loading"></span>' +
                         '</div>' +
                     '</div>' +
                     '<div class="file-section">' +
                         '<div class="file-section-header">' +
-                            '<span class="file-section-title">🖼️ 图片文件 (images/)</span>' +
+                            '<span class="file-section-title">🖼️ 博客图片 (blogimgs/)</span>' +
                         '</div>' +
-                        '<div class="file-upload-area" id="imagesUploadArea" ' +
-                             'onclick="if(event.target===this||this.contains(event.target)&&event.target.tagName!==\'INPUT\')document.getElementById(\'imagesUpload\').click()" ' +
+                        '<div class="file-upload-area" id="blogimgsUploadArea" ' +
+                             'onclick="if(event.target===this||this.contains(event.target)&&event.target.tagName!==\'INPUT\')document.getElementById(\'blogimgsUpload\').click()" ' +
                              'ondragover="event.preventDefault(); this.classList.add(\'dragover\');" ' +
                              'ondragleave="this.classList.remove(\'dragover\');" ' +
-                             'ondrop="handleFileDrop(event, \'images\')">' +
-                            '<input type="file" id="imagesUpload" multiple accept="image/*" onchange="handleFileUpload(event, \'images\')" style="display:none;" />' +
+                             'ondrop="handleFileDrop(event, \'blogimgs\')">' +
+                            '<input type="file" id="blogimgsUpload" multiple accept="image/*" onchange="handleFileUpload(event, \'blogimgs\')" style="display:none;" />' +
                             '<label style="cursor:pointer;">点击或拖拽图片到此处上传</label>' +
                             '<div class="hint">支持 jpg, png, gif, webp 等格式</div>' +
                         '</div>' +
-                        '<div class="file-list" id="imagesFileList">' +
+                        '<div class="file-upload-progress" id="blogimgsUploadProgress">' +
+                            '<div class="file-upload-progress-info">' +
+                                '<span class="file-upload-progress-name">等待上传</span>' +
+                                '<span class="file-upload-progress-percent">0%</span>' +
+                            '</div>' +
+                            '<div class="file-upload-progress-track"><div class="file-upload-progress-bar"></div></div>' +
+                        '</div>' +
+                        '<div class="file-list" id="blogimgsFileList">' +
                             '<span class="loading"></span>' +
                         '</div>' +
                     '</div>' +
@@ -2993,18 +3064,18 @@
     
     async function loadFileLists() {
         try {
-            // 加载 download 列表
-            var downloadList = document.getElementById('downloadFileList');
-            if (downloadList) {
-                var downloadData = await apiGet('/files/download');
-                downloadList.innerHTML = renderFileList(downloadData.files, 'download');
+            // 加载 blogfiles 列表
+            var blogfilesList = document.getElementById('blogfilesFileList');
+            if (blogfilesList) {
+                var blogfilesData = await apiGet('/files/blogfiles');
+                blogfilesList.innerHTML = renderFileList(blogfilesData.files, 'blogfiles');
             }
             
-            // 加载 images 列表
-            var imagesList = document.getElementById('imagesFileList');
-            if (imagesList) {
-                var imagesData = await apiGet('/files/images');
-                imagesList.innerHTML = renderFileList(imagesData.files, 'images');
+            // 加载 blogimgs 列表
+            var blogimgsList = document.getElementById('blogimgsFileList');
+            if (blogimgsList) {
+                var blogimgsData = await apiGet('/files/blogimgs');
+                blogimgsList.innerHTML = renderFileList(blogimgsData.files, 'blogimgs');
             }
         } catch (err) {
             showToast('[ERROR] 加载文件列表失败', 'error');
@@ -3055,13 +3126,66 @@
     }
     
     async function uploadMultipleFiles(files, folder) {
+        var totalBytes = 0;
+        for (var i = 0; i < files.length; i++) {
+            totalBytes += files[i].size || 0;
+        }
+        var completedBytes = 0;
+        var totalCount = files.length;
+        var failedCount = 0;
+        updateUploadProgress(folder, {
+            active: true,
+            percent: 0,
+            name: '准备上传 ' + totalCount + ' 个文件'
+        });
+
         for (var i = 0; i < files.length; i++) {
             var file = files[i];
             try {
-                await uploadFile(file, folder);
+                await uploadFile(file, folder, function(loaded) {
+                    var currentLoaded = Math.min(loaded || 0, file.size || 0);
+                    var percent = totalBytes > 0 ? Math.round(((completedBytes + currentLoaded) / totalBytes) * 100) : 0;
+                    updateUploadProgress(folder, {
+                        active: true,
+                        percent: percent,
+                        name: '上传中 ' + (i + 1) + '/' + totalCount + ': ' + file.name
+                    });
+                });
+                completedBytes += file.size || 0;
+                var donePercent = totalBytes > 0 ? Math.round((completedBytes / totalBytes) * 100) : 100;
+                updateUploadProgress(folder, {
+                    active: true,
+                    percent: donePercent,
+                    name: '已完成 ' + (i + 1) + '/' + totalCount + ': ' + file.name
+                });
             } catch (err) {
                 console.error('上传文件失败:', file.name, err);
+                failedCount++;
+                updateUploadProgress(folder, {
+                    active: true,
+                    error: true,
+                    percent: totalBytes > 0 ? Math.round((completedBytes / totalBytes) * 100) : 0,
+                    name: '上传失败: ' + file.name
+                });
             }
+        }
+        if (failedCount > 0) {
+            updateUploadProgress(folder, {
+                active: true,
+                error: true,
+                percent: totalBytes > 0 ? Math.round((completedBytes / totalBytes) * 100) : 0,
+                name: '上传完成，成功 ' + (totalCount - failedCount) + ' 个，失败 ' + failedCount + ' 个'
+            });
+        } else {
+            updateUploadProgress(folder, {
+                active: true,
+                done: true,
+                percent: 100,
+                name: '上传完成'
+            });
+            setTimeout(function() {
+                updateUploadProgress(folder, { active: false });
+            }, 1800);
         }
         loadFileLists();
     }
@@ -3076,7 +3200,24 @@
         event.target.value = '';
     }
     
-    async function uploadFile(file, folder) {
+    function updateUploadProgress(folder, state) {
+        var progress = document.getElementById(folder + 'UploadProgress');
+        if (!progress) return;
+        
+        var bar = progress.querySelector('.file-upload-progress-bar');
+        var name = progress.querySelector('.file-upload-progress-name');
+        var percentLabel = progress.querySelector('.file-upload-progress-percent');
+        var percent = Math.max(0, Math.min(100, state.percent || 0));
+        
+        progress.classList.toggle('active', !!state.active);
+        progress.classList.toggle('error', !!state.error);
+        progress.classList.toggle('done', !!state.done);
+        if (name && state.name) name.textContent = state.name;
+        if (percentLabel) percentLabel.textContent = percent + '%';
+        if (bar) bar.style.width = percent + '%';
+    }
+    
+    async function uploadFile(file, folder, onProgress) {
         return new Promise(function(resolve, reject) {
             var formData = new FormData();
             formData.append('file', file);
@@ -3085,30 +3226,38 @@
             if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
             
             showToast('正在上传: ' + file.name, 'info');
-            
-            fetch('/api/upload/' + folder, {
-                method: 'POST',
-                headers: headers,
-                body: formData
-            }).then(async function(res) {
-                var contentType = res.headers.get('content-type') || '';
-                if (!res.ok) {
-                    var errMsg = '上传失败';
-                    if (contentType.includes('application/json')) {
-                        var errJson = await res.json();
-                        errMsg = errJson.error || errMsg;
-                    } else {
-                        errMsg = errMsg + ' (HTTP ' + res.status + ')';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/upload/' + folder, true);
+            Object.keys(headers).forEach(function(key) {
+                xhr.setRequestHeader(key, headers[key]);
+            });
+            xhr.upload.onprogress = function(event) {
+                if (typeof onProgress === 'function') {
+                    onProgress(event.lengthComputable ? event.loaded : 0, event.total || file.size || 0);
+                }
+            };
+            xhr.onload = function() {
+                var contentType = xhr.getResponseHeader('content-type') || '';
+                var result = null;
+                if (contentType.includes('application/json')) {
+                    try {
+                        result = JSON.parse(xhr.responseText);
+                    } catch (e) {
+                        reject(new Error('服务器返回了无效 JSON 数据'));
+                        return;
                     }
-                    throw new Error(errMsg);
                 }
-                
-                if (!contentType.includes('application/json')) {
-                    throw new Error('服务器未返回 JSON 数据，可能上传路径不正确或服务出错');
+                if (xhr.status < 200 || xhr.status >= 300) {
+                    var errMsg = result && result.error ? result.error : '上传失败 (HTTP ' + xhr.status + ')';
+                    showToast('[ERROR] ' + escapeHtml(errMsg), 'error');
+                    reject(new Error(errMsg));
+                    return;
                 }
-                
-                return res.json();
-            }).then(function(result) {
+                if (!result) {
+                    reject(new Error('服务器未返回 JSON 数据，可能上传路径不正确或服务出错'));
+                    return;
+                }
                 if (result.error) {
                     showToast('[ERROR] ' + escapeHtml(result.error), 'error');
                     reject(new Error(result.error));
@@ -3116,10 +3265,13 @@
                     showToast('✅ ' + file.name + ' 上传成功', 'success');
                     resolve(result);
                 }
-            }).catch(function(err) {
+            };
+            xhr.onerror = function() {
+                var err = new Error('上传请求出错');
                 showToast('[ERROR] ' + escapeHtml(err.message), 'error');
                 reject(err);
-            });
+            };
+            xhr.send(formData);
         });
     }
     

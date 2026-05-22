@@ -25,10 +25,10 @@
 
 ### 📁 极简文件管理器 (File Manager)
 在博客管理后台中完美集成的多栏目文件管理系统：
-- **双栏安全隔离**：独立管理 `/app/download`（下载附件）和 `/app/images`（博客媒体图仓）两个文件夹。
+- **双栏安全隔离**：独立管理 `/app/blogfiles`（博客文件）和 `/app/blogimgs`（博客图片）两个文件夹。
 - **批量异步上传**：支持多文件批量上传；完美适配**文件拖拽 (Drag & Drop)** 上传，辅以终端高亮微光动画。
 - **全方位中文文件名支持**：采用底层的 Buffer 指针流精确剪裁机制，完全攻克了中文文件名上传/删除过程中的乱码与 `400 Bad Request` 问题。
-- **一键路径复制**：文件列表中内置 `📋 复制` 按钮，可一键复制博客引用路径（例如 `/images/my_photo.png`），方便直接在 Markdown 写作中引用。
+- **一键路径复制**：文件列表中内置 `📋 复制` 按钮，可一键复制博客引用路径（例如 `/blogimgs/my_photo.png`），方便直接在 Markdown 写作中引用。
 
 ### 🔄 远程 Git 仓库同步控制台 (Git Sync Control Panel)
 极具科幻感的控制台界面，支持本地 Markdown 与远程 GitHub 仓库一键同步：
@@ -48,8 +48,8 @@
 ```
 TerminalBlog_fs/
 ├── Markdown/               # ⭐ 文章数据库 (.md Markdown 原生文件)
-├── images/                 # 📂 博客媒体图仓 (文件管理专属)
-├── download/               # 📂 资源附件下载目录 (文件管理专属)
+├── blogimgs/               # 📂 博客图片目录 (文件管理专属)
+├── blogfiles/              # 📂 博客文件目录 (文件管理专属)
 ├── public/                 # 📂 极客终端 SPA 静态前端
 │   ├── index.html          # 📟 复古终端渲染主页面与控制台 UI
 │   └── server.js           # 🚀 Node.js 后端服务器 & 同步 API
@@ -91,7 +91,7 @@ TerminalBlog_fs/
 > **首次部署的重要挂载准备：**
 > 在首次运行 `docker compose up` 之前，必须在宿主机的项目根目录下创建空的配置文件，否则 Docker 会误将缺失挂载文件创建为同名空目录：
 > ```bash
-> mkdir -p Markdown images download .ssh_key
+> mkdir -p Markdown blogimgs blogfiles .ssh_key
 > echo "{}" > git_config.json
 > ```
 
@@ -112,7 +112,7 @@ docker compose -f docker/docker-compose.yml down
 
 ```bash
 # 1. 前置准备
-mkdir -p Markdown images download .ssh_key
+mkdir -p Markdown blogimgs blogfiles .ssh_key
 echo "{}" > git_config.json
 
 # 2. 构建 Terminal Blog 专属镜像
@@ -124,8 +124,8 @@ docker run -d \
   --restart unless-stopped \
   -p 8788:8788 \
   -v $(pwd)/Markdown:/app/Markdown \
-  -v $(pwd)/images:/app/images \
-  -v $(pwd)/download:/app/download \
+  -v $(pwd)/blogimgs:/app/blogimgs \
+  -v $(pwd)/blogfiles:/app/blogfiles \
   -v $(pwd)/.ssh_key:/app/.ssh_key \
   -v $(pwd)/git_config.json:/app/git_config.json \
   -e SITE_TITLE="极客博客" \
@@ -188,10 +188,10 @@ tags: ['极客', '终端', '部署']
 
 ## 插入上传的图片
 在前台[文件管理]中上传图片后复制路径，可直接引用：
-![展示图](/images/screenshot.png)
+![展示图](/blogimgs/screenshot.png)
 
 ## 提供资源下载
-[点击下载本站独家配置](/download/config_backup.zip)
+[点击下载本站独家配置](/blogfiles/config_backup.zip)
 ```
 
 > [!NOTE]

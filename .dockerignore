@@ -13,8 +13,9 @@ npm-debug.log*
 _worker.js
 
 # Runtime/data folders
-Markdown/
-download/
+Markdown/*
+blogfiles/*
+blogimgs/*
 
 # Editor/assistant metadata
 .claude/

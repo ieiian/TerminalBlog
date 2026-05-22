@@ -737,14 +737,15 @@ async function handleRequest(req, res) {
             return jsonResponse(res, { valid: valid });
         }
 
-        // 文件下载 /download/* → 本地静态文件
-        const downloadMatch = pathname.match(/^\/download\/(.+)$/);
-        if (downloadMatch && method === 'GET') {
-            const fileName = downloadMatch[1].split('?')[0].split('#')[0];
-            if (!/^[a-zA-Z0-9._-]+$/.test(fileName)) {
+        // 博客文件 /blogfiles/* → 本地静态文件
+        const blogfilesMatch = pathname.match(/^\/blogfiles\/(.+)$/);
+        if (blogfilesMatch && method === 'GET') {
+            const fileName = decodeURIComponent(blogfilesMatch[1].split('?')[0].split('#')[0]);
+            const safeFileName = path.basename(fileName);
+            if (safeFileName !== fileName || /[\/\x00-\x1F\x7F#$:?*\"<>|]/.test(fileName)) {
                 return jsonResponse(res, { error: '文件名包含非法字符' }, 400);
             }
-            const filePath = path.join(__dirname, '..', 'download', fileName);
+            const filePath = path.join(__dirname, '..', 'blogfiles', safeFileName);
             if (!fs.existsSync(filePath)) {
                 return jsonResponse(res, { error: '文件不存在' }, 404);
             }
@@ -771,14 +772,15 @@ async function handleRequest(req, res) {
             return;
         }
 
-        // 图片访问 /images/* → 本地静态文件
-        const imagesMatch = pathname.match(/^\/images\/(.+)$/);
-        if (imagesMatch && method === 'GET') {
-            const fileName = imagesMatch[1].split('?')[0].split('#')[0];
-            if (!/^[a-zA-Z0-9._-]+$/.test(fileName)) {
+        // 博客图片 /blogimgs/* → 本地静态文件
+        const blogimgsMatch = pathname.match(/^\/blogimgs\/(.+)$/);
+        if (blogimgsMatch && method === 'GET') {
+            const fileName = decodeURIComponent(blogimgsMatch[1].split('?')[0].split('#')[0]);
+            const safeFileName = path.basename(fileName);
+            if (safeFileName !== fileName || /[\/\x00-\x1F\x7F#$:?*\"<>|]/.test(fileName)) {
                 return jsonResponse(res, { error: '文件名包含非法字符' }, 400);
             }
-            const filePath = path.join(__dirname, '..', 'images', fileName);
+            const filePath = path.join(__dirname, '..', 'blogimgs', safeFileName);
             if (!fs.existsSync(filePath)) {
                 return jsonResponse(res, { error: '文件不存在' }, 404);
             }
@@ -1071,8 +1073,8 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
         // 获取文件列表
         const filesMatch = pathname.match(/^\/api\/files\/(\w+)$/);
         if (filesMatch && method === 'GET') {
-            const folder = filesMatch[1]; // download 或 images
-            if (folder !== 'download' && folder !== 'images') {
+            const folder = filesMatch[1]; // blogfiles 或 blogimgs
+            if (folder !== 'blogfiles' && folder !== 'blogimgs') {
                 return jsonResponse(res, { error: '无效的文件夹' }, 400);
             }
             const folderPath = path.join(__dirname, '..', folder);
@@ -1093,8 +1095,8 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
         // 上传文件
         const uploadMatch = pathname.match(/^\/api\/upload\/(\w+)$/);
         if (uploadMatch && method === 'POST') {
-            const folder = uploadMatch[1]; // download 或 images
-            if (folder !== 'download' && folder !== 'images') {
+            const folder = uploadMatch[1]; // blogfiles 或 blogimgs
+            if (folder !== 'blogfiles' && folder !== 'blogimgs') {
                 return jsonResponse(res, { error: '无效的文件夹' }, 400);
             }
             
@@ -1214,7 +1216,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             const folder = deleteFileMatch[1];
             const filename = decodeURIComponent(deleteFileMatch[2]);
             
-            if (folder !== 'download' && folder !== 'images') {
+            if (folder !== 'blogfiles' && folder !== 'blogimgs') {
                 return jsonResponse(res, { error: '无效的文件夹' }, 400);
             }
             

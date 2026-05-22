@@ -14,7 +14,7 @@
 | **容器名称** | `terminal-blog-fs` |
 | **内置依赖** | `bash`, `sed`, `git`, `openssh-client` |
 | **对外暴露端口**| `8788` |
-| **数据持久化挂载卷** | 📁 `Markdown/` (文章数据库)<br>📁 `images/` (媒体图片仓)<br>📁 `download/` (附加资源下载区)<br>📁 `.ssh_key/` (免密 SSH 专属密钥对)<br>📄 `git_config.json` (仓库同步配置文件) |
+| **数据持久化挂载卷** | 📁 `Markdown/` (文章数据库)<br>📁 `blogimgs/` (博客图片仓)<br>📁 `blogfiles/` (博客文件区)<br>📁 `.ssh_key/` (免密 SSH 专属密钥对)<br>📄 `git_config.json` (仓库同步配置文件) |
 
 ---
 
@@ -37,8 +37,8 @@
 | 宿主机路径 (相对根目录) | 容器内目标路径 | 挂载用途与核心数据 |
 | :--- | :--- | :--- |
 | `../Markdown` | `/app/Markdown` | 存放所有博客文章（`.md` 文件）。 |
-| `../images` | `/app/images` | 文件管理器中上传的博客插图，用于在文章中显示。 |
-| `../download` | `/app/download` | 文件管理器中上传的下载附件，用于分享或文章链接。 |
+| `../blogimgs` | `/app/blogimgs` | 文件管理器中上传的博客图片，用于在文章中显示。 |
+| `../blogfiles` | `/app/blogfiles` | 文件管理器中上传的博客文件，用于分享或文章链接。 |
 | `../.ssh_key` | `/app/.ssh_key` | 系统自动为私有仓库生成的独立免密 SSH 密钥对（`id_git_blog` / `id_git_blog.pub`）。 |
 | `../git_config.json` | `/app/git_config.json` | 远程同步控制台的同步分支、用户名及仓库 URL 等配置数据。 |
 
@@ -56,7 +56,7 @@
 无论哪种部署方式，运行容器前必须执行以下命令初始化本地文件夹与关键的 Git 挂载配置文件，以防御 Docker 引擎将缺失挂载文件误创建为同名空目录：
 ```bash
 # 手动创建各挂载卷文件夹
-mkdir -p Markdown images download .ssh_key
+mkdir -p Markdown blogimgs blogfiles .ssh_key
 
 # 预先生成空的 git 配置文件，防止 Docker 引擎误自动创建为同名文件夹
 echo "{}" > git_config.json
@@ -85,8 +85,8 @@ services:
     volumes:
       # 映射当前目录下的各数据文件夹与配置文件
       - ./Markdown:/app/Markdown
-      - ./images:/app/images
-      - ./download:/app/download
+      - ./blogimgs:/app/blogimgs
+      - ./blogfiles:/app/blogfiles
       - ./.ssh_key:/app/.ssh_key
       - ./git_config.json:/app/git_config.json
     environment:
@@ -141,7 +141,7 @@ docker compose restart
 
 ```bash
 # 1. 初始化文件与文件夹
-mkdir -p Markdown images download .ssh_key
+mkdir -p Markdown blogimgs blogfiles .ssh_key
 echo "{}" > git_config.json
 
 # 2. 构建镜像 (在项目根目录下)
@@ -153,8 +153,8 @@ docker run -d \
   --restart unless-stopped \
   -p 8788:8788 \
   -v $(pwd)/Markdown:/app/Markdown \
-  -v $(pwd)/images:/app/images \
-  -v $(pwd)/download:/app/download \
+  -v $(pwd)/blogimgs:/app/blogimgs \
+  -v $(pwd)/blogfiles:/app/blogfiles \
   -v $(pwd)/.ssh_key:/app/.ssh_key \
   -v $(pwd)/git_config.json:/app/git_config.json \
   -e SITE_TITLE="终端博客" \
@@ -198,11 +198,11 @@ docker run -d \
 
 ## 📁 文件管理使用指南
 
-您新增的 **`[文件管理]`** 面板提供极简的双栏布局，将 `download/` (下载附件) 与 `images/` (博客图片) 隔离管理。
+您新增的 **`[文件管理]`** 面板提供极简的双栏布局，将 `blogfiles/` (博客文件) 与 `blogimgs/` (博客图片) 隔离管理。
 
 *   **极简上传**：点击上传按钮，或直接**拖拽**一个或多个文件到专属文件上传框中，即可实现高效的多文件批量异步上传。
 *   **安全中文文件名支持**：采用原生的 Buffer 指针精细裁剪和编码处理，完美兼容所有中文字符文件名，在上传和删除时均能保障文件名完好无损。
-*   **一键复制 URL**：上传成功的文件会在上下两栏菜单中动态显示。点击文件右侧的 **`📋 复制链接`**，即可瞬间复制其在博客中的路径（如 `/images/my-pic.png` 或 `/download/doc.pdf`），供您在 Markdown 文章中流畅引用。
+*   **一键复制 URL**：上传成功的文件会在上下两栏菜单中动态显示。点击文件右侧的 **`📋 复制链接`**，即可瞬间复制其在博客中的路径（如 `/blogimgs/my-pic.png` 或 `/blogfiles/doc.pdf`），供您在 Markdown 文章中流畅引用。
 
 ---
 

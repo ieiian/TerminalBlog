@@ -4,7 +4,8 @@
 # 构建: docker build -t terminal-blog-fs -f docker/Dockerfile .
 # 运行: docker run -d -p 8788:8788 \
 #        -v $(pwd)/Markdown:/app/Markdown \
-#        -v $(pwd)/download:/app/download \
+#        -v $(pwd)/blogfiles:/app/blogfiles \
+#        -v $(pwd)/blogimgs:/app/blogimgs \
 #        -e SITE_TITLE="我的博客" \
 #        -e WELCOME_MESSAGE="欢迎语" \
 #        -e ADMIN_USER="admin" \
