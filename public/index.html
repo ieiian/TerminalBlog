@@ -737,6 +737,321 @@
             100% { opacity: 0; }
         }
 
+        /* Git Sync Modal Styles */
+        .git-sync-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.94);
+            z-index: 9999;
+            overflow-y: auto;
+            padding: 30px 16px;
+        }
+        .git-sync-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .git-sync-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: var(--bg-header);
+            border: 1px solid var(--border);
+            border-radius: 8px 8px 0 0;
+            border-bottom: none;
+        }
+        .git-sync-header span {
+            color: var(--green);
+            font-size: 0.9em;
+            text-shadow: 0 0 5px var(--green);
+        }
+        .git-sync-header button {
+            background: var(--bg-header);
+            color: var(--gray);
+            border: 1px solid var(--border);
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .git-sync-header button:hover {
+            color: var(--red);
+            border-color: var(--red);
+        }
+        .git-sync-body {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            padding: 20px;
+        }
+        .git-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .git-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .git-panel {
+            border: 1px solid rgba(48, 54, 61, 0.6);
+            border-radius: 6px;
+            padding: 16px;
+            background: rgba(13, 17, 23, 0.4);
+        }
+        .git-panel-title {
+            color: var(--cyan);
+            font-size: 0.85em;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+            font-weight: bold;
+        }
+        .git-form-group {
+            margin-bottom: 12px;
+        }
+        .git-form-group label {
+            display: block;
+            color: var(--gray);
+            font-size: 0.75em;
+            margin-bottom: 4px;
+        }
+        .git-form-group input[type="text"] {
+            width: 100%;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 6px 10px;
+            color: var(--fg);
+            font-family: inherit;
+            font-size: 0.85em;
+            box-sizing: border-box;
+            transition: all 0.2s;
+        }
+        .git-form-group input[type="text"]:focus {
+            outline: none;
+            border-color: var(--green);
+            box-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
+        }
+        .git-checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .git-checkbox-group input[type="checkbox"] {
+            accent-color: var(--green);
+            cursor: pointer;
+        }
+        .git-checkbox-group label {
+            color: var(--gray);
+            font-size: 0.75em;
+            cursor: pointer;
+            user-select: none;
+        }
+        .git-ssh-key-box {
+            background: #000;
+            border: 1px dashed var(--border);
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.7em;
+            color: var(--gray-dim);
+            font-family: 'Courier New', Courier, monospace;
+            word-break: break-all;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        .git-btn {
+            background: var(--bg-card);
+            color: var(--fg);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75em;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .git-btn:hover {
+            border-color: var(--green);
+            color: var(--green);
+            box-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
+        }
+        .git-btn.primary {
+            border-color: var(--green);
+            color: var(--green);
+        }
+        .git-btn.primary:hover {
+            background: rgba(0, 255, 0, 0.05);
+        }
+        .git-btn.warning {
+            border-color: var(--yellow);
+            color: var(--yellow);
+        }
+        .git-btn.warning:hover {
+            background: rgba(255, 165, 0, 0.05);
+            box-shadow: 0 0 5px rgba(255, 165, 0, 0.2);
+        }
+        .git-btn.danger {
+            border-color: var(--red);
+            color: var(--red);
+        }
+        .git-btn.danger:hover {
+            background: rgba(255, 0, 0, 0.05);
+            box-shadow: 0 0 5px rgba(255, 0, 0, 0.2);
+        }
+        .git-btn.full {
+            width: 100%;
+            margin-top: 8px;
+        }
+        
+        .git-ssh-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 255, 255, 0.03);
+            border: 1px solid rgba(0, 255, 255, 0.15);
+            color: var(--cyan);
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 12px;
+            cursor: pointer;
+            font-size: 0.75em;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .git-ssh-trigger:hover {
+            background: rgba(0, 255, 255, 0.08);
+            border-color: rgba(0, 255, 255, 0.3);
+            box-shadow: 0 0 8px rgba(0, 255, 255, 0.15);
+        }
+        .git-ssh-trigger span.icon {
+            transition: transform 0.2s ease;
+        }
+        .git-ssh-trigger.active span.icon {
+            transform: rotate(90deg);
+        }
+        .git-strategy-card {
+            border: 1px solid rgba(48, 54, 61, 0.4);
+            background: rgba(255, 255, 255, 0.01);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+        }
+        .git-strategy-card:hover {
+            border-color: rgba(0, 255, 0, 0.2);
+            background: rgba(255, 255, 255, 0.02);
+            box-shadow: 0 0 6px rgba(0, 255, 0, 0.05);
+        }
+        .git-strategy-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .git-strategy-name {
+            font-size: 0.8em;
+            font-weight: bold;
+            color: var(--fg);
+        }
+        .git-strategy-badge {
+            font-size: 0.65em;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .git-strategy-badge.safe {
+            background: rgba(0, 255, 0, 0.1);
+            color: var(--green);
+            border: 1px solid rgba(0, 255, 0, 0.2);
+        }
+        .git-strategy-badge.warn {
+            background: rgba(255, 165, 0, 0.1);
+            color: var(--yellow);
+            border: 1px solid rgba(255, 165, 0, 0.2);
+        }
+        .git-strategy-badge.danger {
+            background: rgba(255, 0, 0, 0.1);
+            color: var(--red);
+            border: 1px solid rgba(255, 0, 0, 0.2);
+        }
+        .git-strategy-desc {
+            font-size: 0.7em;
+            color: var(--gray-dim);
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+        
+        /* 实时终端命令视窗 Styles */
+        .git-terminal-wrapper {
+            margin-top: 20px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .git-terminal-header {
+            background: var(--bg-header);
+            padding: 6px 12px;
+            font-size: 0.75em;
+            color: var(--gray);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .git-terminal-body {
+            background: #050505;
+            height: 220px;
+            overflow-y: auto;
+            padding: 12px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8em;
+            position: relative;
+        }
+        /* 拟真扫描线效果 */
+        .git-terminal-body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 10;
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+        }
+        .git-log-line {
+            margin-bottom: 6px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .git-log-line.command {
+            color: var(--cyan);
+            font-weight: bold;
+        }
+        .git-log-line.stdout {
+            color: var(--green);
+        }
+        .git-log-line.stderr {
+            color: var(--red);
+        }
+        .git-log-line.info {
+            color: var(--yellow);
+        }
+        .git-conflict-banner {
+            border: 1px solid var(--red);
+            background: rgba(255, 0, 0, 0.05);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            color: var(--red);
+            margin-top: 10px;
+        }
+
         /* File Manager Modal */
         .file-manager-modal {
             position: fixed;
@@ -1694,7 +2009,7 @@
                 <a onclick="navigate('tags')">[标签]</a>
                 <a onclick="navigate('admin')" class="active">[管理]</a>
                 <a onclick="openFileManager()">[文件管理]</a>
-                <a onclick="showToast('远程仓库功能待开发', 'info')">[远程仓库]</a>
+                <a onclick="openGitSyncModal()">[远程仓库]</a>
                 <a onclick="doLogout()" style="color: var(--red);">[退出登录]</a>
             </div>
 
@@ -2786,6 +3101,410 @@
         } catch (err) {
             showToast('[ERROR] ' + escapeHtml(err.message), 'error');
         }
+    }
+
+    // ============ 远程 Git 仓库同步管理器 ============
+    let isSyncing = false; // 是否正在执行 Git 动作
+    
+    async function openGitSyncModal() {
+        var modal = document.createElement('div');
+        modal.className = 'git-sync-modal';
+        modal.id = 'gitSyncModal';
+        modal.innerHTML = 
+            '<div class="git-sync-container">' +
+                '<div class="git-sync-header">' +
+                    '<span>⚡ 远程 Git 仓库同步控制台</span>' +
+                    '<button onclick="closeGitSyncModal()">✕ 关闭</button>' +
+                '</div>' +
+                '<div class="git-sync-body">' +
+                    '<div class="git-grid">' +
+                        '<!-- 设置面板 -->'+
+                        '<div class="git-panel">' +
+                            '<div class="git-panel-title">⚙️ 仓库配置</div>' +
+                            '<div class="git-form-group">' +
+                                '<label>GitHub 用户名 (Username, 非注册邮箱)</label>' +
+                                '<input type="text" id="gitUser" placeholder="例如: your-github-username (请勿输入注册邮箱)" />' +
+                            '</div>' +
+                            '<div class="git-form-group">' +
+                                '<label>仓库远程 URL (支持 SSH / HTTPS)</label>' +
+                                '<input type="text" id="gitRepoUrl" placeholder="git@github.com:user/repo.git 或 https://..." oninput="detectRepoType(this.value)" />' +
+                            '</div>' +
+                            '<div class="git-form-group">' +
+                                '<label>同步分支名称 (Branch)</label>' +
+                                '<input type="text" id="gitBranch" placeholder="例如: markdown (默认)" />' +
+                            '</div>' +
+                            '<!-- 专属 SSH 公钥折叠触发条 -->' +
+                            '<div id="gitSshTrigger" class="git-ssh-trigger" style="display:none;" onclick="toggleSshCollapse()">' +
+                                '<span>🛡️ 查看本博客专属 SSH 部署公钥</span>' +
+                                '<span class="icon">▶</span>' +
+                            '</div>' +
+                            '<!-- 专属 SSH 公钥折叠详细区域 -->' +
+                            '<div id="gitSshArea" style="display:none; margin-top: 10px; border-top: 1px dashed rgba(0, 255, 255, 0.1); padding-top: 10px;">' +
+                                '<label style="color: var(--cyan); font-size: 0.75em;">🛡️ 本博客专属 SSH 部署公钥 (已隔离防护):</label>' +
+                                '<div class="git-ssh-key-box" id="gitSshKey">正在生成专属密钥对...</div>' +
+                                '<button class="git-btn full" onclick="copySshPublicKey()" style="margin-top: 8px;">📋 复制专属公钥</button>' +
+                                '<div style="color: var(--gray-dim); font-size: 0.7em; margin-top: 6px; line-height: 1.4;">' +
+                                    '提示：对于私有仓库，请将此专属公钥添加至：<br/>' +
+                                    '1. <strong>仓库级（安全推荐）</strong>：该仓库的 <strong>Settings ➔ Deploy Keys</strong> 中（须勾选 <strong>Allow write access</strong> 启用写入权限）。<br/>' +
+                                    '2. <strong>账户级（全仓库通用）</strong>：您个人 GitHub 的 <strong>Settings ➔ SSH keys</strong> 中。' +
+                                '</div>' +
+                            '</div>' +
+                            '<div style="margin-top: 16px; display: flex; gap: 8px;">' +
+                                '<button class="git-btn primary" id="gitSaveBtn" onclick="saveGitSyncConfig()">保存配置</button>' +
+                                '<button class="git-btn" id="gitTestBtn" onclick="testGitConnection()">⚡ 测试连接</button>' +
+                            '</div>' +
+                        '</div>' +
+                        
+                        '<!-- 同步操作面板 -->'+
+                        '<div class="git-panel">' +
+                            '<div class="git-panel-title">🔄 同步同步策略控制</div>' +
+                            
+                            '<!-- 智能双向合并 -->' +
+                            '<div class="git-strategy-card">' +
+                                '<div class="git-strategy-header">' +
+                                    '<span class="git-strategy-name">🔄 智能双向合并 (Merge)</span>' +
+                                    '<span class="git-strategy-badge safe">推荐 / 安全</span>' +
+                                '</div>' +
+                                '<div class="git-strategy-desc">' +
+                                    '本地与远程变更智能双向融合。若远程分支不存在，自动发起首次初始化推送。非常适合日常协同。' +
+                                '</div>' +
+                                '<button class="git-btn primary full" id="btnGitMerge" onclick="confirmGitSync(\'merge\')">执行智能合并</button>' +
+                            '</div>' +
+
+                            '<!-- 本地覆盖远程 -->' +
+                            '<div class="git-strategy-card">' +
+                                '<div class="git-strategy-header">' +
+                                    '<span class="git-strategy-name">⚠️ 本地覆盖远程 (Push)</span>' +
+                                    '<span class="git-strategy-badge warn">高危覆盖</span>' +
+                                '</div>' +
+                                '<div class="git-strategy-desc">' +
+                                    '完全以本地 Markdown 文件夹为准，强力强制覆盖远程分支。远程所有未同步的文件将被无情抹去。' +
+                                '</div>' +
+                                '<button class="git-btn warning full" id="btnGitPush" onclick="confirmGitSync(\'push\')">强制推送覆盖远程</button>' +
+                            '</div>' +
+
+                            '<!-- 远程覆盖本地 -->' +
+                            '<div class="git-strategy-card">' +
+                                '<div class="git-strategy-header">' +
+                                    '<span class="git-strategy-name">💥 远程覆盖本地 (Pull)</span>' +
+                                    '<span class="git-strategy-badge danger">最高危重置</span>' +
+                                '</div>' +
+                                '<div class="git-strategy-desc">' +
+                                    '完全以远程仓库为准，强制擦除本地所有文章并与远程对齐。本地未保存的文章将彻底丢失！' +
+                                '</div>' +
+                                '<button class="git-btn danger full" id="btnGitPull" onclick="confirmGitSync(\'pull\')">强制拉取覆盖本地</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    
+                    '<!-- 拟真终端输出 -->'+
+                    '<div class="git-terminal-wrapper">' +
+                        '<div class="git-terminal-header">' +
+                            '<span>CONSOLE TERMINAL (SCANLINES MODE)</span>' +
+                            '<span id="gitTerminalStatus" style="color: var(--green);">READY</span>' +
+                        '</div>' +
+                        '<div class="git-terminal-body" id="gitTerminal">' +
+                            '<div class="git-log-line info">Terminal Blog Git Sync Console v1.0.0</div>' +
+                            '<div class="git-log-line info">请输入您的仓库配置并进行连接测试...</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+            
+        document.body.appendChild(modal);
+        document.body.style.overflow = 'hidden';
+        
+        // 拉取当前配置
+        await loadGitSyncConfig();
+    }
+    
+    function closeGitSyncModal() {
+        if (isSyncing) {
+            showToast('正在执行同步指令，请耐心等待其完成，切勿中断。', 'warning');
+            return;
+        }
+        var modal = document.getElementById('gitSyncModal');
+        if (modal) modal.remove();
+        document.body.style.overflow = '';
+        
+        // 自动刷新文章列表，以保证本地文件发生变化时首页同步呈现
+        if (typeof loadPosts === 'function') {
+            loadPosts();
+        }
+    }
+    
+    function detectRepoType(url) {
+        var sshTrigger = document.getElementById('gitSshTrigger');
+        var sshArea = document.getElementById('gitSshArea');
+        if (!sshTrigger) return;
+        if (url && (url.includes('git@') || url.includes('ssh://'))) {
+            sshTrigger.style.display = 'flex';
+        } else {
+            sshTrigger.style.display = 'none';
+            if (sshArea) {
+                sshArea.style.display = 'none';
+                sshTrigger.classList.remove('active');
+                var iconSpan = sshTrigger.querySelector('.icon');
+                if (iconSpan) iconSpan.innerText = '▶';
+            }
+        }
+    }
+    
+    function toggleSshCollapse() {
+        var sshArea = document.getElementById('gitSshArea');
+        var sshTrigger = document.getElementById('gitSshTrigger');
+        if (!sshArea || !sshTrigger) return;
+        
+        var iconSpan = sshTrigger.querySelector('.icon');
+        if (sshArea.style.display === 'none') {
+            sshArea.style.display = 'block';
+            sshTrigger.classList.add('active');
+            if (iconSpan) iconSpan.innerText = '▼';
+        } else {
+            sshArea.style.display = 'none';
+            sshTrigger.classList.remove('active');
+            if (iconSpan) iconSpan.innerText = '▶';
+        }
+    }
+    
+    async function loadGitSyncConfig() {
+        try {
+            var config = await apiGet('/git/config');
+            if (config) {
+                document.getElementById('gitUser').value = config.githubUser || '';
+                document.getElementById('gitRepoUrl').value = config.repositoryUrl || '';
+                document.getElementById('gitBranch').value = config.branch || 'markdown';
+                detectRepoType(config.repositoryUrl);
+                
+                if (config.sshPublicKey) {
+                    document.getElementById('gitSshKey').innerText = config.sshPublicKey;
+                }
+            }
+        } catch (err) {
+            writeTerminalLog('stderr', '[ERROR] 获取 Git 配置失败: ' + err.message);
+        }
+    }
+    
+    async function saveGitSyncConfig() {
+        var user = document.getElementById('gitUser').value.trim();
+        var repoUrl = document.getElementById('gitRepoUrl').value.trim();
+        var branchName = document.getElementById('gitBranch').value.trim();
+        
+        if (!repoUrl) {
+            showToast('远程仓库 URL 不能为空', 'error');
+            return;
+        }
+        
+        try {
+            showToast('正在保存配置...', 'info');
+            var result = await apiPost('/git/config', {
+                githubUser: user,
+                repositoryUrl: repoUrl,
+                isPrivate: repoUrl.includes('git@'),
+                branch: branchName || 'markdown'
+            });
+            showToast('✅ 配置保存成功', 'success');
+            
+            if (result.config) {
+                if (result.config.sshPublicKey) {
+                    document.getElementById('gitSshKey').innerText = result.config.sshPublicKey;
+                    detectRepoType(repoUrl);
+                }
+                if (result.config.branch) {
+                    document.getElementById('gitBranch').value = result.config.branch;
+                }
+            }
+        } catch (err) {
+            showToast('保存配置失败: ' + err.message, 'error');
+        }
+    }
+    
+    async function copySshPublicKey() {
+        var keyText = document.getElementById('gitSshKey').innerText;
+        if (!keyText || keyText.includes('正在生成')) {
+            showToast('密钥尚在生成中，请稍后再试。', 'warning');
+            return;
+        }
+        navigator.clipboard.writeText(keyText).then(function() {
+            showToast('✅ 专属公钥已复制到剪贴板', 'success');
+        }).catch(function() {
+            showToast('[ERROR] 复制失败', 'error');
+        });
+    }
+    
+    async function testGitConnection() {
+        var repoUrl = document.getElementById('gitRepoUrl').value.trim();
+        if (!repoUrl) {
+            showToast('远程仓库 URL 不能为空', 'error');
+            return;
+        }
+        
+        setSyncingState(true);
+        clearTerminal();
+        writeTerminalLog('command', '> git ls-remote "' + repoUrl + '"');
+        writeTerminalLog('info', '正在发起非破坏性连接测试，测试 SSH 部署密钥和网络通畅度，这可能需要数秒时间...');
+        
+        try {
+            var res = await apiPost('/git/test', { repositoryUrl: repoUrl });
+            if (res && res.success) {
+                writeTerminalLog('stdout', '✅ [SUCCESS] 远程仓库连接完美通过！读写校验全绿！');
+                showToast('✅ 连接测试成功！', 'success');
+            } else {
+                writeTerminalLog('stderr', '[ERROR] 连接验证失败：' + (res.error || '未知错误'));
+            }
+        } catch (err) {
+            writeTerminalLog('stderr', '[ERROR] 远程仓库握手失败！\n原因：\n' + err.message);
+            showToast('❌ 连接测试失败，请检查终端日志', 'error');
+        } finally {
+            setSyncingState(false);
+        }
+    }
+    
+    function confirmGitSync(action) {
+        if (isSyncing) return;
+        
+        if (action === 'push') {
+            showToast('⚠️ 【高危操作】确定要用【本地文章】彻底强推覆盖【远程仓库】吗？远程的所有文件将被全部擦除！', 'warning', [
+                { label: '🔥 确认强制推送覆盖', confirm: true, action: function() { doGitSync('push'); } },
+                { label: '取消', action: function() {} }
+            ]);
+        } else if (action === 'pull') {
+            showToast('⚠️ 【最高危操作】确定要用【远程仓库】强行覆盖【本地文章】吗？本地所有未保存的修改将被擦除且不可挽回！', 'warning', [
+                { label: '💥 确认强制擦除重置', confirm: true, action: function() { doGitSync('pull'); } },
+                { label: '取消', action: function() {} }
+            ]);
+        } else {
+            // Merge
+            doGitSync('merge');
+        }
+    }
+    
+    async function doGitSync(action) {
+        setSyncingState(true);
+        clearTerminal();
+        writeTerminalLog('info', '正在准备 Git 同步动作: ' + action.toUpperCase() + '...');
+        writeTerminalLog('info', '与远程 GitHub 握手，开始收集变更日志，这需要一些时间，请稍候...');
+        
+        try {
+            var response = await fetch('/api/git/sync', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': authToken ? 'Bearer ' + authToken : ''
+                },
+                body: JSON.stringify({ action: action })
+            });
+            
+            var result = await response.json();
+            
+            if (response.status === 409 && result.conflict) {
+                // 发生合并冲突
+                await renderLogsGradually(result.logs || []);
+                setTimeout(function() {
+                    writeTerminalLog('stderr', '\n❌ [MERGE CONFLICT] 发生了合并冲突！');
+                    writeTerminalLog('stderr', '冲突文章列表如下，需手动核查：');
+                    (result.conflictFiles || []).forEach(function(file) {
+                        writeTerminalLog('stderr', '  ➔ ' + file);
+                    });
+                    writeTerminalLog('info', '\n提示：合并已安全且保护性地自动撤销，您的工作区毫发无损。\n建议：您可以选择“本地覆盖远程(Push)”以本地为准，或者“远程覆盖本地(Pull)”以远程为准解决冲突。');
+                    showToast('⚠️ 合并冲突，已自动安全撤销并还原工作区。', 'error');
+                }, (result.logs || []).length * 150 + 100);
+                
+            } else if (!response.ok) {
+                await renderLogsGradually(result.logs || [{ type: 'stderr', text: result.error || '服务器同步发生故障' }]);
+                showToast('❌ 同步动作失败，请查看终端输出', 'error');
+            } else {
+                // 成功
+                await renderLogsGradually(result.logs || []);
+                setTimeout(function() {
+                    writeTerminalLog('stdout', '\n🎉 ' + (result.message || '远程同步成功完成！'));
+                    showToast('🎉 同步同步成功！', 'success');
+                }, (result.logs || []).length * 150 + 100);
+            }
+            
+        } catch (err) {
+            writeTerminalLog('stderr', '[ERROR] 通信过程发生重大异常: ' + err.message);
+            showToast('❌ 同步发生严重通信故障', 'error');
+        } finally {
+            // 延迟重设按钮状态
+            setTimeout(function() {
+                setSyncingState(false);
+            }, 1000);
+        }
+    }
+    
+    function setSyncingState(syncing) {
+        isSyncing = syncing;
+        var btnMerge = document.getElementById('btnGitMerge');
+        var btnPush = document.getElementById('btnGitPush');
+        var btnPull = document.getElementById('btnGitPull');
+        var testBtn = document.getElementById('gitTestBtn');
+        var saveBtn = document.getElementById('gitSaveBtn');
+        var statusSpan = document.getElementById('gitTerminalStatus');
+        
+        if (btnMerge) btnMerge.disabled = syncing;
+        if (btnPush) btnPush.disabled = syncing;
+        if (btnPull) btnPull.disabled = syncing;
+        if (testBtn) testBtn.disabled = syncing;
+        if (saveBtn) saveBtn.disabled = syncing;
+        
+        if (statusSpan) {
+            if (syncing) {
+                statusSpan.innerText = 'EXECUTING...';
+                statusSpan.style.color = 'var(--yellow)';
+                statusSpan.style.textShadow = '0 0 5px var(--yellow)';
+            } else {
+                statusSpan.innerText = 'READY';
+                statusSpan.style.color = 'var(--green)';
+                statusSpan.style.textShadow = '0 0 5px var(--green)';
+            }
+        }
+    }
+    
+    function clearTerminal() {
+        var term = document.getElementById('gitTerminal');
+        if (term) term.innerHTML = '';
+    }
+    
+    function writeTerminalLog(type, text) {
+        var term = document.getElementById('gitTerminal');
+        if (!term) return;
+        
+        var line = document.createElement('div');
+        line.className = 'git-log-line ' + type;
+        line.innerText = text;
+        term.appendChild(line);
+        term.scrollTop = term.scrollHeight;
+    }
+    
+    // 核心流式打字机延迟喷吐日志算法
+    async function renderLogsGradually(logs) {
+        return new Promise(function(resolve) {
+            if (!logs || logs.length === 0) {
+                resolve();
+                return;
+            }
+            
+            var index = 0;
+            function printNext() {
+                if (index >= logs.length) {
+                    resolve();
+                    return;
+                }
+                var log = logs[index++];
+                
+                // 给命令行前缀打上特殊的渐进打字机呼吸感
+                if (log.type === 'command') {
+                    writeTerminalLog(log.type, log.text);
+                    setTimeout(printNext, 180); // 命令打完稍作停顿
+                } else {
+                    writeTerminalLog(log.type, log.text);
+                    setTimeout(printNext, 120); // 日志行间延迟
+                }
+            }
+            
+            printNext();
+        });
     }
 
     render();

@@ -8,8 +8,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const archiver = require('archiver');
+const { execSync } = require('child_process');
 
 // ==================== 配置 ====================
+const GIT_CONFIG_PATH = path.join(__dirname, '..', 'git_config.json');
+const SSH_KEY_DIR = path.join(__dirname, '..', '.ssh_key');
 const PORT = process.env.PORT || 8788;
 const PUBLIC_DIR = __dirname;
 const MARKDOWN_DIR = process.env.MARKDOWN_DIR || path.join(__dirname, '..', 'Markdown');
@@ -24,6 +27,144 @@ function escapeHtml(str) {
         .replace(/>/g, '>')
         .replace(/"/g, '"')
         .replace(/'/g, '&#039;');
+}
+
+// ==================== Git 远程仓库同步辅助函数 ====================
+
+// 读取 Git 同步配置
+function loadGitConfig() {
+    try {
+        if (fs.existsSync(GIT_CONFIG_PATH)) {
+            const data = fs.readFileSync(GIT_CONFIG_PATH, 'utf8');
+            const parsed = JSON.parse(data);
+            return {
+                githubUser: parsed.githubUser || '',
+                repositoryUrl: parsed.repositoryUrl || '',
+                isPrivate: parsed.isPrivate || false,
+                sshPublicKey: parsed.sshPublicKey || '',
+                sshPrivateKeyPath: parsed.sshPrivateKeyPath || '',
+                branch: parsed.branch || 'markdown'
+            };
+        }
+    } catch (e) {
+        console.error('读取 Git 配置失败:', e);
+    }
+    return {
+        githubUser: '',
+        repositoryUrl: '',
+        isPrivate: false,
+        sshPublicKey: '',
+        sshPrivateKeyPath: '',
+        branch: 'markdown'
+    };
+}
+
+// 写入 Git 同步配置
+function saveGitConfig(config) {
+    try {
+        fs.writeFileSync(GIT_CONFIG_PATH, JSON.stringify(config, null, 4), 'utf8');
+        return true;
+    } catch (e) {
+        console.error('写入 Git 配置失败:', e);
+        return false;
+    }
+}
+
+// 自动生成 SSH 密钥对，防御全局冲突且在本地安全存储
+function ensureSshKeyPair(config) {
+    // 检查专属密钥对存储目录
+    if (!fs.existsSync(SSH_KEY_DIR)) {
+        fs.mkdirSync(SSH_KEY_DIR, { recursive: true, mode: 0o700 });
+    }
+
+    const privateKeyPath = path.join(SSH_KEY_DIR, 'id_git_blog');
+    const publicKeyPath = privateKeyPath + '.pub';
+
+    // 如果密钥对不存在，则调用系统 ssh-keygen 自动生成专属 RSA 密钥
+    if (!fs.existsSync(privateKeyPath)) {
+        try {
+            // macOS 默认自带 ssh-keygen，采用 4096 位 RSA
+            execSync(`ssh-keygen -t rsa -b 4096 -f "${privateKeyPath}" -N "" -q`, { stdio: 'ignore' });
+            
+            // 确保私钥只读权限（600），防范 ssh 在连接时报私钥权限过大警告
+            fs.chmodSync(privateKeyPath, 0o600);
+        } catch (e) {
+            console.error('生成 RSA 专属密钥失败，尝试生成 Ed25519 备用密钥:', e);
+            try {
+                // 如果 RSA 生成失败，则降级为 ed25519 密钥对
+                execSync(`ssh-keygen -t ed25519 -f "${privateKeyPath}" -N "" -q`, { stdio: 'ignore' });
+                fs.chmodSync(privateKeyPath, 0o600);
+            } catch (err) {
+                throw new Error('专属密钥对自动生成失败: ' + err.message);
+            }
+        }
+    }
+
+    // 读取专属公钥内容，并安全存回 config 中
+    if (fs.existsSync(publicKeyPath)) {
+        const pubKeyContent = fs.readFileSync(publicKeyPath, 'utf8').trim();
+        config.sshPublicKey = pubKeyContent;
+        config.sshPrivateKeyPath = privateKeyPath;
+        saveGitConfig(config);
+    }
+    return config;
+}
+
+// 获取专属于本系统的 Git 隔离运行环境变量对象
+function getGitEnv() {
+    const config = loadGitConfig();
+    const env = { ...process.env };
+    
+    // 如果是 SSH 链接且生成了私钥，则强行配置专属 GIT_SSH_COMMAND，隔离用户的全局 ~/.ssh/config 密钥冲突
+    if (config.repositoryUrl && config.repositoryUrl.includes('git@') && config.sshPrivateKeyPath) {
+        if (fs.existsSync(config.sshPrivateKeyPath)) {
+            // -i 指定专用私钥，-o StrictHostKeyChecking=no 避免首次连接时终端阻断交互确认
+            env.GIT_SSH_COMMAND = `ssh -i "${config.sshPrivateKeyPath}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`;
+        }
+    }
+    return env;
+}
+
+// POST 请求 body 解析辅助函数
+function readJsonBody(req) {
+    return new Promise((resolve, reject) => {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                resolve(body ? JSON.parse(body) : {});
+            } catch (e) {
+                reject(new Error('JSON 解析失败: ' + e.message));
+            }
+        });
+        req.on('error', err => reject(err));
+    });
+}
+
+// 同步命令执行并向日志数组中写入标准输出与错误的辅助函数
+function runCommandAndLog(cmd, cwd, logs) {
+    logs.push({ type: 'command', text: `> ${cmd}` });
+    try {
+        const stdout = execSync(cmd, {
+            cwd: cwd,
+            env: getGitEnv(),
+            stdio: 'pipe',
+            timeout: 30000 // 30 秒超时
+        });
+        const stdoutStr = stdout.toString('utf8').trim();
+        if (stdoutStr) {
+            logs.push({ type: 'stdout', text: stdoutStr });
+        }
+        return true;
+    } catch (e) {
+        let stderrStr = '';
+        if (e.stderr) {
+            stderrStr = e.stderr.toString('utf8').trim();
+        }
+        const errorMsg = stderrStr || e.message || '未知错误';
+        logs.push({ type: 'stderr', text: errorMsg });
+        return false;
+    }
 }
 
 function jsonResponse(res, data, status = 200) {
@@ -1098,6 +1239,333 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             
             fs.unlinkSync(filePath);
             return jsonResponse(res, { message: '文件已删除' });
+        }
+
+        // ============ Git 远程仓库同步 API ============
+        // 1. 获取 Git 配置
+        if (pathname === '/api/git/config' && method === 'GET') {
+            let config = loadGitConfig();
+            if (config.repositoryUrl && config.repositoryUrl.includes('git@')) {
+                try {
+                    config = ensureSshKeyPair(config);
+                } catch (e) {
+                    console.error('ensureSshKeyPair Error:', e);
+                }
+            }
+            const safeConfig = {
+                githubUser: config.githubUser || '',
+                repositoryUrl: config.repositoryUrl || '',
+                isPrivate: config.isPrivate || false,
+                sshPublicKey: config.sshPublicKey || '',
+                branch: config.branch || 'markdown'
+            };
+            return jsonResponse(res, safeConfig);
+        }
+
+        // 2. 保存 Git 配置
+        if (pathname === '/api/git/config' && method === 'POST') {
+            try {
+                const body = await readJsonBody(req);
+                const { githubUser, repositoryUrl, isPrivate, branch } = body;
+                
+                if (!repositoryUrl) {
+                    return jsonResponse(res, { error: '仓库 URL 不能为空' }, 400);
+                }
+
+                let config = loadGitConfig();
+                config.githubUser = githubUser || '';
+                config.repositoryUrl = repositoryUrl.trim();
+                config.isPrivate = !!isPrivate;
+                config.branch = (branch || 'markdown').trim();
+
+                if (config.repositoryUrl.includes('git@')) {
+                    config = ensureSshKeyPair(config);
+                }
+
+                saveGitConfig(config);
+                return jsonResponse(res, {
+                    message: '配置保存成功',
+                    config: {
+                        githubUser: config.githubUser,
+                        repositoryUrl: config.repositoryUrl,
+                        isPrivate: config.isPrivate,
+                        sshPublicKey: config.sshPublicKey,
+                        branch: config.branch
+                    }
+                });
+            } catch (err) {
+                return jsonResponse(res, { error: err.message }, 400);
+            }
+        }
+
+        // 3. 测试 Git 仓库连通性
+        if (pathname === '/api/git/test' && method === 'POST') {
+            let repositoryUrl = '';
+            try {
+                const body = await readJsonBody(req);
+                repositoryUrl = (body.repositoryUrl || '').trim();
+
+                if (!repositoryUrl) {
+                    return jsonResponse(res, { error: '仓库 URL 不能为空' }, 400);
+                }
+
+                // 基本的安全过滤，防范注入攻击
+                if (!/^[a-zA-Z0-9._\-/:@+%]+$/.test(repositoryUrl)) {
+                    return jsonResponse(res, { error: '仓库 URL 包含非法字符，拒绝执行' }, 400);
+                }
+
+                let config = loadGitConfig();
+                if (repositoryUrl.includes('git@') && !config.sshPrivateKeyPath) {
+                    config.repositoryUrl = repositoryUrl;
+                    config = ensureSshKeyPair(config);
+                }
+
+                // 异步测试指令以防止网络挂死
+                execSync(`git ls-remote "${repositoryUrl}"`, {
+                    env: getGitEnv(),
+                    stdio: 'pipe',
+                    timeout: 15000
+                });
+                return jsonResponse(res, { success: true, message: '连接成功，读写校验通过！' });
+            } catch (e) {
+                let stderr = '';
+                if (e.stderr) {
+                    stderr = e.stderr.toString('utf8').trim();
+                }
+                let errorMsg = stderr || e.message || '连接超时或配置错误';
+                
+                // 特化拦截 HTTPS 交互失败的报错
+                if (repositoryUrl.includes('https://') && 
+                    (errorMsg.includes('Username') || errorMsg.includes('Terminal') || errorMsg.includes('Device not configured') || errorMsg.includes('could not read') || errorMsg.includes('Credential') || errorMsg.includes('Authentication'))) {
+                    errorMsg = '❌ [HTTPS AUTH ERROR] 检测到您使用了 HTTPS 链接，且 Git 试图要求输入用户名/密码。在自动化同步的无交互环境下这会被强行阻断。\n\n建议方案：\n1. 强烈推荐在上方改用更安全、适合自动化的 SSH 格式链接 (git@github.com:user/repo.git)，并使用下方生成的公钥添加到 GitHub 中。\n2. 如果必须使用 HTTPS，请确保在服务器全局配置了 Git 凭据助手(credential helper)或在 URL 中写入 Personal Access Token。';
+                }
+                
+                return jsonResponse(res, { success: false, error: errorMsg }, 400);
+            }
+        }
+
+        // 4. 远程仓库同步动作执行
+        if (pathname === '/api/git/sync' && method === 'POST') {
+            const logs = [];
+            try {
+                const body = await readJsonBody(req);
+                const action = body.action; // 'push' | 'pull' | 'merge'
+
+                if (!['push', 'pull', 'merge'].includes(action)) {
+                    return jsonResponse(res, { error: '无效的同步动作' }, 400);
+                }
+
+                const config = loadGitConfig();
+                if (!config.repositoryUrl) {
+                    return jsonResponse(res, { error: '请先配置远程仓库 URL' }, 400);
+                }
+
+                const targetBranch = config.branch || 'markdown';
+
+                // 定义一个本地同步错误辅助函数，特化拦截 HTTPS 账号密码卡死报错并进行友好提示汉化
+                const handleSyncError = (defaultError, statusCode = 400) => {
+                    let errorMsg = defaultError;
+                    // 检查 logs 里是否包含 HTTPS 的凭证错误
+                    const hasHttpsAuthError = logs.some(log => 
+                        log.type === 'stderr' && 
+                        (log.text.includes('Username') || log.text.includes('Terminal') || log.text.includes('Device not configured') || log.text.includes('could not read') || log.text.includes('Credential') || log.text.includes('Authentication'))
+                    );
+                    
+                    if (hasHttpsAuthError && config.repositoryUrl && config.repositoryUrl.includes('https://')) {
+                        errorMsg = '❌ [HTTPS AUTH ERROR] 检测到您使用了 HTTPS 链接且同步失败。在免交互的自动化后台环境下，Git 无法读取您的用户名/密码。\n\n建议方案：\n1. 强烈推荐在左侧将仓库配置改用 SSH 格式链接 (git@github.com:user/repo.git)，并使用下方生成的专属公钥添加到 GitHub 中。\n2. 如果必须使用 HTTPS，请确保已在服务器全局配置了 Git 凭据助手(credential helper)或在 URL 中写入 Personal Access Token。';
+                        logs.push({
+                            type: 'stderr',
+                            text: '💡 [系统修复建议]：请将仓库配置修改为 SSH 格式，并将本博客生成的部署公钥添加到您的 GitHub 部署密钥 (Deploy Keys) 中。'
+                        });
+                    }
+                    return jsonResponse(res, { success: false, error: errorMsg, logs }, statusCode);
+                };
+
+                // 4.1 确保 Markdown 文件夹存在
+                if (!fs.existsSync(MARKDOWN_DIR)) {
+                    fs.mkdirSync(MARKDOWN_DIR, { recursive: true });
+                }
+
+                // 4.2 初始化 Git 仓库 (如果尚未初始化)
+                if (!fs.existsSync(path.join(MARKDOWN_DIR, '.git'))) {
+                    logs.push({ type: 'stdout', text: '检测到 Markdown 目录未初始化 Git，正在初始化本地仓库...' });
+                    runCommandAndLog('git init', MARKDOWN_DIR, logs);
+                    runCommandAndLog(`git checkout -b "${targetBranch}"`, MARKDOWN_DIR, logs);
+                    runCommandAndLog('git config user.name "TerminalBlog"', MARKDOWN_DIR, logs);
+                    runCommandAndLog('git config user.email "blog@terminal.local"', MARKDOWN_DIR, logs);
+                    runCommandAndLog('git add .', MARKDOWN_DIR, logs);
+                    try {
+                        execSync('git commit -m "Initial commit of Markdown posts by TerminalBlog"', {
+                            cwd: MARKDOWN_DIR,
+                            stdio: 'ignore'
+                        });
+                        logs.push({ type: 'stdout', text: `✅ 已成功创建本地文章初始版本，并已自动绑定到 "${targetBranch}" 分支。` });
+                    } catch (e) {}
+                } else {
+                    // 如果已经初始化，但当前分支与配置的不一致，则切换或新建目标分支
+                    let currentBranch = '';
+                    try {
+                        currentBranch = execSync('git branch --show-current', { cwd: MARKDOWN_DIR }).toString('utf8').trim();
+                    } catch (e) {
+                        try {
+                            currentBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: MARKDOWN_DIR }).toString('utf8').trim();
+                        } catch (err) {}
+                    }
+
+                    if (currentBranch && currentBranch !== targetBranch) {
+                        logs.push({ type: 'stdout', text: `检测到本地当前分支为 "${currentBranch}"，正在切换到配置的目标同步分支 "${targetBranch}"...` });
+                        let checkoutSuccess = runCommandAndLog(`git checkout "${targetBranch}"`, MARKDOWN_DIR, logs);
+                        if (!checkoutSuccess) {
+                            logs.push({ type: 'stdout', text: `本地不存在分支 "${targetBranch}"，正在创建并切换...` });
+                            runCommandAndLog(`git checkout -b "${targetBranch}"`, MARKDOWN_DIR, logs);
+                        }
+                    }
+                }
+
+                // 4.3 校验与校准 remote origin
+                let currentRemote = '';
+                try {
+                    currentRemote = execSync('git remote get-url origin', {
+                        cwd: MARKDOWN_DIR,
+                        stdio: 'pipe'
+                    }).toString('utf8').trim();
+                } catch (e) {}
+
+                if (!currentRemote) {
+                    runCommandAndLog(`git remote add origin "${config.repositoryUrl}"`, MARKDOWN_DIR, logs);
+                } else if (currentRemote !== config.repositoryUrl) {
+                    runCommandAndLog(`git remote set-url origin "${config.repositoryUrl}"`, MARKDOWN_DIR, logs);
+                }
+
+                // 4.4 执行具体的同步逻辑
+                if (action === 'push') {
+                    // 本地覆盖远程 (Force Push)
+                    runCommandAndLog('git add .', MARKDOWN_DIR, logs);
+                    try {
+                        execSync('git commit -m "Sync: Local override Remote at ' + new Date().toLocaleString('zh-CN') + '"', {
+                            cwd: MARKDOWN_DIR,
+                            env: getGitEnv(),
+                            stdio: 'ignore'
+                        });
+                        logs.push({ type: 'stdout', text: '本地暂存文件快照建立成功。' });
+                    } catch (e) {}
+
+                    const pushSuccess = runCommandAndLog(`git push -f origin "${targetBranch}"`, MARKDOWN_DIR, logs);
+                    if (pushSuccess) {
+                        return jsonResponse(res, { success: true, message: `本地文章内容已强力覆盖远程仓库 ${targetBranch} 分支！`, logs });
+                    } else {
+                        return handleSyncError('强制推送失败，请检查配置、网络或 SSH 权限。');
+                    }
+                }
+
+                if (action === 'pull') {
+                    // 远程覆盖本地 (Force Reset)
+                    const fetchSuccess = runCommandAndLog('git fetch origin', MARKDOWN_DIR, logs);
+                    if (!fetchSuccess) {
+                        return handleSyncError('从远程获取更新失败，请检查网络或 SSH 权限。');
+                    }
+
+                    // 校验远程分支是否存在
+                    let hasRemoteBranch = false;
+                    try {
+                        execSync(`git rev-parse "origin/${targetBranch}"`, { cwd: MARKDOWN_DIR, stdio: 'ignore' });
+                        hasRemoteBranch = true;
+                    } catch (e) {}
+
+                    if (!hasRemoteBranch) {
+                        logs.push({ type: 'stderr', text: `❌ [ERROR] 远程仓库上不存在分支 "${targetBranch}"，无法执行远程覆盖本地。` });
+                        return jsonResponse(res, { success: false, error: `远程分支 "${targetBranch}" 不存在。您必须先使用“双向合并”或“本地覆盖远程”初始化创建该远程分支。`, logs }, 400);
+                    }
+
+                    let resetSuccess = runCommandAndLog(`git reset --hard "origin/${targetBranch}"`, MARKDOWN_DIR, logs);
+                    if (resetSuccess) {
+                        runCommandAndLog('git clean -fd', MARKDOWN_DIR, logs);
+                        return jsonResponse(res, { success: true, message: `远程仓库分支 "${targetBranch}" 内容已成功强制覆盖本地！`, logs });
+                    } else {
+                        return handleSyncError('强力重置本地失败，请确认分支状态。');
+                    }
+                }
+
+                if (action === 'merge') {
+                    // 双向智能合并 (Merge)
+                    runCommandAndLog('git add .', MARKDOWN_DIR, logs);
+                    try {
+                        execSync('git commit -m "Sync: Local snapshot before Merge at ' + new Date().toLocaleString('zh-CN') + '"', {
+                            cwd: MARKDOWN_DIR,
+                            env: getGitEnv(),
+                            stdio: 'ignore'
+                        });
+                        logs.push({ type: 'stdout', text: '本地快照创建完毕。' });
+                    } catch (e) {}
+
+                    const fetchSuccess = runCommandAndLog('git fetch origin', MARKDOWN_DIR, logs);
+                    if (!fetchSuccess) {
+                        return handleSyncError('拉取远程改动失败，请检查网络');
+                    }
+
+                    // 校验远程分支是否存在
+                    let hasRemoteBranch = false;
+                    try {
+                        execSync(`git rev-parse "origin/${targetBranch}"`, { cwd: MARKDOWN_DIR, stdio: 'ignore' });
+                        hasRemoteBranch = true;
+                    } catch (e) {}
+
+                    if (!hasRemoteBranch) {
+                        logs.push({ type: 'stdout', text: `检测到远程仓库上不存在 "${targetBranch}" 分支（可能是一个全新空仓库），跳过合并，直接发起初始化推送...` });
+                        const pushInit = runCommandAndLog(`git push -u origin "${targetBranch}"`, MARKDOWN_DIR, logs);
+                        if (pushInit) {
+                            return jsonResponse(res, { success: true, message: `双向同步完成（空仓库/远程新分支 "${targetBranch}" 初始化推送成功）！`, logs });
+                        }
+                        return handleSyncError(`推送初始化分支 "${targetBranch}" 失败`);
+                    }
+
+                    logs.push({ type: 'command', text: `> git merge "origin/${targetBranch}" --no-edit` });
+                    try {
+                        const mergeOut = execSync(`git merge "origin/${targetBranch}" --no-edit`, {
+                            cwd: MARKDOWN_DIR,
+                            env: getGitEnv(),
+                            stdio: 'pipe',
+                            timeout: 20000
+                        });
+                        if (mergeOut) {
+                            logs.push({ type: 'stdout', text: mergeOut.toString('utf8').trim() });
+                        }
+
+                        logs.push({ type: 'stdout', text: `智能合并成功！正在将合并后的代码推回远程仓库分支 "${targetBranch}"...` });
+                        const pushSuccess = runCommandAndLog(`git push origin "${targetBranch}"`, MARKDOWN_DIR, logs);
+                        if (pushSuccess) {
+                            return jsonResponse(res, { success: true, message: `智能双向同步合并完成，已推送到远程 "${targetBranch}"！`, logs });
+                        } else {
+                            return handleSyncError(`推送到远程分支 "${targetBranch}" 失败`);
+                        }
+                    } catch (err) {
+                        let stderrStr = '';
+                        if (err.stderr) stderrStr = err.stderr.toString('utf8').trim();
+                        logs.push({ type: 'stderr', text: stderrStr || err.message });
+                        logs.push({ type: 'stderr', text: '⚠️ 检测到文件冲突！正在进行安全回退保护工作区...' });
+
+                        let conflictFiles = [];
+                        try {
+                            const files = execSync('git diff --name-only --diff-filter=U', { cwd: MARKDOWN_DIR });
+                            conflictFiles = files.toString('utf8').trim().split('\n').filter(Boolean);
+                        } catch (e) {}
+
+                        execSync('git merge --abort', { cwd: MARKDOWN_DIR });
+                        logs.push({ type: 'stdout', text: '✅ 已成功撤销冲突合并，本地工作区已恢复安全、干净的状态。' });
+
+                        return jsonResponse(res, {
+                            success: false,
+                            conflict: true,
+                            message: '双向合并冲突，已自动安全还原。',
+                            conflictFiles,
+                            logs
+                        }, 409);
+                    }
+                }
+            } catch (err) {
+                logs.push({ type: 'stderr', text: '执行同步动作崩溃: ' + err.message });
+                return handleSyncError('执行同步动作崩溃: ' + err.message, 500);
+            }
         }
 
         // SPA fallback - 所有未匹配的路径返回 index.html

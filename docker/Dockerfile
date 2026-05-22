@@ -15,7 +15,7 @@
 FROM node:24-alpine
 
 # 安装基础工具
-RUN apk add --no-cache bash sed
+RUN apk add --no-cache bash sed git openssh-client
 
 # 设置工作目录
 WORKDIR /app

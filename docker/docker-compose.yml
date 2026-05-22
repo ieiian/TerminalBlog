@@ -23,6 +23,8 @@ services:
       - ../Markdown:/app/Markdown
       - ../images:/app/images
       - ../download:/app/download
+      - ../.ssh_key:/app/.ssh_key
+      - ../git_config.json:/app/git_config.json
     environment:
       - SITE_TITLE=TerminalBlog.Docker
       - WELCOME_MESSAGE=欢迎来到我的终端博客docker版本
