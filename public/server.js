@@ -926,6 +926,180 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             }
         }
 
+        // ============ 文件管理 API ============
+        // 获取文件列表
+        const filesMatch = pathname.match(/^\/api\/files\/(\w+)$/);
+        if (filesMatch && method === 'GET') {
+            const folder = filesMatch[1]; // download 或 images
+            if (folder !== 'download' && folder !== 'images') {
+                return jsonResponse(res, { error: '无效的文件夹' }, 400);
+            }
+            const folderPath = path.join(__dirname, '..', folder);
+            if (!fs.existsSync(folderPath)) {
+                fs.mkdirSync(folderPath, { recursive: true });
+            }
+            const files = fs.readdirSync(folderPath).map(fileName => {
+                const filePath = path.join(folderPath, fileName);
+                const stats = fs.statSync(filePath);
+                const size = formatFileSize(stats.size);
+                return { name: fileName, size: size, time: stats.mtime.toISOString() };
+            });
+            // 按时间排序，最新的在前
+            files.sort((a, b) => new Date(b.time) - new Date(a.time));
+            return jsonResponse(res, { files: files });
+        }
+        
+        // 上传文件
+        const uploadMatch = pathname.match(/^\/api\/upload\/(\w+)$/);
+        if (uploadMatch && method === 'POST') {
+            const folder = uploadMatch[1]; // download 或 images
+            if (folder !== 'download' && folder !== 'images') {
+                return jsonResponse(res, { error: '无效的文件夹' }, 400);
+            }
+            
+            const folderPath = path.join(__dirname, '..', folder);
+            if (!fs.existsSync(folderPath)) {
+                fs.mkdirSync(folderPath, { recursive: true });
+            }
+            
+            const contentType = req.headers['content-type'] || '';
+            let data = [];
+            let totalSize = 0;
+            const MAX_SIZE = 50 * 1024 * 1024; // 50MB 限制
+            
+            req.on('data', chunk => {
+                totalSize += chunk.length;
+                if (totalSize > MAX_SIZE) {
+                    req.destroy();
+                    return jsonResponse(res, { error: '文件大小超过限制 (最大 50MB)' }, 413);
+                }
+                data.push(chunk);
+            });
+            
+            req.on('end', () => {
+                try {
+                    const buffer = Buffer.concat(data);
+                    const contentTypeHeader = contentType;
+                    
+                    if (contentTypeHeader.includes('multipart/form-data')) {
+                        // 健壮的 boundary 提取，处理带有双引号包裹以及带有分号等其他参数的 Content-Type
+                        const boundaryMatch = contentTypeHeader.match(/boundary=(?:"([^"]+)"|([^;]+))/);
+                        if (!boundaryMatch) {
+                            return jsonResponse(res, { error: '无效的 multipart boundary' }, 400);
+                        }
+                        
+                        const boundary = (boundaryMatch[1] || boundaryMatch[2] || '').trim();
+                        if (!boundary) {
+                            return jsonResponse(res, { error: '无效的 multipart boundary' }, 400);
+                        }
+                        
+                        const multipartData = buffer;
+                        
+                        // 1. 查找 boundary 起始位置以定位当前分段
+                        const boundaryBuffer = Buffer.from('--' + boundary);
+                        const startIdx = multipartData.indexOf(boundaryBuffer);
+                        if (startIdx === -1) {
+                            return jsonResponse(res, { error: '未找到 multipart 分割边界' }, 400);
+                        }
+                        
+                        // 2. 在分段内查找 Content-Disposition 头部与内容的双换行符分割线
+                        const headerEnd = multipartData.indexOf(Buffer.from('\r\n\r\n'), startIdx + boundaryBuffer.length);
+                        if (headerEnd === -1) {
+                            return jsonResponse(res, { error: '无效的 multipart 结构' }, 400);
+                        }
+                        
+                        const headerSection = multipartData.slice(startIdx + boundaryBuffer.length, headerEnd).toString('utf8');
+                        const filenameMatch = headerSection.match(/filename="([^"]+)"/);
+                        
+                        if (!filenameMatch) {
+                            return jsonResponse(res, { error: '未找到文件名' }, 400);
+                        }
+                        
+                        const filename = path.basename(filenameMatch[1]);
+                        // 清理文件名，只排除系统保留和危险字符，完全支持中文文件名
+                        const cleanFilename = filename.replace(/[\/\x00-\x1F\x7F#$:?*\"<>|]/g, '_');
+                        if (!cleanFilename || cleanFilename.length > 255) {
+                            return jsonResponse(res, { error: '文件名无效' }, 400);
+                        }
+                        
+                        // 3. 定位文件数据的起点
+                        const fileStart = headerEnd + 4;
+                        
+                        // 4. 定位文件数据的终点（下一个分割边界前）
+                        const boundaryEndBuffer = Buffer.from('\r\n--' + boundary);
+                        let fileEnd = multipartData.indexOf(boundaryEndBuffer, fileStart);
+                        
+                        if (fileEnd === -1) {
+                            const lastBoundaryBuffer = Buffer.from('--' + boundary);
+                            fileEnd = multipartData.indexOf(lastBoundaryBuffer, fileStart);
+                            if (fileEnd === -1) {
+                                fileEnd = multipartData.length;
+                            }
+                        }
+                        
+                        let fileBuffer = multipartData.slice(fileStart, fileEnd);
+                        
+                        // 去除末尾的换行符
+                        while (fileBuffer.length > 0 && (fileBuffer[fileBuffer.length - 1] === 10 || fileBuffer[fileBuffer.length - 1] === 13)) {
+                            fileBuffer = fileBuffer.slice(0, -1);
+                        }
+                        
+                        const filePath = path.join(folderPath, cleanFilename);
+                        fs.writeFileSync(filePath, fileBuffer);
+                        
+                        return jsonResponse(res, { 
+                            message: '文件上传成功', 
+                            filename: cleanFilename,
+                            size: formatFileSize(fileBuffer.length),
+                            url: '/' + folder + '/' + encodeURIComponent(cleanFilename)
+                        });
+                    } else {
+                        return jsonResponse(res, { error: '无效的内容类型' }, 400);
+                    }
+                } catch (e) {
+                    return jsonResponse(res, { error: '上传失败: ' + e.message }, 500);
+                }
+            });
+            
+            req.on('error', (e) => {
+                return jsonResponse(res, { error: '上传出错: ' + e.message }, 500);
+            });
+            return;
+        }
+        
+        // 删除文件
+        const deleteFileMatch = pathname.match(/^\/api\/files\/(\w+)\/(.+)$/);
+        if (deleteFileMatch && method === 'DELETE') {
+            const folder = deleteFileMatch[1];
+            const filename = decodeURIComponent(deleteFileMatch[2]);
+            
+            if (folder !== 'download' && folder !== 'images') {
+                return jsonResponse(res, { error: '无效的文件夹' }, 400);
+            }
+            
+            const folderPath = path.join(__dirname, '..', folder);
+            
+            // 提取基础文件名，防御路径遍历
+            const safeFilename = path.basename(filename);
+            
+            // 安全检查：确保解码后的文件名没有目录遍历嫌疑，且不含系统保留和危险字符
+            if (safeFilename !== filename || /[\/\x00-\x1F\x7F#$:?*\"<>|]/.test(filename)) {
+                return jsonResponse(res, { error: '文件名包含非法字符' }, 400);
+            }
+            
+            const filePath = path.resolve(folderPath, safeFilename);
+            // 再次验证路径是否越界，确保安全性
+            if (!filePath.startsWith(folderPath + path.sep)) {
+                return jsonResponse(res, { error: '非法路径访问' }, 400);
+            }
+            if (!fs.existsSync(filePath)) {
+                return jsonResponse(res, { error: '文件不存在' }, 404);
+            }
+            
+            fs.unlinkSync(filePath);
+            return jsonResponse(res, { message: '文件已删除' });
+        }
+
         // SPA fallback - 所有未匹配的路径返回 index.html
         sendIndex(res);
     } catch (e) {
@@ -935,6 +1109,14 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             jsonResponse(res, { error: '服务器错误: ' + e.message }, 500);
         }
     }
+}
+
+// 文件大小格式化
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
 }
 
 // ==================== 启动服务器 ====================

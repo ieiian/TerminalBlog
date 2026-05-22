@@ -481,14 +481,13 @@
             font-size: 0.85em;
         }
         .loading::after {
-            content: '...';
-            animation: dots 1.5s steps(4, end) infinite;
+            content: '.';
+            animation: dots 1.2s infinite;
         }
         @keyframes dots {
-            0%, 20% { content: ''; }
-            40% { content: '.'; }
-            60% { content: '..'; }
-            80%, 100% { content: '...'; }
+            0%, 100% { content: '.'; }
+            33% { content: '..'; }
+            66% { content: '...'; }
         }
 
         /* Error */
@@ -736,6 +735,166 @@
         @keyframes toastOut {
             0% { opacity: 1; }
             100% { opacity: 0; }
+        }
+
+        /* File Manager Modal */
+        .file-manager-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 9998;
+            overflow-y: auto;
+            padding: 30px 16px;
+        }
+        .file-manager-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .file-manager-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: var(--bg-header);
+            border: 1px solid var(--border);
+            border-radius: 8px 8px 0 0;
+            border-bottom: none;
+        }
+        .file-manager-header span {
+            color: var(--green);
+            font-size: 0.9em;
+        }
+        .file-manager-header button {
+            background: var(--bg-header);
+            color: var(--gray);
+            border: 1px solid var(--border);
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .file-manager-header button:hover {
+            color: var(--red);
+            border-color: var(--red);
+        }
+        .file-manager-body {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            padding: 20px;
+        }
+        .file-section {
+            margin-bottom: 24px;
+        }
+        .file-section:last-child {
+            margin-bottom: 0;
+        }
+        .file-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .file-section-title {
+            color: var(--cyan);
+            font-size: 0.85em;
+        }
+        .file-upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 6px;
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 12px;
+            transition: border-color 0.2s;
+        }
+        .file-upload-area:hover {
+            border-color: var(--green);
+        }
+        .file-upload-area input[type="file"] {
+            display: none;
+        }
+        .file-upload-area label {
+            color: var(--gray);
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        .file-upload-area label:hover {
+            color: var(--green);
+        }
+        .file-upload-area .hint {
+            color: var(--gray-dim);
+            font-size: 0.75em;
+            margin-top: 4px;
+        }
+        .file-upload-area.dragover {
+            border-color: var(--green) !important;
+            background: rgba(0, 255, 0, 0.05);
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+        }
+        .file-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border: 1px solid rgba(48, 54, 61, 0.5);
+            border-radius: 4px;
+            margin-bottom: 6px;
+            background: var(--bg-card);
+        }
+        .file-item:hover {
+            border-color: var(--border);
+        }
+        .file-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .file-item-name {
+            color: var(--text);
+            font-size: 0.85em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-item-size {
+            color: var(--gray-dim);
+            font-size: 0.75em;
+        }
+        .file-item-actions {
+            display: flex;
+            gap: 8px;
+            margin-left: 12px;
+        }
+        .file-item-btn {
+            background: var(--bg-header);
+            color: var(--gray);
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.75em;
+            transition: all 0.2s;
+        }
+        .file-item-btn:hover {
+            color: var(--green);
+            border-color: var(--green);
+        }
+        .file-item-btn.delete:hover {
+            color: var(--red);
+            border-color: var(--red);
+        }
+        .file-empty {
+            color: var(--gray-dim);
+            font-size: 0.85em;
+            text-align: center;
+            padding: 20px;
         }
     </style>
 </head>
@@ -1534,6 +1693,8 @@
                 <a onclick="navigate('home')">[首页]</a>
                 <a onclick="navigate('tags')">[标签]</a>
                 <a onclick="navigate('admin')" class="active">[管理]</a>
+                <a onclick="openFileManager()">[文件管理]</a>
+                <a onclick="showToast('远程仓库功能待开发', 'info')">[远程仓库]</a>
                 <a onclick="doLogout()" style="color: var(--red);">[退出登录]</a>
             </div>
 
@@ -2412,6 +2573,219 @@
         }
 
         footer.innerHTML = footerHtml;
+    }
+
+    // ============ 文件管理器 ============
+    function openFileManager() {
+        var modal = document.createElement('div');
+        modal.className = 'file-manager-modal';
+        modal.id = 'fileManagerModal';
+        modal.innerHTML = 
+            '<div class="file-manager-container">' +
+                '<div class="file-manager-header">' +
+                    '<span>📁 文件管理器</span>' +
+                    '<button onclick="closeFileManager()">✕ 关闭</button>' +
+                '</div>' +
+                '<div class="file-manager-body">' +
+                    '<div class="file-section">' +
+                        '<div class="file-section-header">' +
+                            '<span class="file-section-title">📥 下载文件 (download/)</span>' +
+                        '</div>' +
+                        '<div class="file-upload-area" id="downloadUploadArea" ' +
+                             'onclick="if(event.target===this||this.contains(event.target)&&event.target.tagName!==\'INPUT\')document.getElementById(\'downloadUpload\').click()" ' +
+                             'ondragover="event.preventDefault(); this.classList.add(\'dragover\');" ' +
+                             'ondragleave="this.classList.remove(\'dragover\');" ' +
+                             'ondrop="handleFileDrop(event, \'download\')">' +
+                            '<input type="file" id="downloadUpload" multiple onchange="handleFileUpload(event, \'download\')" style="display:none;" />' +
+                            '<label style="cursor:pointer;">点击或拖拽文件到此处上传</label>' +
+                            '<div class="hint">支持任意格式文件</div>' +
+                        '</div>' +
+                        '<div class="file-list" id="downloadFileList">' +
+                            '<span class="loading"></span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="file-section">' +
+                        '<div class="file-section-header">' +
+                            '<span class="file-section-title">🖼️ 图片文件 (images/)</span>' +
+                        '</div>' +
+                        '<div class="file-upload-area" id="imagesUploadArea" ' +
+                             'onclick="if(event.target===this||this.contains(event.target)&&event.target.tagName!==\'INPUT\')document.getElementById(\'imagesUpload\').click()" ' +
+                             'ondragover="event.preventDefault(); this.classList.add(\'dragover\');" ' +
+                             'ondragleave="this.classList.remove(\'dragover\');" ' +
+                             'ondrop="handleFileDrop(event, \'images\')">' +
+                            '<input type="file" id="imagesUpload" multiple accept="image/*" onchange="handleFileUpload(event, \'images\')" style="display:none;" />' +
+                            '<label style="cursor:pointer;">点击或拖拽图片到此处上传</label>' +
+                            '<div class="hint">支持 jpg, png, gif, webp 等格式</div>' +
+                        '</div>' +
+                        '<div class="file-list" id="imagesFileList">' +
+                            '<span class="loading"></span>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        
+        document.body.appendChild(modal);
+        loadFileLists();
+        
+        // 阻止背景滚动
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeFileManager() {
+        var modal = document.getElementById('fileManagerModal');
+        if (modal) {
+            modal.remove();
+        }
+        document.body.style.overflow = '';
+    }
+    
+    async function loadFileLists() {
+        try {
+            // 加载 download 列表
+            var downloadList = document.getElementById('downloadFileList');
+            if (downloadList) {
+                var downloadData = await apiGet('/files/download');
+                downloadList.innerHTML = renderFileList(downloadData.files, 'download');
+            }
+            
+            // 加载 images 列表
+            var imagesList = document.getElementById('imagesFileList');
+            if (imagesList) {
+                var imagesData = await apiGet('/files/images');
+                imagesList.innerHTML = renderFileList(imagesData.files, 'images');
+            }
+        } catch (err) {
+            showToast('[ERROR] 加载文件列表失败', 'error');
+        }
+    }
+    
+    function renderFileList(files, folder) {
+        if (!files || files.length === 0) {
+            return '<div class="file-empty">暂无文件</div>';
+        }
+        
+        return files.map(function(file) {
+            var fileUrl = window.location.origin + '/' + folder + '/' + encodeURIComponent(file.name);
+            return '<div class="file-item">' +
+                '<div class="file-item-info">' +
+                    '<div class="file-item-name" title="' + escapeHtml(file.name) + '">' + escapeHtml(file.name) + '</div>' +
+                    '<div class="file-item-size">' + file.size + '</div>' +
+                '</div>' +
+                '<div class="file-item-actions">' +
+                    '<button class="file-item-btn" onclick="copyFileUrl(\'' + escapeHtml(fileUrl) + '\')" title="复制URL">📋 复制</button>' +
+                    '<button class="file-item-btn delete" onclick="deleteFile(\'' + folder + '\', \'' + escapeHtml(file.name) + '\')" title="删除">🗑️</button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    }
+    
+    function copyFileUrl(url) {
+        navigator.clipboard.writeText(url).then(function() {
+            showToast('✅ URL 已复制到剪贴板', 'success');
+        }).catch(function() {
+            showToast('[ERROR] 复制失败', 'error');
+        });
+    }
+    
+    async function handleFileDrop(event, folder) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        var area = event.currentTarget;
+        if (area) {
+            area.classList.remove('dragover');
+        }
+        
+        var files = event.dataTransfer.files;
+        if (!files || files.length === 0) return;
+        
+        await uploadMultipleFiles(files, folder);
+    }
+    
+    async function uploadMultipleFiles(files, folder) {
+        for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            try {
+                await uploadFile(file, folder);
+            } catch (err) {
+                console.error('上传文件失败:', file.name, err);
+            }
+        }
+        loadFileLists();
+    }
+    
+    async function handleFileUpload(event, folder) {
+        var files = event.target.files;
+        if (!files || files.length === 0) return;
+        
+        await uploadMultipleFiles(files, folder);
+        
+        // 清空 input
+        event.target.value = '';
+    }
+    
+    async function uploadFile(file, folder) {
+        return new Promise(function(resolve, reject) {
+            var formData = new FormData();
+            formData.append('file', file);
+            
+            var headers = {};
+            if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+            
+            showToast('正在上传: ' + file.name, 'info');
+            
+            fetch('/api/upload/' + folder, {
+                method: 'POST',
+                headers: headers,
+                body: formData
+            }).then(async function(res) {
+                var contentType = res.headers.get('content-type') || '';
+                if (!res.ok) {
+                    var errMsg = '上传失败';
+                    if (contentType.includes('application/json')) {
+                        var errJson = await res.json();
+                        errMsg = errJson.error || errMsg;
+                    } else {
+                        errMsg = errMsg + ' (HTTP ' + res.status + ')';
+                    }
+                    throw new Error(errMsg);
+                }
+                
+                if (!contentType.includes('application/json')) {
+                    throw new Error('服务器未返回 JSON 数据，可能上传路径不正确或服务出错');
+                }
+                
+                return res.json();
+            }).then(function(result) {
+                if (result.error) {
+                    showToast('[ERROR] ' + escapeHtml(result.error), 'error');
+                    reject(new Error(result.error));
+                } else {
+                    showToast('✅ ' + file.name + ' 上传成功', 'success');
+                    resolve(result);
+                }
+            }).catch(function(err) {
+                showToast('[ERROR] ' + escapeHtml(err.message), 'error');
+                reject(err);
+            });
+        });
+    }
+    
+    async function deleteFile(folder, filename) {
+        showToast('确认删除文件 "' + filename + '"？', 'info', [
+            { label: '确认', confirm: true, action: function() { doDeleteFile(folder, filename); } },
+            { label: '取消', action: function() {} }
+        ]);
+    }
+    
+    async function doDeleteFile(folder, filename) {
+        try {
+            await apiDelete('/files/' + folder + '/' + encodeURIComponent(filename));
+            showToast('✅ 文件已删除', 'success');
+            loadFileLists();
+        } catch (err) {
+            showToast('[ERROR] ' + escapeHtml(err.message), 'error');
+        }
     }
 
     render();
