@@ -1297,6 +1297,117 @@
             text-align: center;
             padding: 20px;
         }
+        .upload-code-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(0, 255, 255, 0.25);
+            border-radius: 6px;
+            background: rgba(0, 255, 255, 0.04);
+        }
+        .upload-code-label {
+            color: var(--gray);
+            font-size: 0.75em;
+            flex-shrink: 0;
+        }
+        .upload-code-value {
+            flex: 1;
+            color: var(--yellow);
+            font-size: 1.1em;
+            letter-spacing: 0.2em;
+            font-weight: bold;
+            text-align: center;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .upload-code-copy-btn {
+            flex-shrink: 0;
+            background: var(--bg-header);
+            color: var(--cyan);
+            border: 1px solid var(--border);
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.75em;
+        }
+        .upload-code-copy-btn:hover {
+            border-color: var(--cyan);
+            color: var(--green);
+        }
+        .upload-code-prompt-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 10001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .upload-code-prompt-box {
+            width: 100%;
+            max-width: 360px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.15);
+        }
+        .upload-code-prompt-box h4 {
+            color: var(--green);
+            font-size: 0.9em;
+            margin-bottom: 12px;
+        }
+        .upload-code-prompt-box input {
+            width: 100%;
+            box-sizing: border-box;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 10px 12px;
+            color: var(--fg);
+            font-family: inherit;
+            font-size: 1em;
+            letter-spacing: 0.15em;
+            text-align: center;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        .upload-code-prompt-box input:focus {
+            outline: none;
+            border-color: var(--green);
+        }
+        .upload-code-prompt-note {
+            color: var(--gray-dim);
+            font-size: 0.72em;
+            line-height: 1.5;
+            margin-bottom: 14px;
+        }
+        .upload-code-prompt-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .upload-code-prompt-actions button {
+            background: var(--bg-header);
+            color: var(--gray);
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.8em;
+        }
+        .upload-code-prompt-actions button.primary {
+            color: var(--green);
+            border-color: var(--green);
+        }
+        .upload-code-prompt-actions button:hover {
+            color: var(--fg);
+        }
     </style>
 </head>
 <body>
@@ -1567,14 +1678,25 @@
     // 从 SITE_CONFIG 读取上传大小上限（字节）
     function getUploadMaxBytes(folder) {
         var cfg = typeof SITE_CONFIG !== 'undefined' ? SITE_CONFIG : {};
-        var mb = folder === 'blogimgs'
-            ? (cfg.maxUploadSizeBlogimgsMB != null ? cfg.maxUploadSizeBlogimgsMB : 10)
-            : (cfg.maxUploadSizeBlogfilesMB != null ? cfg.maxUploadSizeBlogfilesMB : 100);
+        var mb;
+        if (folder === 'blogimgs') {
+            mb = cfg.maxUploadSizeBlogimgsMB != null ? cfg.maxUploadSizeBlogimgsMB : 10;
+        } else if (folder === 'userupload' || folder === 'useruploads') {
+            mb = cfg.maxUploadSizeUserMB != null ? cfg.maxUploadSizeUserMB : 50;
+        } else {
+            mb = cfg.maxUploadSizeBlogfilesMB != null ? cfg.maxUploadSizeBlogfilesMB : 100;
+        }
         mb = Number(mb);
         if (!mb || mb <= 0) {
-            mb = folder === 'blogimgs' ? 10 : 100;
+            if (folder === 'blogimgs') mb = 10;
+            else if (folder === 'userupload' || folder === 'useruploads') mb = 50;
+            else mb = 100;
         }
         return mb * 1024 * 1024;
+    }
+
+    function getUserUploadMaxMB() {
+        return Math.round(getUploadMaxBytes('userupload') / (1024 * 1024));
     }
 
     function formatBytesHint(bytes) {
@@ -1764,6 +1886,7 @@
             <div class="nav-links">
                 <a onclick="navigate('home')" class="active">[首页]</a>
                 <a onclick="navigate('tags')">[标签]</a>
+                <a onclick="openUserUploadModal()">[上传]</a>
                 <a onclick="navigate('admin')">[管理]</a>
             </div>
 
@@ -2052,6 +2175,7 @@
             <div class="nav-links">
                 <a onclick="navigate('home')">[首页]</a>
                 <a onclick="navigate('tags')" class="active">[标签]</a>
+                <a onclick="openUserUploadModal()">[上传]</a>
                 <a onclick="navigate('admin')">[管理]</a>
             </div>
 
@@ -2085,6 +2209,7 @@
             <div class="nav-links">
                 <a onclick="navigate('home')">[首页]</a>
                 <a onclick="navigate('tags')" class="active">[标签]</a>
+                <a onclick="openUserUploadModal()">[上传]</a>
                 <a onclick="navigate('admin')">[管理]</a>
             </div>
 
@@ -3046,6 +3171,192 @@
         footer.innerHTML = footerHtml;
     }
 
+    // ============ 普通用户上传 ============
+    var pendingUserUploadFile = null;
+    var pendingUserUploadFolder = 'userupload';
+
+    function openUserUploadModal() {
+        closeUserUploadModal();
+        var modal = document.createElement('div');
+        modal.className = 'file-manager-modal';
+        modal.id = 'userUploadModal';
+        modal.innerHTML =
+            '<div class="file-manager-container">' +
+                '<div class="file-manager-header">' +
+                    '<span>📤 上传文件</span>' +
+                    '<button onclick="closeUserUploadModal()">✕ 关闭</button>' +
+                '</div>' +
+                '<div class="file-manager-body">' +
+                    '<div class="file-section">' +
+                        '<div class="file-section-header">' +
+                            '<span class="file-section-title">📤 上传文件</span>' +
+                        '</div>' +
+                        '<div class="file-upload-area" id="userUploadArea" ' +
+                             'onclick="if(event.target===this||this.contains(event.target)&&event.target.tagName!==\'INPUT\')document.getElementById(\'userUploadInput\').click()" ' +
+                             'ondragover="event.preventDefault(); this.classList.add(\'dragover\');" ' +
+                             'ondragleave="this.classList.remove(\'dragover\');" ' +
+                             'ondrop="handleUserFileDrop(event)">' +
+                            '<input type="file" id="userUploadInput" onchange="handleUserFileSelect(event)" style="display:none;" />' +
+                            '<label style="cursor:pointer;">点击或拖拽文件到此处</label>' +
+                            '<div class="hint" id="userUploadHint">支持任意格式，单文件最大 ' + getUploadMaxHint('userupload') + ' · 需管理员提供的 8 位上传码 · 每个上传码仅可使用一次</div>' +
+                        '</div>' +
+                        '<div class="file-upload-progress" id="useruploadUploadProgress">' +
+                            '<div class="file-upload-progress-info">' +
+                                '<span class="file-upload-progress-name">等待上传</span>' +
+                                '<span class="file-upload-progress-percent">0%</span>' +
+                            '</div>' +
+                            '<div class="file-upload-progress-track"><div class="file-upload-progress-bar"></div></div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(modal);
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeUserUploadModal() {
+        var modal = document.getElementById('userUploadModal');
+        if (modal) modal.remove();
+        closeUploadCodePrompt();
+        pendingUserUploadFile = null;
+        document.body.style.overflow = document.getElementById('fileManagerModal') ? 'hidden' : '';
+    }
+
+    function handleUserFileDrop(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var area = event.currentTarget;
+        if (area) area.classList.remove('dragover');
+        var files = event.dataTransfer.files;
+        if (!files || !files.length) return;
+        promptUserUploadWithCode(files[0]);
+    }
+
+    function handleUserFileSelect(event) {
+        var files = event.target.files;
+        if (!files || !files.length) return;
+        promptUserUploadWithCode(files[0]);
+        event.target.value = '';
+    }
+
+    function promptUserUploadWithCode(file) {
+        var maxBytes = getUploadMaxBytes('userupload');
+        var maxHint = getUploadMaxHint('userupload');
+        if ((file.size || 0) > maxBytes) {
+            showToast('[ERROR] ' + file.name + ' 超过大小限制（最大 ' + maxHint + '）', 'error');
+            return;
+        }
+        pendingUserUploadFile = file;
+        closeUploadCodePrompt();
+
+        var overlay = document.createElement('div');
+        overlay.className = 'upload-code-prompt-overlay';
+        overlay.id = 'uploadCodePromptOverlay';
+        overlay.innerHTML =
+            '<div class="upload-code-prompt-box">' +
+                '<h4>🔐 请输入上传码</h4>' +
+                '<p class="upload-code-prompt-note">文件：<span style="color:var(--cyan);">' + escapeHtml(file.name) + '</span><br/>' +
+                '上传文件最大不能超过 <strong style="color:var(--yellow);">' + getUserUploadMaxMB() + 'MB</strong>。上传码由管理员在「文件管理」中提供，每个上传码仅可成功上传一次。</p>' +
+                '<input type="text" id="uploadCodeInput" maxlength="8" placeholder="8位上传码" autocomplete="off" />' +
+                '<div class="upload-code-prompt-actions">' +
+                    '<button type="button" onclick="closeUploadCodePrompt()">取消</button>' +
+                    '<button type="button" class="primary" onclick="confirmUserUploadWithCode()">确认上传</button>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(overlay);
+        var input = document.getElementById('uploadCodeInput');
+        if (input) {
+            input.focus();
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') confirmUserUploadWithCode();
+            });
+        }
+    }
+
+    function closeUploadCodePrompt() {
+        var overlay = document.getElementById('uploadCodePromptOverlay');
+        if (overlay) overlay.remove();
+    }
+
+    async function confirmUserUploadWithCode() {
+        var input = document.getElementById('uploadCodeInput');
+        var code = input ? input.value.trim().toUpperCase() : '';
+        if (!/^[A-Z0-9]{8}$/.test(code)) {
+            showToast('[ERROR] 请输入 8 位大写字母或数字组成的上传码', 'error');
+            return;
+        }
+        if (!pendingUserUploadFile) {
+            showToast('[ERROR] 未选择文件', 'error');
+            closeUploadCodePrompt();
+            return;
+        }
+        closeUploadCodePrompt();
+        try {
+            await uploadUserFile(pendingUserUploadFile, code, function(loaded) {
+                var file = pendingUserUploadFile;
+                var total = file.size || 1;
+                var percent = Math.round((Math.min(loaded, total) / total) * 100);
+                updateUploadProgress('userupload', {
+                    active: true,
+                    percent: percent,
+                    name: '上传中: ' + file.name
+                });
+            });
+            updateUploadProgress('userupload', {
+                active: true,
+                done: true,
+                percent: 100,
+                name: '上传完成'
+            });
+            setTimeout(function() {
+                updateUploadProgress('userupload', { active: false });
+            }, 1800);
+            pendingUserUploadFile = null;
+        } catch (err) {
+            updateUploadProgress('userupload', {
+                active: true,
+                error: true,
+                percent: 0,
+                name: '上传失败'
+            });
+        }
+    }
+
+    function uploadUserFile(file, uploadCode, onProgress) {
+        return new Promise(function(resolve, reject) {
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('uploadCode', uploadCode);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/user-upload', true);
+            xhr.upload.onprogress = function(event) {
+                if (typeof onProgress === 'function') {
+                    onProgress(event.lengthComputable ? event.loaded : 0);
+                }
+            };
+            xhr.onload = function() {
+                var result = null;
+                try {
+                    result = JSON.parse(xhr.responseText);
+                } catch (e) {}
+                if (xhr.status < 200 || xhr.status >= 300) {
+                    var errMsg = result && result.error ? result.error : '上传失败 (HTTP ' + xhr.status + ')';
+                    showToast('[ERROR] ' + escapeHtml(errMsg), 'error');
+                    reject(new Error(errMsg));
+                    return;
+                }
+                showToast('✅ ' + file.name + ' 上传成功', 'success');
+                resolve(result);
+            };
+            xhr.onerror = function() {
+                showToast('[ERROR] 上传请求出错', 'error');
+                reject(new Error('上传请求出错'));
+            };
+            xhr.send(formData);
+        });
+    }
+
     // ============ 文件管理器 ============
     function openFileManager() {
         var modal = document.createElement('div');
@@ -3058,6 +3369,19 @@
                     '<button onclick="closeFileManager()">✕ 关闭</button>' +
                 '</div>' +
                 '<div class="file-manager-body">' +
+                    '<div class="file-section">' +
+                        '<div class="file-section-header">' +
+                            '<span class="file-section-title">👥 用户上传文件 (useruploads/)</span>' +
+                        '</div>' +
+                        '<div class="upload-code-bar">' +
+                            '<span class="upload-code-label">上传码</span>' +
+                            '<span class="upload-code-value" id="adminUploadCodeDisplay">--------</span>' +
+                            '<button type="button" class="upload-code-copy-btn" onclick="copyAndRefreshUploadCode()">复制</button>' +
+                        '</div>' +
+                        '<div class="file-list" id="useruploadsFileList">' +
+                            '<span class="loading"></span>' +
+                        '</div>' +
+                    '</div>' +
                     '<div class="file-section">' +
                         '<div class="file-section-header">' +
                             '<span class="file-section-title">📥 博客文件 (blogfiles/)</span>' +
@@ -3110,10 +3434,52 @@
             '</div>';
         
         document.body.appendChild(modal);
+        refreshAdminUploadCodeDisplay();
         loadFileLists();
         
         // 阻止背景滚动
         document.body.style.overflow = 'hidden';
+    }
+
+    async function refreshAdminUploadCodeDisplay() {
+        var el = document.getElementById('adminUploadCodeDisplay');
+        if (!el) return;
+        if (!authToken) {
+            el.textContent = '请先登录';
+            return;
+        }
+        el.textContent = '刷新中...';
+        try {
+            var res = await fetch('/api/user-upload/code', {
+                headers: { 'Authorization': 'Bearer ' + authToken }
+            });
+            var data = await res.json();
+            if (!res.ok) throw new Error(data.error || '获取上传码失败');
+            el.textContent = data.code || '--------';
+        } catch (err) {
+            el.textContent = '获取失败';
+            showToast('[ERROR] ' + escapeHtml(err.message), 'error');
+        }
+    }
+
+    async function copyAndRefreshUploadCode() {
+        if (!authToken) {
+            showToast('[ERROR] 请先登录管理后台', 'error');
+            return;
+        }
+        try {
+            var res = await fetch('/api/user-upload/code', {
+                headers: { 'Authorization': 'Bearer ' + authToken }
+            });
+            var data = await res.json();
+            if (!res.ok) throw new Error(data.error || '刷新上传码失败');
+            var el = document.getElementById('adminUploadCodeDisplay');
+            if (el) el.textContent = data.code || '--------';
+            await copyTextToClipboard(data.code);
+            showToast('✅ 上传码已复制（已刷新为新码）', 'success');
+        } catch (err) {
+            showToast('[ERROR] ' + escapeHtml(err.message), 'error');
+        }
     }
     
     function closeFileManager() {
@@ -3126,6 +3492,14 @@
     
     async function loadFileLists() {
         try {
+            var useruploadsList = document.getElementById('useruploadsFileList');
+            if (useruploadsList) {
+                var useruploadsData = await apiGet('/files/useruploads', {
+                    headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+                });
+                useruploadsList.innerHTML = renderFileList(useruploadsData.files, 'useruploads', false);
+            }
+
             // 加载 blogfiles 列表
             var blogfilesList = document.getElementById('blogfilesFileList');
             if (blogfilesList) {
@@ -3144,22 +3518,24 @@
         }
     }
     
-    function renderFileList(files, folder) {
+    function renderFileList(files, folder, browseOnly) {
         if (!files || files.length === 0) {
             return '<div class="file-empty">暂无文件</div>';
         }
         
         return files.map(function(file) {
             var fileUrl = window.location.origin + '/' + folder + '/' + encodeURIComponent(file.name);
+            var safeName = escapeHtml(file.name).replace(/'/g, "\\'");
+            var actions = '<button class="file-item-btn" onclick="copyFileUrl(\'' + escapeHtml(fileUrl) + '\')" title="复制URL">📋 复制</button>';
+            if (!browseOnly) {
+                actions += '<button class="file-item-btn delete" onclick="deleteFile(\'' + folder + '\', \'' + safeName + '\')" title="删除">🗑️</button>';
+            }
             return '<div class="file-item">' +
                 '<div class="file-item-info">' +
                     '<div class="file-item-name" title="' + escapeHtml(file.name) + '">' + escapeHtml(file.name) + '</div>' +
                     '<div class="file-item-size">' + file.size + '</div>' +
                 '</div>' +
-                '<div class="file-item-actions">' +
-                    '<button class="file-item-btn" onclick="copyFileUrl(\'' + escapeHtml(fileUrl) + '\')" title="复制URL">📋 复制</button>' +
-                    '<button class="file-item-btn delete" onclick="deleteFile(\'' + folder + '\', \'' + escapeHtml(file.name) + '\')" title="删除">🗑️</button>' +
-                '</div>' +
+                '<div class="file-item-actions">' + actions + '</div>' +
             '</div>';
         }).join('');
     }

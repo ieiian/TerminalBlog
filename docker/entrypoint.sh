@@ -17,6 +17,7 @@ const SITE_CONFIG = {
     icpNumber: '${ICP_NUMBER:-}',
     maxUploadSizeBlogfilesMB: ${MAX_UPLOAD_BLOGFILES_MB:-100},
     maxUploadSizeBlogimgsMB: ${MAX_UPLOAD_BLOGIMGS_MB:-10},
+    maxUploadSizeUserMB: ${MAX_UPLOAD_USER_MB:-50},
 };
 
 window.SITE_CONFIG = {

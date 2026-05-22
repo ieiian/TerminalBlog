@@ -23,12 +23,17 @@ const CONFIG_JS_PATH = path.join(PUBLIC_DIR, 'config.js');
 // 默认上传大小限制（字节）
 const DEFAULT_MAX_UPLOAD_BLOGFILES = 100 * 1024 * 1024;
 const DEFAULT_MAX_UPLOAD_BLOGIMGS = 10 * 1024 * 1024;
+const DEFAULT_MAX_UPLOAD_USER = 50 * 1024 * 1024;
+const USER_UPLOADS_DIR = path.join(__dirname, '..', 'useruploads');
+const UPLOAD_CODE_PATH = path.join(__dirname, '..', 'upload_code.json');
+const ALLOWED_FILE_FOLDERS = ['blogfiles', 'blogimgs', 'useruploads'];
 
 // 从 config.js 解析上传大小限制（MB），未配置则使用默认值
 function loadUploadLimits() {
     const limits = {
         blogfiles: DEFAULT_MAX_UPLOAD_BLOGFILES,
-        blogimgs: DEFAULT_MAX_UPLOAD_BLOGIMGS
+        blogimgs: DEFAULT_MAX_UPLOAD_BLOGIMGS,
+        userupload: DEFAULT_MAX_UPLOAD_USER
     };
     try {
         if (!fs.existsSync(CONFIG_JS_PATH)) {
@@ -37,6 +42,7 @@ function loadUploadLimits() {
         const content = fs.readFileSync(CONFIG_JS_PATH, 'utf8');
         const blogfilesMatch = content.match(/maxUploadSizeBlogfilesMB\s*:\s*(\d+)/);
         const blogimgsMatch = content.match(/maxUploadSizeBlogimgsMB\s*:\s*(\d+)/);
+        const userMatch = content.match(/maxUploadSizeUserMB\s*:\s*(\d+)/);
         if (blogfilesMatch) {
             const mb = parseInt(blogfilesMatch[1], 10);
             if (mb > 0) limits.blogfiles = mb * 1024 * 1024;
@@ -44,6 +50,10 @@ function loadUploadLimits() {
         if (blogimgsMatch) {
             const mb = parseInt(blogimgsMatch[1], 10);
             if (mb > 0) limits.blogimgs = mb * 1024 * 1024;
+        }
+        if (userMatch) {
+            const mb = parseInt(userMatch[1], 10);
+            if (mb > 0) limits.userupload = mb * 1024 * 1024;
         }
     } catch (e) {
         console.error('读取上传限制配置失败，使用默认值:', e);
@@ -53,12 +63,160 @@ function loadUploadLimits() {
 
 function getMaxUploadSize(folder) {
     const limits = loadUploadLimits();
-    return folder === 'blogimgs' ? limits.blogimgs : limits.blogfiles;
+    if (folder === 'blogimgs') return limits.blogimgs;
+    if (folder === 'userupload' || folder === 'useruploads') return limits.userupload;
+    return limits.blogfiles;
 }
 
 function formatMaxUploadHint(folder) {
     const bytes = getMaxUploadSize(folder);
     return formatFileSize(bytes);
+}
+
+function isAdminAuthorized(req) {
+    const authHeader = req.headers['authorization'];
+    return !!(authHeader && authHeader.startsWith('Bearer '));
+}
+
+function generateUploadCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+        code += chars[crypto.randomInt(0, chars.length)];
+    }
+    return code;
+}
+
+function loadUploadCodeState() {
+    try {
+        if (fs.existsSync(UPLOAD_CODE_PATH)) {
+            const parsed = JSON.parse(fs.readFileSync(UPLOAD_CODE_PATH, 'utf8'));
+            return {
+                code: String(parsed.code || '').toUpperCase(),
+                used: !!parsed.used
+            };
+        }
+    } catch (e) {
+        console.error('读取上传码失败:', e);
+    }
+    return { code: '', used: true };
+}
+
+function saveUploadCodeState(state) {
+    fs.writeFileSync(
+        UPLOAD_CODE_PATH,
+        JSON.stringify({ code: state.code, used: !!state.used, updatedAt: new Date().toISOString() }, null, 2),
+        'utf8'
+    );
+}
+
+function refreshUploadCode() {
+    const state = { code: generateUploadCode(), used: false };
+    saveUploadCodeState(state);
+    return state;
+}
+
+function validateUploadCode(inputCode) {
+    const normalized = String(inputCode || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{8}$/.test(normalized)) {
+        return { valid: false, error: '上传码格式无效，应为 8 位大写字母或数字' };
+    }
+    const state = loadUploadCodeState();
+    if (!state.code) {
+        return { valid: false, error: '上传码尚未生成，请联系管理员' };
+    }
+    if (state.used) {
+        return { valid: false, error: '上传码已使用，请向管理员获取新的上传码' };
+    }
+    if (state.code !== normalized) {
+        return { valid: false, error: '上传码错误' };
+    }
+    return { valid: true, code: normalized };
+}
+
+function consumeUploadCode() {
+    const state = loadUploadCodeState();
+    state.used = true;
+    saveUploadCodeState(state);
+}
+
+// 解析 multipart/form-data，提取字段与文件
+function parseMultipartForm(buffer, contentType) {
+    const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/);
+    if (!boundaryMatch) {
+        throw new Error('无效的 multipart boundary');
+    }
+    const boundary = (boundaryMatch[1] || boundaryMatch[2] || '').trim();
+    if (!boundary) {
+        throw new Error('无效的 multipart boundary');
+    }
+
+    const fields = {};
+    let filePart = null;
+    const delimiter = Buffer.from('--' + boundary);
+    let offset = 0;
+
+    while (offset < buffer.length) {
+        const start = buffer.indexOf(delimiter, offset);
+        if (start === -1) break;
+        let partStart = start + delimiter.length;
+        if (buffer[partStart] === 13 && buffer[partStart + 1] === 10) partStart += 2;
+        else if (buffer[partStart] === 10) partStart += 1;
+
+        const next = buffer.indexOf(delimiter, partStart);
+        if (next === -1) break;
+
+        let partEnd = next;
+        if (partEnd >= 2 && buffer[partEnd - 2] === 13 && buffer[partEnd - 1] === 10) {
+            partEnd -= 2;
+        } else if (partEnd >= 1 && buffer[partEnd - 1] === 10) {
+            partEnd -= 1;
+        }
+
+        const partBuffer = buffer.slice(partStart, partEnd);
+        const headerEnd = partBuffer.indexOf(Buffer.from('\r\n\r\n'));
+        if (headerEnd !== -1) {
+            const headerSection = partBuffer.slice(0, headerEnd).toString('utf8');
+            const body = partBuffer.slice(headerEnd + 4);
+            const nameMatch = headerSection.match(/name="([^"]+)"/);
+            const filenameMatch = headerSection.match(/filename="([^"]+)"/);
+
+            if (nameMatch) {
+                const fieldName = nameMatch[1];
+                if (filenameMatch) {
+                    let fileBuffer = body;
+                    while (
+                        fileBuffer.length > 0 &&
+                        (fileBuffer[fileBuffer.length - 1] === 10 || fileBuffer[fileBuffer.length - 1] === 13)
+                    ) {
+                        fileBuffer = fileBuffer.slice(0, -1);
+                    }
+                    filePart = {
+                        fieldName,
+                        filename: path.basename(filenameMatch[1]),
+                        buffer: fileBuffer
+                    };
+                } else {
+                    fields[fieldName] = body.toString('utf8').trim();
+                }
+            }
+        }
+        offset = next;
+    }
+
+    return { fields, file: filePart };
+}
+
+function ensureUniqueUserFilename(folderPath, filename) {
+    const ext = path.extname(filename);
+    const base = path.basename(filename, ext);
+    let candidate = filename;
+    let counter = 1;
+    while (fs.existsSync(path.join(folderPath, candidate))) {
+        candidate = `${base}_${counter}${ext}`;
+        counter++;
+    }
+    return candidate;
 }
 
 // ==================== 工具函数 ====================
@@ -678,6 +836,7 @@ async function handleRequest(req, res) {
         !pathname.startsWith('/api/') &&
         !pathname.startsWith('/blogfiles/') &&
         !pathname.startsWith('/blogimgs/') &&
+        !pathname.startsWith('/useruploads/') &&
         (pathname.startsWith('/public/') ||
             pathname.endsWith('.js') ||
             pathname.endsWith('.css') ||
@@ -1013,6 +1172,42 @@ async function handleRequest(req, res) {
             return;
         }
 
+        // 用户上传文件 /useruploads/* → 本地静态文件
+        const useruploadsMatch = pathname.match(/^\/useruploads\/(.+)$/);
+        if (useruploadsMatch && method === 'GET') {
+            const fileName = decodeURIComponent(useruploadsMatch[1].split('?')[0].split('#')[0]);
+            const safeFileName = path.basename(fileName);
+            if (safeFileName !== fileName || /[\/\x00-\x1F\x7F#$:?*\"<>|]/.test(fileName)) {
+                return jsonResponse(res, { error: '文件名包含非法字符' }, 400);
+            }
+            const filePath = path.join(USER_UPLOADS_DIR, safeFileName);
+            if (!fs.existsSync(filePath)) {
+                return jsonResponse(res, { error: '文件不存在' }, 404);
+            }
+            const ext = path.extname(fileName).toLowerCase();
+            const contentTypes = {
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.png': 'image/png',
+                '.gif': 'image/gif',
+                '.webp': 'image/webp',
+                '.svg': 'image/svg+xml',
+                '.pdf': 'application/pdf',
+                '.zip': 'application/zip',
+                '.apk': 'application/vnd.android.package-archive',
+                '.mp4': 'video/mp4',
+                '.mp3': 'audio/mpeg'
+            };
+            const contentType = contentTypes[ext] || 'application/octet-stream';
+            const content = fs.readFileSync(filePath);
+            res.writeHead(200, {
+                'Content-Type': contentType,
+                'Cache-Control': 'public, max-age=86400'
+            });
+            res.end(content);
+            return;
+        }
+
         // ============ 导出 Markdown 文件为 ZIP ============
         if (pathname === '/api/export' && method === 'GET') {
             const posts = getAllPosts();
@@ -1293,16 +1488,110 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     maxBytes: limits.blogimgs,
                     maxMB: Math.round(limits.blogimgs / (1024 * 1024)),
                     hint: formatMaxUploadHint('blogimgs')
+                },
+                userupload: {
+                    maxBytes: limits.userupload,
+                    maxMB: Math.round(limits.userupload / (1024 * 1024)),
+                    hint: formatMaxUploadHint('userupload')
                 }
             });
+        }
+
+        // 管理员：刷新并获取上传码
+        if (pathname === '/api/user-upload/code' && method === 'GET') {
+            if (!isAdminAuthorized(req)) {
+                return jsonResponse(res, { error: '需要管理员登录' }, 401);
+            }
+            const state = refreshUploadCode();
+            return jsonResponse(res, {
+                code: state.code,
+                used: state.used,
+                message: '上传码已刷新'
+            });
+        }
+
+        // 普通用户：凭上传码上传文件（单次有效）
+        if (pathname === '/api/user-upload' && method === 'POST') {
+            const contentType = req.headers['content-type'] || '';
+            if (!contentType.includes('multipart/form-data')) {
+                return jsonResponse(res, { error: '无效的内容类型' }, 400);
+            }
+
+            const MAX_SIZE = getMaxUploadSize('userupload');
+            const maxHint = formatMaxUploadHint('userupload');
+            let data = [];
+            let totalSize = 0;
+            let sizeLimitExceeded = false;
+
+            req.on('data', chunk => {
+                if (sizeLimitExceeded) return;
+                totalSize += chunk.length;
+                if (totalSize > MAX_SIZE) {
+                    sizeLimitExceeded = true;
+                    req.destroy();
+                    if (!res.headersSent) {
+                        return jsonResponse(res, { error: `文件大小超过限制 (最大 ${maxHint})` }, 413);
+                    }
+                } else {
+                    data.push(chunk);
+                }
+            });
+
+            req.on('end', () => {
+                if (sizeLimitExceeded || res.headersSent) return;
+                try {
+                    const buffer = Buffer.concat(data);
+                    const { fields, file } = parseMultipartForm(buffer, contentType);
+
+                    const codeCheck = validateUploadCode(fields.uploadCode);
+                    if (!codeCheck.valid) {
+                        return jsonResponse(res, { error: codeCheck.error }, 400);
+                    }
+                    if (!file || !file.buffer || !file.buffer.length) {
+                        return jsonResponse(res, { error: '未找到上传文件' }, 400);
+                    }
+
+                    const cleanFilename = file.filename.replace(/[\/\x00-\x1F\x7F#$:?*\"<>|]/g, '_');
+                    if (!cleanFilename || cleanFilename.length > 255) {
+                        return jsonResponse(res, { error: '文件名无效' }, 400);
+                    }
+
+                    if (!fs.existsSync(USER_UPLOADS_DIR)) {
+                        fs.mkdirSync(USER_UPLOADS_DIR, { recursive: true });
+                    }
+                    const finalFilename = ensureUniqueUserFilename(USER_UPLOADS_DIR, cleanFilename);
+                    const filePath = path.join(USER_UPLOADS_DIR, finalFilename);
+                    fs.writeFileSync(filePath, file.buffer);
+                    consumeUploadCode();
+
+                    return jsonResponse(res, {
+                        message: '文件上传成功',
+                        filename: finalFilename,
+                        size: formatFileSize(file.buffer.length),
+                        url: '/useruploads/' + encodeURIComponent(finalFilename)
+                    });
+                } catch (e) {
+                    return jsonResponse(res, { error: '上传失败: ' + e.message }, 500);
+                }
+            });
+
+            req.on('error', e => {
+                if (!res.headersSent) {
+                    return jsonResponse(res, { error: '上传出错: ' + e.message }, 500);
+                }
+            });
+            return;
         }
 
         // 获取文件列表
         const filesMatch = pathname.match(/^\/api\/files\/(\w+)$/);
         if (filesMatch && method === 'GET') {
-            const folder = filesMatch[1]; // blogfiles 或 blogimgs
-            if (folder !== 'blogfiles' && folder !== 'blogimgs') {
+            const folder = filesMatch[1];
+            if (!ALLOWED_FILE_FOLDERS.includes(folder)) {
                 return jsonResponse(res, { error: '无效的文件夹' }, 400);
+            }
+            if (folder === 'useruploads' && !isAdminAuthorized(req)) {
+                return jsonResponse(res, { error: '需要管理员登录' }, 401);
             }
             const folderPath = path.join(__dirname, '..', folder);
             if (!fs.existsSync(folderPath)) {
@@ -1322,9 +1611,12 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
         // 上传文件
         const uploadMatch = pathname.match(/^\/api\/upload\/(\w+)$/);
         if (uploadMatch && method === 'POST') {
-            const folder = uploadMatch[1]; // blogfiles 或 blogimgs
+            const folder = uploadMatch[1];
             if (folder !== 'blogfiles' && folder !== 'blogimgs') {
                 return jsonResponse(res, { error: '无效的文件夹' }, 400);
+            }
+            if (!isAdminAuthorized(req)) {
+                return jsonResponse(res, { error: '需要管理员登录' }, 401);
             }
             
             const folderPath = path.join(__dirname, '..', folder);
@@ -1453,20 +1745,23 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             const folder = deleteFileMatch[1];
             const filename = decodeURIComponent(deleteFileMatch[2]);
             
-            if (folder !== 'blogfiles' && folder !== 'blogimgs') {
+            if (!ALLOWED_FILE_FOLDERS.includes(folder)) {
                 return jsonResponse(res, { error: '无效的文件夹' }, 400);
             }
-            
+            if (!isAdminAuthorized(req)) {
+                return jsonResponse(res, { error: '需要管理员登录' }, 401);
+            }
+
             const folderPath = path.join(__dirname, '..', folder);
-            
+
             // 提取基础文件名，防御路径遍历
             const safeFilename = path.basename(filename);
-            
+
             // 安全检查：确保解码后的文件名没有目录遍历嫌疑，且不含系统保留和危险字符
             if (safeFilename !== filename || /[\/\x00-\x1F\x7F#$:?*\"<>|]/.test(filename)) {
                 return jsonResponse(res, { error: '文件名包含非法字符' }, 400);
             }
-            
+
             const filePath = path.resolve(folderPath, safeFilename);
             // 再次验证路径是否越界，确保安全性
             if (!filePath.startsWith(folderPath + path.sep)) {
@@ -1475,7 +1770,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             if (!fs.existsSync(filePath)) {
                 return jsonResponse(res, { error: '文件不存在' }, 404);
             }
-            
+
             fs.unlinkSync(filePath);
             return jsonResponse(res, { message: '文件已删除' });
         }

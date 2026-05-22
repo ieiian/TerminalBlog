@@ -11,6 +11,8 @@ INDEX.md
 
 blogfiles/*
 blogimgs/*
+useruploads/*
+upload_code.json
 
 # Git 远程同步专属配置及密钥对
 git_config.json
