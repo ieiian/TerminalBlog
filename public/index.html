@@ -989,24 +989,22 @@
         }
         .git-strategy-badge {
             font-size: 0.65em;
-            padding: 1px 6px;
-            border-radius: 3px;
+            padding: 0;
+            border: none;
+            border-radius: 0;
             font-weight: bold;
+            background: transparent;
+            pointer-events: none;
+            user-select: none;
         }
         .git-strategy-badge.safe {
-            background: rgba(0, 255, 0, 0.1);
             color: var(--green);
-            border: 1px solid rgba(0, 255, 0, 0.2);
         }
         .git-strategy-badge.warn {
-            background: rgba(255, 165, 0, 0.1);
             color: var(--yellow);
-            border: 1px solid rgba(255, 165, 0, 0.2);
         }
         .git-strategy-badge.danger {
-            background: rgba(255, 0, 0, 0.1);
             color: var(--red);
-            border: 1px solid rgba(255, 0, 0, 0.2);
         }
         .git-strategy-desc {
             font-size: 0.7em;
@@ -1408,6 +1406,79 @@
         .upload-code-prompt-actions button:hover {
             color: var(--fg);
         }
+        .guest-upload-history-section {
+            margin-top: 8px;
+            padding-top: 16px;
+            border-top: 1px dashed var(--border);
+        }
+        .guest-upload-history-note {
+            color: var(--gray-dim);
+            font-size: 0.7em;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        .guest-upload-history-list {
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        .guest-upload-history-item {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 12px;
+            border: 1px solid rgba(48, 54, 61, 0.5);
+            border-radius: 4px;
+            margin-bottom: 6px;
+            background: var(--bg-card);
+        }
+        .guest-upload-history-item.success {
+            border-left: 3px solid var(--green);
+        }
+        .guest-upload-history-item.failed {
+            border-left: 3px solid var(--red);
+        }
+        .guest-upload-history-main {
+            flex: 1;
+            min-width: 0;
+        }
+        .guest-upload-history-name {
+            color: var(--text);
+            font-size: 0.82em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .guest-upload-history-meta {
+            color: var(--gray-dim);
+            font-size: 0.72em;
+            margin-top: 4px;
+            line-height: 1.45;
+        }
+        .guest-upload-history-status {
+            flex-shrink: 0;
+            font-size: 0.72em;
+            font-weight: bold;
+            padding-top: 2px;
+        }
+        .guest-upload-history-status.success {
+            color: var(--green);
+        }
+        .guest-upload-history-status.failed {
+            color: var(--red);
+        }
+        .guest-upload-history-clear {
+            background: transparent;
+            border: none;
+            color: var(--gray-dim);
+            font-family: inherit;
+            font-size: 0.72em;
+            cursor: pointer;
+            padding: 0;
+        }
+        .guest-upload-history-clear:hover {
+            color: var(--red);
+        }
     </style>
 </head>
 <body>
@@ -1681,22 +1752,22 @@
         var mb;
         if (folder === 'blogimgs') {
             mb = cfg.maxUploadSizeBlogimgsMB != null ? cfg.maxUploadSizeBlogimgsMB : 10;
-        } else if (folder === 'userupload' || folder === 'useruploads') {
-            mb = cfg.maxUploadSizeUserMB != null ? cfg.maxUploadSizeUserMB : 50;
+        } else if (folder === 'guestupload' || folder === 'guestuploads') {
+            mb = cfg.maxUploadSizeGuestMB != null ? cfg.maxUploadSizeGuestMB : 50;
         } else {
             mb = cfg.maxUploadSizeBlogfilesMB != null ? cfg.maxUploadSizeBlogfilesMB : 100;
         }
         mb = Number(mb);
         if (!mb || mb <= 0) {
             if (folder === 'blogimgs') mb = 10;
-            else if (folder === 'userupload' || folder === 'useruploads') mb = 50;
+            else if (folder === 'guestupload' || folder === 'guestuploads') mb = 50;
             else mb = 100;
         }
         return mb * 1024 * 1024;
     }
 
-    function getUserUploadMaxMB() {
-        return Math.round(getUploadMaxBytes('userupload') / (1024 * 1024));
+    function getGuestUploadMaxMB() {
+        return Math.round(getUploadMaxBytes('guestupload') / (1024 * 1024));
     }
 
     function formatBytesHint(bytes) {
@@ -1819,8 +1890,8 @@
     }
 
     function separator(text) {
-        if (text) return `<div class="sep"># ─── ${text} ${'─'.repeat(Math.max(1, 40 - text.length))}</div>`;
-        return `<div class="sep"># ${'─'.repeat(50)}</div>`;
+        if (text) return `<div class="sep"># ─── ${text} ${'─'.repeat(Math.max(1, 20 - text.length))}</div>`;
+        return `<div class="sep"># ${'─'.repeat(28)}</div>`;
     }
 
     async function render() {
@@ -1886,7 +1957,7 @@
             <div class="nav-links">
                 <a onclick="navigate('home')" class="active">[首页]</a>
                 <a onclick="navigate('tags')">[标签]</a>
-                <a onclick="openUserUploadModal()">[上传]</a>
+                <a onclick="openGuestUploadModal()">[上传]</a>
                 <a onclick="navigate('admin')">[管理]</a>
             </div>
 
@@ -2175,7 +2246,7 @@
             <div class="nav-links">
                 <a onclick="navigate('home')">[首页]</a>
                 <a onclick="navigate('tags')" class="active">[标签]</a>
-                <a onclick="openUserUploadModal()">[上传]</a>
+                <a onclick="openGuestUploadModal()">[上传]</a>
                 <a onclick="navigate('admin')">[管理]</a>
             </div>
 
@@ -2209,7 +2280,7 @@
             <div class="nav-links">
                 <a onclick="navigate('home')">[首页]</a>
                 <a onclick="navigate('tags')" class="active">[标签]</a>
-                <a onclick="openUserUploadModal()">[上传]</a>
+                <a onclick="openGuestUploadModal()">[上传]</a>
                 <a onclick="navigate('admin')">[管理]</a>
             </div>
 
@@ -3171,36 +3242,137 @@
         footer.innerHTML = footerHtml;
     }
 
-    // ============ 普通用户上传 ============
-    var pendingUserUploadFile = null;
-    var pendingUserUploadFolder = 'userupload';
+    // ============ 游客上传 ============
+    var pendingGuestUploadFile = null;
+    var pendingGuestUploadFolder = 'guestupload';
+    var GUEST_UPLOAD_RECORDS_KEY = 'blog_guest_upload_records';
+    var GUEST_UPLOAD_RECORDS_MAX = 50;
 
-    function openUserUploadModal() {
-        closeUserUploadModal();
+    function loadGuestUploadRecords() {
+        try {
+            var raw = localStorage.getItem(GUEST_UPLOAD_RECORDS_KEY);
+            if (!raw) return [];
+            var list = JSON.parse(raw);
+            return Array.isArray(list) ? list : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveGuestUploadRecords(list) {
+        try {
+            localStorage.setItem(GUEST_UPLOAD_RECORDS_KEY, JSON.stringify(list.slice(0, GUEST_UPLOAD_RECORDS_MAX)));
+        } catch (e) {
+            console.error('保存上传记录失败:', e);
+        }
+    }
+
+    function addGuestUploadRecord(entry) {
+        var list = loadGuestUploadRecords();
+        list.unshift({
+            id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+            fileName: entry.fileName || '未知文件',
+            savedName: entry.savedName || '',
+            sizeHint: entry.sizeHint || '',
+            status: entry.status === 'success' ? 'success' : 'failed',
+            message: entry.message || '',
+            url: entry.url || '',
+            uploadedAt: entry.uploadedAt || new Date().toISOString()
+        });
+        saveGuestUploadRecords(list);
+        renderGuestUploadHistory();
+    }
+
+    function formatGuestUploadTime(iso) {
+        try {
+            return new Date(iso).toLocaleString('zh-CN', { hour12: false });
+        } catch (e) {
+            return iso || '';
+        }
+    }
+
+    function renderGuestUploadHistory() {
+        var container = document.getElementById('guestUploadHistoryList');
+        if (!container) return;
+        var records = loadGuestUploadRecords();
+        if (!records.length) {
+            container.innerHTML = '<div class="file-empty">暂无上传记录</div>';
+            return;
+        }
+        container.innerHTML = records.map(function(record) {
+            var isSuccess = record.status === 'success';
+            var statusText = isSuccess ? '成功' : '失败';
+            var metaLines = [
+                '时间：' + formatGuestUploadTime(record.uploadedAt),
+                record.sizeHint ? '大小：' + escapeHtml(record.sizeHint) : ''
+            ];
+            if (isSuccess && record.savedName && record.savedName !== record.fileName) {
+                metaLines.push('保存为：' + escapeHtml(record.savedName));
+            }
+            if (isSuccess && record.url) {
+                metaLines.push('链接：' + escapeHtml(record.url));
+            }
+            if (!isSuccess && record.message) {
+                metaLines.push('原因：' + escapeHtml(record.message));
+            }
+            var actions = '';
+            if (isSuccess && record.url) {
+                actions = '<button class="file-item-btn" onclick="copyFileUrl(\'' + escapeHtml(record.url) + '\')" title="复制链接">📋</button>';
+            }
+            return '<div class="guest-upload-history-item ' + (isSuccess ? 'success' : 'failed') + '">' +
+                '<div class="guest-upload-history-main">' +
+                    '<div class="guest-upload-history-name" title="' + escapeHtml(record.fileName) + '">' + escapeHtml(record.fileName) + '</div>' +
+                    '<div class="guest-upload-history-meta">' + metaLines.filter(Boolean).join('<br/>') + '</div>' +
+                '</div>' +
+                '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">' +
+                    '<span class="guest-upload-history-status ' + (isSuccess ? 'success' : 'failed') + '">' + statusText + '</span>' +
+                    actions +
+                '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    function clearGuestUploadRecords() {
+        showToast('确定清空本浏览器的全部上传记录？', 'info', [
+            {
+                label: '确认清空',
+                confirm: true,
+                action: function() {
+                    localStorage.removeItem(GUEST_UPLOAD_RECORDS_KEY);
+                    renderGuestUploadHistory();
+                    showToast('上传记录已清空', 'success');
+                }
+            },
+            { label: '取消', action: function() {} }
+        ]);
+    }
+
+    function openGuestUploadModal() {
+        closeGuestUploadModal();
         var modal = document.createElement('div');
         modal.className = 'file-manager-modal';
-        modal.id = 'userUploadModal';
+        modal.id = 'guestUploadModal';
         modal.innerHTML =
             '<div class="file-manager-container">' +
                 '<div class="file-manager-header">' +
-                    '<span>📤 上传文件</span>' +
-                    '<button onclick="closeUserUploadModal()">✕ 关闭</button>' +
+                    '<span>📤 游客上传</span>' +
+                    '<button onclick="closeGuestUploadModal()">✕ 关闭</button>' +
                 '</div>' +
                 '<div class="file-manager-body">' +
                     '<div class="file-section">' +
-                        '<div class="file-section-header">' +
-                            '<span class="file-section-title">📤 上传文件</span>' +
-                        '</div>' +
-                        '<div class="file-upload-area" id="userUploadArea" ' +
-                             'onclick="if(event.target===this||this.contains(event.target)&&event.target.tagName!==\'INPUT\')document.getElementById(\'userUploadInput\').click()" ' +
+                        // '<div class="file-section-header">' +
+                        //     '<span class="file-section-title">📤 游客上传文件</span>' +
+                        // '</div>' +
+                        '<div class="file-upload-area" id="guestUploadArea" ' +
+                             'onclick="if(event.target===this||this.contains(event.target)&&event.target.tagName!==\'INPUT\')document.getElementById(\'guestUploadInput\').click()" ' +
                              'ondragover="event.preventDefault(); this.classList.add(\'dragover\');" ' +
                              'ondragleave="this.classList.remove(\'dragover\');" ' +
-                             'ondrop="handleUserFileDrop(event)">' +
-                            '<input type="file" id="userUploadInput" onchange="handleUserFileSelect(event)" style="display:none;" />' +
+                             'ondrop="handleGuestFileDrop(event)">' +
+                            '<input type="file" id="guestUploadInput" onchange="handleGuestFileSelect(event)" style="display:none;" />' +
                             '<label style="cursor:pointer;">点击或拖拽文件到此处</label>' +
-                            '<div class="hint" id="userUploadHint">支持任意格式，单文件最大 ' + getUploadMaxHint('userupload') + ' · 需管理员提供的 8 位上传码 · 每个上传码仅可使用一次</div>' +
+                            '<div class="hint" id="guestUploadHint">支持任意格式，单文件最大 ' + getUploadMaxHint('guestupload') + ' · 需管理员提供的<span style="text-decoration: underline; font-style: italic;">上传码</span> · 每个<span style="text-decoration: underline; font-style: italic;">上传码</span>仅可使用一次</div>' +
                         '</div>' +
-                        '<div class="file-upload-progress" id="useruploadUploadProgress">' +
+                        '<div class="file-upload-progress" id="guestuploadUploadProgress">' +
                             '<div class="file-upload-progress-info">' +
                                 '<span class="file-upload-progress-name">等待上传</span>' +
                                 '<span class="file-upload-progress-percent">0%</span>' +
@@ -3208,45 +3380,56 @@
                             '<div class="file-upload-progress-track"><div class="file-upload-progress-bar"></div></div>' +
                         '</div>' +
                     '</div>' +
+                    '<div class="file-section guest-upload-history-section">' +
+                        '<div class="file-section-header">' +
+                            '<span class="file-section-title">📋 上传记录</span>' +
+                            '<button type="button" class="guest-upload-history-clear" onclick="clearGuestUploadRecords()">清空记录</button>' +
+                        '</div>' +
+                        // '<div class="guest-upload-history-note">记录仅保存在本浏览器本地，不同设备或访客之间互不可见；清空缓存后将丢失。</div>' +
+                        '<div class="guest-upload-history-list" id="guestUploadHistoryList">' +
+                            '<div class="file-empty">暂无上传记录</div>' +
+                        '</div>' +
+                    '</div>' +
                 '</div>' +
             '</div>';
         document.body.appendChild(modal);
+        renderGuestUploadHistory();
         document.body.style.overflow = 'hidden';
     }
 
-    function closeUserUploadModal() {
-        var modal = document.getElementById('userUploadModal');
+    function closeGuestUploadModal() {
+        var modal = document.getElementById('guestUploadModal');
         if (modal) modal.remove();
         closeUploadCodePrompt();
-        pendingUserUploadFile = null;
+        pendingGuestUploadFile = null;
         document.body.style.overflow = document.getElementById('fileManagerModal') ? 'hidden' : '';
     }
 
-    function handleUserFileDrop(event) {
+    function handleGuestFileDrop(event) {
         event.preventDefault();
         event.stopPropagation();
         var area = event.currentTarget;
         if (area) area.classList.remove('dragover');
         var files = event.dataTransfer.files;
         if (!files || !files.length) return;
-        promptUserUploadWithCode(files[0]);
+        promptGuestUploadWithCode(files[0]);
     }
 
-    function handleUserFileSelect(event) {
+    function handleGuestFileSelect(event) {
         var files = event.target.files;
         if (!files || !files.length) return;
-        promptUserUploadWithCode(files[0]);
+        promptGuestUploadWithCode(files[0]);
         event.target.value = '';
     }
 
-    function promptUserUploadWithCode(file) {
-        var maxBytes = getUploadMaxBytes('userupload');
-        var maxHint = getUploadMaxHint('userupload');
+    function promptGuestUploadWithCode(file) {
+        var maxBytes = getUploadMaxBytes('guestupload');
+        var maxHint = getUploadMaxHint('guestupload');
         if ((file.size || 0) > maxBytes) {
             showToast('[ERROR] ' + file.name + ' 超过大小限制（最大 ' + maxHint + '）', 'error');
             return;
         }
-        pendingUserUploadFile = file;
+        pendingGuestUploadFile = file;
         closeUploadCodePrompt();
 
         var overlay = document.createElement('div');
@@ -3256,11 +3439,11 @@
             '<div class="upload-code-prompt-box">' +
                 '<h4>🔐 请输入上传码</h4>' +
                 '<p class="upload-code-prompt-note">文件：<span style="color:var(--cyan);">' + escapeHtml(file.name) + '</span><br/>' +
-                '上传文件最大不能超过 <strong style="color:var(--yellow);">' + getUserUploadMaxMB() + 'MB</strong>。上传码由管理员在「文件管理」中提供，每个上传码仅可成功上传一次。</p>' +
+                '上传文件最大不能超过 <strong style="color:var(--yellow);">' + getGuestUploadMaxMB() + 'MB</strong>。上传码由管理员在「文件管理」中提供，每个上传码仅可成功上传一次。</p>' +
                 '<input type="text" id="uploadCodeInput" maxlength="8" placeholder="8位上传码" autocomplete="off" />' +
                 '<div class="upload-code-prompt-actions">' +
                     '<button type="button" onclick="closeUploadCodePrompt()">取消</button>' +
-                    '<button type="button" class="primary" onclick="confirmUserUploadWithCode()">确认上传</button>' +
+                    '<button type="button" class="primary" onclick="confirmGuestUploadWithCode()">确认上传</button>' +
                 '</div>' +
             '</div>';
         document.body.appendChild(overlay);
@@ -3268,7 +3451,7 @@
         if (input) {
             input.focus();
             input.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') confirmUserUploadWithCode();
+                if (e.key === 'Enter') confirmGuestUploadWithCode();
             });
         }
     }
@@ -3278,58 +3461,77 @@
         if (overlay) overlay.remove();
     }
 
-    async function confirmUserUploadWithCode() {
+    async function confirmGuestUploadWithCode() {
         var input = document.getElementById('uploadCodeInput');
         var code = input ? input.value.trim().toUpperCase() : '';
         if (!/^[A-Z0-9]{8}$/.test(code)) {
             showToast('[ERROR] 请输入 8 位大写字母或数字组成的上传码', 'error');
             return;
         }
-        if (!pendingUserUploadFile) {
+        if (!pendingGuestUploadFile) {
             showToast('[ERROR] 未选择文件', 'error');
             closeUploadCodePrompt();
             return;
         }
         closeUploadCodePrompt();
+        var uploadFile = pendingGuestUploadFile;
+        var sizeHint = formatBytesHint(uploadFile.size || 0);
         try {
-            await uploadUserFile(pendingUserUploadFile, code, function(loaded) {
-                var file = pendingUserUploadFile;
-                var total = file.size || 1;
+            var result = await uploadGuestFile(uploadFile, code, function(loaded) {
+                var total = uploadFile.size || 1;
                 var percent = Math.round((Math.min(loaded, total) / total) * 100);
-                updateUploadProgress('userupload', {
+                updateUploadProgress('guestupload', {
                     active: true,
                     percent: percent,
-                    name: '上传中: ' + file.name
+                    name: '上传中: ' + uploadFile.name
                 });
             });
-            updateUploadProgress('userupload', {
+            var fileUrl = result && result.url
+                ? (result.url.startsWith('http') ? result.url : window.location.origin + result.url)
+                : '';
+            addGuestUploadRecord({
+                fileName: uploadFile.name,
+                savedName: result && result.filename ? result.filename : '',
+                sizeHint: sizeHint,
+                status: 'success',
+                message: result && result.message ? result.message : '上传成功',
+                url: fileUrl
+            });
+            updateUploadProgress('guestupload', {
                 active: true,
                 done: true,
                 percent: 100,
                 name: '上传完成'
             });
             setTimeout(function() {
-                updateUploadProgress('userupload', { active: false });
+                updateUploadProgress('guestupload', { active: false });
             }, 1800);
-            pendingUserUploadFile = null;
+            pendingGuestUploadFile = null;
         } catch (err) {
-            updateUploadProgress('userupload', {
+            addGuestUploadRecord({
+                fileName: uploadFile.name,
+                sizeHint: sizeHint,
+                status: 'failed',
+                message: err && err.message ? err.message : '上传失败'
+            });
+            updateUploadProgress('guestupload', {
                 active: true,
                 error: true,
                 percent: 0,
                 name: '上传失败'
             });
+            pendingGuestUploadFile = null;
         }
     }
 
-    function uploadUserFile(file, uploadCode, onProgress) {
+    function uploadGuestFile(file, uploadCode, onProgress) {
         return new Promise(function(resolve, reject) {
             var formData = new FormData();
             formData.append('file', file);
             formData.append('uploadCode', uploadCode);
 
             var xhr = new XMLHttpRequest();
-            xhr.open('POST', '/api/user-upload', true);
+            xhr.open('POST', '/api/guest-upload', true);
             xhr.upload.onprogress = function(event) {
                 if (typeof onProgress === 'function') {
                     onProgress(event.lengthComputable ? event.loaded : 0);
@@ -3371,14 +3573,14 @@
                 '<div class="file-manager-body">' +
                     '<div class="file-section">' +
                         '<div class="file-section-header">' +
-                            '<span class="file-section-title">👥 用户上传文件 (useruploads/)</span>' +
+                            '<span class="file-section-title">👥 游客上传文件 (guestuploads/)</span>' +
                         '</div>' +
                         '<div class="upload-code-bar">' +
                             '<span class="upload-code-label">上传码</span>' +
                             '<span class="upload-code-value" id="adminUploadCodeDisplay">--------</span>' +
                             '<button type="button" class="upload-code-copy-btn" onclick="copyAndRefreshUploadCode()">复制</button>' +
                         '</div>' +
-                        '<div class="file-list" id="useruploadsFileList">' +
+                        '<div class="file-list" id="guestuploadsFileList">' +
                             '<span class="loading"></span>' +
                         '</div>' +
                     '</div>' +
@@ -3450,7 +3652,7 @@
         }
         el.textContent = '刷新中...';
         try {
-            var res = await fetch('/api/user-upload/code', {
+            var res = await fetch('/api/guest-upload/code', {
                 headers: { 'Authorization': 'Bearer ' + authToken }
             });
             var data = await res.json();
@@ -3468,7 +3670,7 @@
             return;
         }
         try {
-            var res = await fetch('/api/user-upload/code', {
+            var res = await fetch('/api/guest-upload/code', {
                 headers: { 'Authorization': 'Bearer ' + authToken }
             });
             var data = await res.json();
@@ -3492,12 +3694,12 @@
     
     async function loadFileLists() {
         try {
-            var useruploadsList = document.getElementById('useruploadsFileList');
-            if (useruploadsList) {
-                var useruploadsData = await apiGet('/files/useruploads', {
+            var guestuploadsList = document.getElementById('guestuploadsFileList');
+            if (guestuploadsList) {
+                var guestuploadsData = await apiGet('/files/guestuploads', {
                     headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
                 });
-                useruploadsList.innerHTML = renderFileList(useruploadsData.files, 'useruploads', false);
+                guestuploadsList.innerHTML = renderFileList(guestuploadsData.files, 'guestuploads', false);
             }
 
             // 加载 blogfiles 列表

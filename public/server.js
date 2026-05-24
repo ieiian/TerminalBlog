@@ -23,17 +23,17 @@ const CONFIG_JS_PATH = path.join(PUBLIC_DIR, 'config.js');
 // 默认上传大小限制（字节）
 const DEFAULT_MAX_UPLOAD_BLOGFILES = 100 * 1024 * 1024;
 const DEFAULT_MAX_UPLOAD_BLOGIMGS = 10 * 1024 * 1024;
-const DEFAULT_MAX_UPLOAD_USER = 50 * 1024 * 1024;
-const USER_UPLOADS_DIR = path.join(__dirname, '..', 'useruploads');
+const DEFAULT_MAX_UPLOAD_GUEST = 50 * 1024 * 1024;
+const GUEST_UPLOADS_DIR = path.join(__dirname, '..', 'guestuploads');
 const UPLOAD_CODE_PATH = path.join(__dirname, '..', 'upload_code.json');
-const ALLOWED_FILE_FOLDERS = ['blogfiles', 'blogimgs', 'useruploads'];
+const ALLOWED_FILE_FOLDERS = ['blogfiles', 'blogimgs', 'guestuploads'];
 
 // 从 config.js 解析上传大小限制（MB），未配置则使用默认值
 function loadUploadLimits() {
     const limits = {
         blogfiles: DEFAULT_MAX_UPLOAD_BLOGFILES,
         blogimgs: DEFAULT_MAX_UPLOAD_BLOGIMGS,
-        userupload: DEFAULT_MAX_UPLOAD_USER
+        guestupload: DEFAULT_MAX_UPLOAD_GUEST
     };
     try {
         if (!fs.existsSync(CONFIG_JS_PATH)) {
@@ -42,7 +42,7 @@ function loadUploadLimits() {
         const content = fs.readFileSync(CONFIG_JS_PATH, 'utf8');
         const blogfilesMatch = content.match(/maxUploadSizeBlogfilesMB\s*:\s*(\d+)/);
         const blogimgsMatch = content.match(/maxUploadSizeBlogimgsMB\s*:\s*(\d+)/);
-        const userMatch = content.match(/maxUploadSizeUserMB\s*:\s*(\d+)/);
+        const guestMatch = content.match(/maxUploadSizeGuestMB\s*:\s*(\d+)/);
         if (blogfilesMatch) {
             const mb = parseInt(blogfilesMatch[1], 10);
             if (mb > 0) limits.blogfiles = mb * 1024 * 1024;
@@ -51,9 +51,9 @@ function loadUploadLimits() {
             const mb = parseInt(blogimgsMatch[1], 10);
             if (mb > 0) limits.blogimgs = mb * 1024 * 1024;
         }
-        if (userMatch) {
-            const mb = parseInt(userMatch[1], 10);
-            if (mb > 0) limits.userupload = mb * 1024 * 1024;
+        if (guestMatch) {
+            const mb = parseInt(guestMatch[1], 10);
+            if (mb > 0) limits.guestupload = mb * 1024 * 1024;
         }
     } catch (e) {
         console.error('读取上传限制配置失败，使用默认值:', e);
@@ -64,7 +64,7 @@ function loadUploadLimits() {
 function getMaxUploadSize(folder) {
     const limits = loadUploadLimits();
     if (folder === 'blogimgs') return limits.blogimgs;
-    if (folder === 'userupload' || folder === 'useruploads') return limits.userupload;
+    if (folder === 'guestupload' || folder === 'guestuploads') return limits.guestupload;
     return limits.blogfiles;
 }
 
@@ -207,7 +207,7 @@ function parseMultipartForm(buffer, contentType) {
     return { fields, file: filePart };
 }
 
-function ensureUniqueUserFilename(folderPath, filename) {
+function ensureUniqueGuestFilename(folderPath, filename) {
     const ext = path.extname(filename);
     const base = path.basename(filename, ext);
     let candidate = filename;
@@ -836,7 +836,7 @@ async function handleRequest(req, res) {
         !pathname.startsWith('/api/') &&
         !pathname.startsWith('/blogfiles/') &&
         !pathname.startsWith('/blogimgs/') &&
-        !pathname.startsWith('/useruploads/') &&
+        !pathname.startsWith('/guestuploads/') &&
         (pathname.startsWith('/public/') ||
             pathname.endsWith('.js') ||
             pathname.endsWith('.css') ||
@@ -1172,15 +1172,15 @@ async function handleRequest(req, res) {
             return;
         }
 
-        // 用户上传文件 /useruploads/* → 本地静态文件
-        const useruploadsMatch = pathname.match(/^\/useruploads\/(.+)$/);
-        if (useruploadsMatch && method === 'GET') {
-            const fileName = decodeURIComponent(useruploadsMatch[1].split('?')[0].split('#')[0]);
+        // 游客上传文件 /guestuploads/* → 本地静态文件
+        const guestuploadsMatch = pathname.match(/^\/guestuploads\/(.+)$/);
+        if (guestuploadsMatch && method === 'GET') {
+            const fileName = decodeURIComponent(guestuploadsMatch[1].split('?')[0].split('#')[0]);
             const safeFileName = path.basename(fileName);
             if (safeFileName !== fileName || /[\/\x00-\x1F\x7F#$:?*\"<>|]/.test(fileName)) {
                 return jsonResponse(res, { error: '文件名包含非法字符' }, 400);
             }
-            const filePath = path.join(USER_UPLOADS_DIR, safeFileName);
+            const filePath = path.join(GUEST_UPLOADS_DIR, safeFileName);
             if (!fs.existsSync(filePath)) {
                 return jsonResponse(res, { error: '文件不存在' }, 404);
             }
@@ -1489,16 +1489,16 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     maxMB: Math.round(limits.blogimgs / (1024 * 1024)),
                     hint: formatMaxUploadHint('blogimgs')
                 },
-                userupload: {
-                    maxBytes: limits.userupload,
-                    maxMB: Math.round(limits.userupload / (1024 * 1024)),
-                    hint: formatMaxUploadHint('userupload')
+                guestupload: {
+                    maxBytes: limits.guestupload,
+                    maxMB: Math.round(limits.guestupload / (1024 * 1024)),
+                    hint: formatMaxUploadHint('guestupload')
                 }
             });
         }
 
         // 管理员：刷新并获取上传码
-        if (pathname === '/api/user-upload/code' && method === 'GET') {
+        if (pathname === '/api/guest-upload/code' && method === 'GET') {
             if (!isAdminAuthorized(req)) {
                 return jsonResponse(res, { error: '需要管理员登录' }, 401);
             }
@@ -1510,15 +1510,15 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             });
         }
 
-        // 普通用户：凭上传码上传文件（单次有效）
-        if (pathname === '/api/user-upload' && method === 'POST') {
+        // 游客：凭上传码上传文件（单次有效）
+        if (pathname === '/api/guest-upload' && method === 'POST') {
             const contentType = req.headers['content-type'] || '';
             if (!contentType.includes('multipart/form-data')) {
                 return jsonResponse(res, { error: '无效的内容类型' }, 400);
             }
 
-            const MAX_SIZE = getMaxUploadSize('userupload');
-            const maxHint = formatMaxUploadHint('userupload');
+            const MAX_SIZE = getMaxUploadSize('guestupload');
+            const maxHint = formatMaxUploadHint('guestupload');
             let data = [];
             let totalSize = 0;
             let sizeLimitExceeded = false;
@@ -1556,11 +1556,11 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                         return jsonResponse(res, { error: '文件名无效' }, 400);
                     }
 
-                    if (!fs.existsSync(USER_UPLOADS_DIR)) {
-                        fs.mkdirSync(USER_UPLOADS_DIR, { recursive: true });
+                    if (!fs.existsSync(GUEST_UPLOADS_DIR)) {
+                        fs.mkdirSync(GUEST_UPLOADS_DIR, { recursive: true });
                     }
-                    const finalFilename = ensureUniqueUserFilename(USER_UPLOADS_DIR, cleanFilename);
-                    const filePath = path.join(USER_UPLOADS_DIR, finalFilename);
+                    const finalFilename = ensureUniqueGuestFilename(GUEST_UPLOADS_DIR, cleanFilename);
+                    const filePath = path.join(GUEST_UPLOADS_DIR, finalFilename);
                     fs.writeFileSync(filePath, file.buffer);
                     consumeUploadCode();
 
@@ -1568,7 +1568,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                         message: '文件上传成功',
                         filename: finalFilename,
                         size: formatFileSize(file.buffer.length),
-                        url: '/useruploads/' + encodeURIComponent(finalFilename)
+                        url: '/guestuploads/' + encodeURIComponent(finalFilename)
                     });
                 } catch (e) {
                     return jsonResponse(res, { error: '上传失败: ' + e.message }, 500);
@@ -1590,7 +1590,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             if (!ALLOWED_FILE_FOLDERS.includes(folder)) {
                 return jsonResponse(res, { error: '无效的文件夹' }, 400);
             }
-            if (folder === 'useruploads' && !isAdminAuthorized(req)) {
+            if (folder === 'guestuploads' && !isAdminAuthorized(req)) {
                 return jsonResponse(res, { error: '需要管理员登录' }, 401);
             }
             const folderPath = path.join(__dirname, '..', folder);
