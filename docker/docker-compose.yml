@@ -23,6 +23,7 @@ services:
       - ../Markdown:/app/Markdown
       - ../blogimgs:/app/blogimgs
       - ../blogfiles:/app/blogfiles
+      - ../guestuploads:/app/guestuploads
       - ../.ssh_key:/app/.ssh_key
       - ../git_config.json:/app/git_config.json
     environment:

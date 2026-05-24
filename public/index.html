@@ -674,6 +674,14 @@
             color: var(--green);
         }
 
+        @media (max-width: 768px) {
+            .nav-links .nav-break::before {
+                content: "\A";
+                white-space: pre;
+                line-height: 2em; /* 觉得两行太挤的话，用这行来控制上下间距 */
+            }
+        }
+
         /* Toast notification */
         #toastContainer {
             position: fixed;
@@ -2360,9 +2368,9 @@
                 <a onclick="navigate('home')">[首页]</a>
                 <a onclick="navigate('tags')">[标签]</a>
                 <a onclick="navigate('admin')" class="active">[管理]</a>
-                <a onclick="openFileManager()">[文件管理]</a>
-                <a onclick="openGitSyncModal()">[远程仓库]</a>
                 <a onclick="doLogout()" style="color: var(--red);">[退出登录]</a>
+                <a onclick="openFileManager()" class="nav-break">[文件管理]</a>
+                <a onclick="openGitSyncModal()">[远程仓库]</a>
             </div>
 
             ${separator('博客管理面板')}
@@ -3370,7 +3378,7 @@
                              'ondrop="handleGuestFileDrop(event)">' +
                             '<input type="file" id="guestUploadInput" onchange="handleGuestFileSelect(event)" style="display:none;" />' +
                             '<label style="cursor:pointer;">点击或拖拽文件到此处</label>' +
-                            '<div class="hint" id="guestUploadHint">支持任意格式，单文件最大 ' + getUploadMaxHint('guestupload') + ' · 需管理员提供的<span style="text-decoration: underline; font-style: italic;">上传码</span> · 每个<span style="text-decoration: underline; font-style: italic;">上传码</span>仅可使用一次</div>' +
+                            '<div class="hint" id="guestUploadHint">支持任意格式，单文件最大 ' + getUploadMaxHint('guestupload') + ' · 需联系管理员获取 <span style="text-decoration: underline; font-style: italic;">上传码</span> 才可操作</div>' +
                         '</div>' +
                         '<div class="file-upload-progress" id="guestuploadUploadProgress">' +
                             '<div class="file-upload-progress-info">' +
@@ -3574,7 +3582,7 @@
                     '<div class="file-section">' +
                         '<div class="file-section-header">' +
                             '<span class="file-section-title">👥 游客上传文件 (guestuploads/)</span>' +
-                            '<span style="font-style: italic; color: #888; font-size: 0.9em;">仅当点击“复制”时保存于粘贴板中的上传码有效</span>' +
+                            '<span style="font-style: italic; color: #888; font-size: 0.9em;">仅当最后点击“复制”时保存于粘贴板中的上传码有效</span>' +
                         '</div>' +
                         '<div class="upload-code-bar">' +
                             '<span class="upload-code-label">上传码</span>' +

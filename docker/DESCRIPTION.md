@@ -14,7 +14,7 @@
 | **容器名称** | `terminal-blog-fs` |
 | **内置依赖** | `bash`, `sed`, `git`, `openssh-client` |
 | **对外暴露端口**| `8788` |
-| **数据持久化挂载卷** | 📁 `Markdown/` (文章数据库)<br>📁 `blogimgs/` (博客图片仓)<br>📁 `blogfiles/` (博客文件区)<br>📁 `.ssh_key/` (免密 SSH 专属密钥对)<br>📄 `git_config.json` (仓库同步配置文件) |
+| **数据持久化挂载卷** | 📁 `Markdown/` (文章数据库)<br>📁 `blogimgs/` (博客图片仓)<br>📁 `blogfiles/` (博客文件区)<br>📁 `guestuploads/` (游客文件区)<br>📁 `.ssh_key/` (免密 SSH 专属密钥对)<br>📄 `git_config.json` (仓库同步配置文件) |
 
 ---
 
@@ -39,6 +39,7 @@
 | `../Markdown` | `/app/Markdown` | 存放所有博客文章（`.md` 文件）。 |
 | `../blogimgs` | `/app/blogimgs` | 文件管理器中上传的博客图片，用于在文章中显示。 |
 | `../blogfiles` | `/app/blogfiles` | 文件管理器中上传的博客文件，用于分享或文章链接。 |
+| `../guestuploads` | `/app/guestuploads` | 游客上传的文件，用于游客上传文件存储使用。 |
 | `../.ssh_key` | `/app/.ssh_key` | 系统自动为私有仓库生成的独立免密 SSH 密钥对（`id_git_blog` / `id_git_blog.pub`）。 |
 | `../git_config.json` | `/app/git_config.json` | 远程同步控制台的同步分支、用户名及仓库 URL 等配置数据。 |
 
@@ -56,7 +57,7 @@
 无论哪种部署方式，运行容器前必须执行以下命令初始化本地文件夹与关键的 Git 挂载配置文件，以防御 Docker 引擎将缺失挂载文件误创建为同名空目录：
 ```bash
 # 手动创建各挂载卷文件夹
-mkdir -p Markdown blogimgs blogfiles .ssh_key
+mkdir -p Markdown blogimgs blogfiles guestuploads .ssh_key
 
 # 预先生成空的 git 配置文件，防止 Docker 引擎误自动创建为同名文件夹
 echo "{}" > git_config.json
@@ -87,6 +88,7 @@ services:
       - ./Markdown:/app/Markdown
       - ./blogimgs:/app/blogimgs
       - ./blogfiles:/app/blogfiles
+      - ./guestuploads:/app/guestuploads
       - ./.ssh_key:/app/.ssh_key
       - ./git_config.json:/app/git_config.json
     environment:
@@ -141,7 +143,7 @@ docker compose restart
 
 ```bash
 # 1. 初始化文件与文件夹
-mkdir -p Markdown blogimgs blogfiles .ssh_key
+mkdir -p Markdown blogimgs guestuploads blogfiles .ssh_key
 echo "{}" > git_config.json
 
 # 2. 构建镜像 (在项目根目录下)
@@ -155,6 +157,7 @@ docker run -d \
   -v $(pwd)/Markdown:/app/Markdown \
   -v $(pwd)/blogimgs:/app/blogimgs \
   -v $(pwd)/blogfiles:/app/blogfiles \
+  -v $(pwd)/guestuploads:/app/guestuploads \
   -v $(pwd)/.ssh_key:/app/.ssh_key \
   -v $(pwd)/git_config.json:/app/git_config.json \
   -e SITE_TITLE="终端博客" \
