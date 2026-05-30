@@ -17,6 +17,8 @@ Markdown/*
 blogfiles/*
 blogimgs/*
 
+public/config.js
+
 # Editor/assistant metadata
 .claude/
 CLAUDE.md

@@ -61,6 +61,61 @@ function loadUploadLimits() {
     return limits;
 }
 
+// 从 config.js 解析 AI 配置
+function loadAIConfig() {
+    const defaultConfig = {
+        enabled: true,
+        apiKey: '',
+        apiUrl: 'https://api.deepseek.com/chat/completions',
+        model: 'deepseek-chat',
+        maxTokens: 1000,
+        temperature: 0.7
+    };
+    
+    try {
+        if (!fs.existsSync(CONFIG_JS_PATH)) {
+            return defaultConfig;
+        }
+        const content = fs.readFileSync(CONFIG_JS_PATH, 'utf8');
+        
+        // 检查 AI_CONFIG 是否存在
+        const aiConfigMatch = content.match(/const AI_CONFIG\s*=\s*\{/);
+        if (!aiConfigMatch) {
+            return defaultConfig;
+        }
+        
+        // 提取 enabled
+        const enabledMatch = content.match(/enabled\s*:\s*(true|false)/);
+        
+        // 提取 apiKey
+        const apiKeyMatch = content.match(/apiKey\s*:\s*'([^']*)'/);
+        
+        // 提取 apiBaseUrl (映射到 apiUrl，自动添加 /chat/completions)
+        const apiUrlMatch = content.match(/apiBaseUrl\s*:\s*'([^']*)'/);
+        
+        // 提取 model
+        const modelMatch = content.match(/model\s*:\s*'([^']*)'/);
+        
+        // 提取 maxTokens
+        const maxTokensMatch = content.match(/maxTokens\s*:\s*(\d+)/);
+        
+        // 提取 temperature
+        const tempMatch = content.match(/temperature\s*:\s*([\d.]+)/);
+        
+        return {
+            enabled: enabledMatch ? enabledMatch[1] === 'true' : defaultConfig.enabled,
+            apiKey: apiKeyMatch ? apiKeyMatch[1] : defaultConfig.apiKey,
+            apiUrl: apiUrlMatch ? (apiUrlMatch[1].replace(/\/$/, '') + '/chat/completions') : defaultConfig.apiUrl,
+            model: modelMatch ? modelMatch[1] : defaultConfig.model,
+            maxTokens: maxTokensMatch ? parseInt(maxTokensMatch[1]) : defaultConfig.maxTokens,
+            temperature: tempMatch ? parseFloat(tempMatch[1]) : defaultConfig.temperature
+        };
+    } catch (e) {
+        console.error('读取 AI 配置失败，使用默认值:', e);
+        return defaultConfig;
+    }
+}
+
 function getMaxUploadSize(folder) {
     const limits = loadUploadLimits();
     if (folder === 'blogimgs') return limits.blogimgs;
@@ -2188,6 +2243,157 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                 logs.push({ type: 'stderr', text: '对比检查失败: ' + err.message });
                 return jsonResponse(res, { success: false, error: '对比检查失败: ' + err.message, logs }, 500);
             }
+        }
+
+        // ==================== AI 聊天 API ====================
+        if (pathname === '/api/ai/chat' && method === 'POST') {
+            try {
+                const data = await parseBody(req);
+                const message = data.message;
+                
+                if (!message) {
+                    return jsonResponse(res, { error: '消息不能为空' }, 400);
+                }
+                
+                // 加载 AI 配置
+                const aiConfig = loadAIConfig();
+                
+                // 检查 AI 是否启用
+                if (!aiConfig.enabled) {
+                    return jsonResponse(res, { error: 'AI 功能已禁用' }, 400);
+                }
+                
+                // 检索相关文章
+                const posts = getAllPosts().filter(p => !p.hidden);
+                const relevantPosts = [];
+                const messageLower = message.toLowerCase();
+                
+                posts.forEach(post => {
+                    const titleMatch = post.title && post.title.toLowerCase().includes(messageLower);
+                    const contentMatch = post.body && post.body.toLowerCase().includes(messageLower);
+                    const tagMatch = post.tags && post.tags.some(t => t.toLowerCase().includes(messageLower));
+                    
+                    if (titleMatch || contentMatch || tagMatch) {
+                        let score = 0;
+                        if (titleMatch) score += 3;
+                        if (contentMatch) score += 1;
+                        if (tagMatch) score += 2;
+                        relevantPosts.push({ post, score });
+                    }
+                });
+                
+                relevantPosts.sort((a, b) => b.score - a.score);
+                const topPosts = relevantPosts.slice(0, aiConfig.maxDocs || 5);
+                
+                // 构建上下文
+                let context = '';
+                if (topPosts.length > 0) {
+                    context = '根据博客文章找到以下相关信息：\n\n';
+                    topPosts.forEach((item, i) => {
+                        context += `【文章${i + 1}】${item.post.title}\n发布日期：${item.post.date}\n`;
+                        if (item.post.tags && item.post.tags.length > 0) {
+                            context += `标签：${item.post.tags.join(', ')}\n`;
+                        }
+                        context += `内容摘要：${item.post.body.substring(0, 500)}${item.post.body.length > 500 ? '...' : ''}\n\n`;
+                    });
+                }
+                
+                // 调用 AI API
+                if (!aiConfig.apiKey) {
+                    return jsonResponse(res, { error: 'AI API 未配置，请在 config.js 中设置 apiKey' }, 400);
+                }
+                
+                const aiMessages = [];
+                if (context) {
+                    aiMessages.push({
+                        role: 'system',
+                        content: `你是 Terminal Blog 的智能助手。用户询问问题时，请结合提供的博客文章内容来回答。如果文章中有相关信息，请引用文章标题。回答请简洁明了。`
+                    });
+                    aiMessages.push({
+                        role: 'user',
+                        content: context + '\n\n用户问题：' + message
+                    });
+                } else {
+                    aiMessages.push({
+                        role: 'system',
+                        content: '你是 Terminal Blog 的智能助手。请简洁明了地回答用户的问题。'
+                    });
+                    aiMessages.push({
+                        role: 'user',
+                        content: message
+                    });
+                }
+                
+                const response = await fetch(aiConfig.apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${aiConfig.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: aiConfig.model,
+                        messages: aiMessages,
+                        max_tokens: aiConfig.maxTokens,
+                        temperature: aiConfig.temperature
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errText = await response.text();
+                    return jsonResponse(res, { error: 'AI 服务请求失败: ' + response.status }, 500);
+                }
+                
+                const aiData = await response.json();
+                const reply = aiData.choices && aiData.choices[0] && aiData.choices[0].message 
+                    ? aiData.choices[0].message.content 
+                    : '抱歉，AI 暂时无法回答。';
+                
+                return jsonResponse(res, {
+                    reply: reply,
+                    sources: topPosts.map(item => ({
+                        id: item.post.id,
+                        title: item.post.title,
+                        date: item.post.date
+                    }))
+                });
+                
+            } catch (err) {
+                console.error('AI Chat Error:', err);
+                return jsonResponse(res, { error: 'AI 服务出错: ' + err.message }, 500);
+            }
+        }
+
+        // Search posts
+        if (pathname === '/api/search' && method === 'GET') {
+            const query = url.searchParams.get('q') || '';
+            const admin = url.searchParams.get('admin') === 'true';
+            
+            if (!query) {
+                return jsonResponse(res, { results: [] });
+            }
+            
+            let posts = getAllPosts();
+            if (!admin) {
+                posts = posts.filter(p => !p.hidden);
+            }
+            
+            const queryLower = query.toLowerCase();
+            const results = posts
+                .filter(p => 
+                    p.title.toLowerCase().includes(queryLower) ||
+                    p.content.toLowerCase().includes(queryLower) ||
+                    (p.tags && p.tags.some(t => t.toLowerCase().includes(queryLower)))
+                )
+                .map(p => ({
+                    id: p.id,
+                    title: p.title,
+                    date: p.date,
+                    tags: p.tags || [],
+                    excerpt: p.content.substring(0, 200)
+                }))
+                .slice(0, 20);
+            
+            return jsonResponse(res, { results });
         }
 
         // SPA fallback - 所有未匹配的路径返回 index.html
