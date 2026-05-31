@@ -75,6 +75,38 @@ function normalizeAIFormat(value) {
     return 'openai';
 }
 
+/** 去掉行尾 // 注释（不破坏字符串或 URL 中的 //，如 https://） */
+function stripLineComment(line) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//')) return '';
+
+    let inSingle = false;
+    let inDouble = false;
+    let inBacktick = false;
+
+    for (let i = 0; i < line.length - 1; i++) {
+        const ch = line[i];
+        const prev = i > 0 ? line[i - 1] : '';
+
+        if (!inDouble && !inBacktick && ch === "'" && prev !== '\\') {
+            inSingle = !inSingle;
+            continue;
+        }
+        if (!inSingle && !inBacktick && ch === '"' && prev !== '\\') {
+            inDouble = !inDouble;
+            continue;
+        }
+        if (!inSingle && !inDouble && ch === '`' && prev !== '\\') {
+            inBacktick = !inBacktick;
+            continue;
+        }
+        if (!inSingle && !inDouble && !inBacktick && ch === '/' && line[i + 1] === '/') {
+            return line.slice(0, i).trimEnd();
+        }
+    }
+    return line;
+}
+
 /** 提取 AI_CONFIG 对象体，并去掉 // 行注释，避免误读注释中的示例配置 */
 function extractAIConfigSource(content) {
     const marker = 'const AI_CONFIG';
@@ -93,13 +125,7 @@ function extractAIConfigSource(content) {
                 const body = content.slice(braceStart + 1, i);
                 return body
                     .split('\n')
-                    .map((line) => {
-                        const trimmed = line.trim();
-                        if (trimmed.startsWith('//')) return '';
-                        const commentIdx = line.indexOf('//');
-                        if (commentIdx === -1) return line;
-                        return line.slice(0, commentIdx);
-                    })
+                    .map((line) => stripLineComment(line))
                     .join('\n');
             }
         }
@@ -148,10 +174,10 @@ function loadAIConfig() {
         }
 
         const enabledMatch = matchAIConfigTopLevel(aiSource, 'enabled', String.raw`(true|false)`);
-        const apiKeyMatch = matchAIConfigValue(aiSource, String.raw`apiKey\s*:\s*'([^']*)'`);
-        const apiBaseUrlMatch = matchAIConfigValue(aiSource, String.raw`apiBaseUrl\s*:\s*'([^']*)'`);
-        const apiFormatMatch = matchAIConfigValue(aiSource, String.raw`apiFormat\s*:\s*'([^']*)'`);
-        const modelMatch = matchAIConfigValue(aiSource, String.raw`model\s*:\s*'([^']*)'`);
+        const apiKeyMatch = matchAIConfigTopLevel(aiSource, 'apiKey', String.raw`'([^']*)'`);
+        const apiBaseUrlMatch = matchAIConfigTopLevel(aiSource, 'apiBaseUrl', String.raw`'([^']*)'`);
+        const apiFormatMatch = matchAIConfigTopLevel(aiSource, 'apiFormat', String.raw`'([^']*)'`);
+        const modelMatch = matchAIConfigTopLevel(aiSource, 'model', String.raw`'([^']*)'`);
         const maxTokensMatch = matchAIConfigTopLevel(aiSource, 'maxTokens', String.raw`(\d+)`);
         const tempMatch = matchAIConfigTopLevel(aiSource, 'temperature', String.raw`([\d.]+)`);
         const maxDocsMatch = matchAIConfigValue(aiSource, String.raw`maxDocs\s*:\s*(\d+)`);
