@@ -38,7 +38,7 @@ window.SITE_CONFIG = {
     // 终端雨配置项
     // ============================================================
     // 0. 终端雨模式说明：
-    //    '1' - 纯 Matrix 雨（绿色字符雨）: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミ姆メモヤユヨラリルレロワヲン'
+    //    '1' - 纯 Matrix 雨（绿色字符雨）: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン'
     //    '2' - 英文雨（随机英文字符雨）: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     //    '3' - 数字雨（随机数字字符雨）: '01'
     //    '4' - 混合雨（随机字母数字混合雨）: '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥临兵斗者皆阵列在前'
@@ -77,7 +77,8 @@ const AI_CONFIG = {
     // 启用 AI 功能
     enabled: ${AI_ENABLED:-false},
 
-    // API 配置（兼容 OpenAI 格式，可对接任意支持该格式的模型）
+    // API 协议：openai | anthropic | gemini
+    apiFormat: '${AI_API_FORMAT:-openai}',
     apiBaseUrl: '${AI_API_BASE_URL}',
     apiKey: '${AI_API_KEY}',
     model: '${AI_MODEL}',
@@ -86,40 +87,14 @@ const AI_CONFIG = {
     maxTokens: ${AI_MAX_TOKENS:-2048},
     temperature: ${AI_TEMPERATURE:-0.7},
 
-    // AI 系统提示词（定义 AI 回答边界）
-    // 注意：后端 server.js 会根据问题类型动态调整系统提示词
-    // 此处为默认提示词，适用于无匹配文章时的情况
-    systemPrompt: \`你是 Terminal Blog 的 AI 智能助手。
+    // 后端 server.js 动态生成「小美」系统提示词；此处为说明性备用
+    systemPrompt: \`你是小美，Terminal Blog 的守护天使与主人助手。基于文章索引与正文片段回答；默认简洁。\`,
 
-【博客信息】共 ${POST_COUNT:-0} 篇文章。
-
-【核心原则】你是一个专注于博客内容的 AI 助手。
-
-【回答规则】
-1. 如果用户问题与博客内容相关：结合博客文章回答
-2. 如果用户问题是技术类问题：可以简要回答
-3. 如果用户问题是闲聊或其他：礼貌地引导用户关注博客内容
-
-【引导话术】
-当用户问到你不太擅长的话题时，可以使用以下方式引导：
-- "这个问题我不太擅长呢~ 不过你可以看看博客里的技术文章，说不定有收获 😊"
-- "我是 Terminal Blog 的小助手，主要职责是帮你了解博客内容。文章列表在这里：[查看文章](/)，有什么想了解的？"
-- "闲聊可以，但本站的技术文章更有价值哦~ 🙈"
-
-【回答风格】
-- 友好、亲切、有趣
-- 善用 emoji
-- 适当引导用户浏览博客
-- 不要拒人于千里之外\`,
-
-    // 搜索相关配置（预留升级空间）
     search: {
-        // 当前搜索模式：'keyword' | 'bm25' | 'vector'
         mode: 'keyword',
-        // 最大返回相关文档数
         maxDocs: 5,
-        // 最大上下文 token 数（估算）
-        maxContextTokens: 8000
+        maxContextTokens: 8000,
+        headerChars: 150
     },
 
     // 向量检索配置（预留）
@@ -138,11 +113,9 @@ const AI_CONFIG = {
     // UI 配置
     ui: {
         // 对话窗口标题
-        windowTitle: 'AI 助手',
-        // 是否显示欢迎消息
+        windowTitle: '小美',
         showWelcome: true,
-        // 欢迎消息
-        welcomeMessage: '你好！我是 TerminalBlog 的 AI 助手，可以帮你解答关于博客内容的问题，有什么想了解的吗？'
+        welcomeMessage: '你好，我是小美～Terminal Blog 的守护天使，可以帮你查文章、聊技术，有什么想了解的吗？'
     }
 };
 

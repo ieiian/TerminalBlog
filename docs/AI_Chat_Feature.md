@@ -12,9 +12,11 @@
 - **打字机效果**：显示 AI "思考中" 的加载动画
 - **对话历史**：支持多轮对话，AI 可以理解上下文
 - **错误处理**：优雅地处理网络错误和 API 配置问题
-- **智能边界判断**：根据问题类型采用不同的回答策略
-- **博客文章检索**：自动检索相关内容并提供链接
+- **三层文章上下文**：L0 全站索引 + L1 文首摘要 + L2 按需正文，节省 token
+- **智能边界判断**：小美人设，按问题类型调整回答策略
+- **博客文章检索**：分词检索 + 显式文章 ID，命中附链接
 - **特殊人称保护**：对询问站长的敏感问题进行神秘化处理
+- **安全只读**：AI 路由仅读取文章并调用外部 LLM，无写入/执行权限
 
 ---
 
@@ -77,66 +79,53 @@ const response = await fetch('/api/ai/chat', {
 
 #### 核心逻辑
 
-1. 接收前端发送的对话历史和最新消息
-2. 调用 AI 大模型 API（支持 OpenAI 兼容格式）
-3. 返回 AI 的回复内容
+1. 接收前端 `message` 与可选 `messages`（最近 6 轮历史）
+2. 构建 L0/L1（每次必带）与 L2（检索命中时）
+3. 按场景生成「小美」系统提示词，单次调用大模型 API
+4. 返回 `reply`、`sources`（命中文章时）、可选 `type`
 
-### 3. 智能边界判断系统
+### 3. 三层上下文与检索
 
-**实现位置**：`public/server.js` 中的 `/api/ai/chat` 路由（约第 2249 行起）
+**辅助函数位置**：`public/server.js`（`getPostById` 之后）
 
-#### 判断流程
+| 层级 | 函数 | 内容 | 何时注入 |
+|------|------|------|----------|
+| **L0** | `buildArticleIndex` | id、标题、日期、标签、URL | 每次对话 |
+| **L1** | `buildArticleHeaders` | 每篇文首约 `headerChars` 字 | 每次对话 |
+| **L2** | `buildPostDetailContext` | 命中文章正文（截断） | 分词检索或显式 ID 命中 |
 
-```
-用户提问
-    ↓
-检测问题类型：
-├─ 包含"站长/管理员/主人/陛下/博主/作者/老板/老大"
-│   → 特殊人称保护模式（神秘化回复）
-│
-├─ 匹配博客文章内容
-│   → 博客内容优先模式（引用文章+链接）
-│
-├─ 包含技术关键词（系统/网络/编程/代码等）
-│   → 技术问答模式（简要回答）
-│
-└─ 其他问题
-    → 礼貌引导模式（引导浏览博客）
-```
+**检索**：`extractQueryTokens` + `searchRelevantPosts`（多词 OR、标题/标签加权）；`detectMetaIntent` 时跳过 L2，由 L0 回答列表类问题；`resolveExplicitPostIds` 解析消息中的 4 位以上数字 ID。
 
-#### 三种回答模式
-
-| 模式 | 触发条件 | 回答策略 | 返回字段 |
-|------|----------|----------|----------|
-| **特殊人称保护** | 询问站长相关信息 | 神秘化、模糊化回复，不透露真实信息 | `type: 'owner'` |
-| **博客内容优先** | 匹配到相关文章 | 结合文章内容，附上链接 | `sources: [...]` |
-| **技术问答** | 包含技术关键词 | 简要专业回答，可适当引导 | `type: 'tech'` |
-| **礼貌引导** | 其他问题 | 友好引导浏览博客 | 无特殊字段 |
-
-#### 文章检索逻辑
+**配置**（`config.js` → `AI_CONFIG.search`）：
 
 ```javascript
-// 检索相关文章
-const relevantPosts = [];
-posts.forEach(post => {
-    const titleMatch = post.title.toLowerCase().includes(messageLower);
-    const contentMatch = post.body.toLowerCase().includes(messageLower);
-    const tagMatch = post.tags.some(t => t.toLowerCase().includes(messageLower));
-    
-    if (titleMatch || contentMatch || tagMatch) {
-        let score = 0;
-        if (titleMatch) score += 3;   // 标题匹配权重最高
-        if (contentMatch) score += 1;   // 内容匹配权重
-        if (tagMatch) score += 2;       // 标签匹配权重
-        
-        relevantPosts.push({ post, score });
-    }
-});
-
-// 按分数排序，返回最高匹配的前 N 篇
-relevantPosts.sort((a, b) => b.score - a.score);
-const topPosts = relevantPosts.slice(0, aiConfig.maxDocs || 5);
+search: {
+    mode: 'keyword',
+    maxDocs: 5,
+    maxContextTokens: 8000,
+    headerChars: 150
+}
 ```
+
+### 4. 小美人设与回答模式
+
+助手名称为**小美**，Terminal Blog 守护天使。默认简洁；引用文章须附 `${SITE_URL}/文章ID`；未命中时不反复贴主页/总列表链接。
+
+| 模式 | 触发条件 | 返回字段 |
+|------|----------|----------|
+| **owner** | 站长/主人等关键词 | `type: 'owner'` |
+| **blog** | 检索命中文章 | `sources: [...]` |
+| **tech** | 技术关键词且无文章命中 | `type: 'tech'` |
+| **general** | 其他 | 仅 `reply` |
+
+统一由 `buildXiaomeiSystemPrompt(mode, opts)` 生成系统提示词，单次 `invokeAIModel` 调用。
+
+### 5. 安全边界
+
+- `/api/ai/chat` **仅**调用：`getAllPosts`、`getPostById`（只读）、`invokeAIModel`（外部 HTTP）
+- **不**调用：`savePost`、`deletePostFile`、Git/Shell 等
+- `hidden` 文章不进入上下文；`locked` 文章 L1/L2 不注入正文，引导用户站内解锁
+- 不向模型传递 `lockPassword`、服务端路径等敏感信息
 
 #### 文章链接格式
 
@@ -190,18 +179,31 @@ const techKeywords = [
 **文件**：`public/config.js`
 
 ```javascript
-window.AI_CONFIG = {
-    apiKey: 'your-api-key-here',     // API 密钥（必填）
-    model: 'gpt-3.5-turbo',          // 使用的模型
-    apiUrl: 'https://api.openai.com', // API 地址
-    enabled: true,                    // 是否启用
-    ui: {
-        windowTitle: 'AI 助手',       // 窗口标题
-        showWelcome: true,            // 显示欢迎语
-        welcomeMessage: '你好！...'    // 欢迎语内容
-    }
+const AI_CONFIG = {
+    enabled: true,
+    // API 协议：openai | anthropic | gemini
+    apiFormat: 'openai',
+    apiBaseUrl: 'https://api.openai.com/v1',
+    apiKey: 'your-api-key-here',
+    model: 'gpt-4o-mini',
+    maxTokens: 1500,
+    temperature: 0.7,
+    search: { maxDocs: 5, maxContextTokens: 8000, headerChars: 150 },
+    ui: { windowTitle: '小美', showWelcome: true, welcomeMessage: '...' }
 };
 ```
+
+#### API 格式说明（`apiFormat`）
+
+| 值 | 默认 `apiBaseUrl` | 端点 | 认证方式 |
+|----|-------------------|------|----------|
+| `openai` | `https://api.openai.com/v1` | `{base}/chat/completions` | `Authorization: Bearer` |
+| `anthropic` | `https://api.anthropic.com` | `{base}/v1/messages` | `x-api-key` + `anthropic-version` |
+| `gemini` | `https://generativelanguage.googleapis.com/v1beta` | `{base}/models/{model}:generateContent` | `x-goog-api-key` |
+
+DeepSeek、本地 Ollama OpenAI 兼容网关等仍使用 `apiFormat: 'openai'`，只需改 `apiBaseUrl` 与 `model`。
+
+Docker 环境变量：`AI_API_FORMAT`（默认 `openai`）。
 
 ### 样式文件
 
@@ -274,10 +276,10 @@ AI_CONFIG.enabled = true;  // 确保已启用
 
 ## 📝 后续优化建议
 
-1. **流式输出**：使用 Server-Sent Events 实现打字机效果
-2. **对话导出**：支持导出对话记录
-3. **多 AI 支持**：支持切换不同 AI 提供商
-4. **快捷指令**：预设常用问题的快捷按钮
+1. **流式输出**：Server-Sent Events 打字机效果
+2. **BM25 / 向量检索**：利用 `search.mode` 配置
+3. **元问题短路**：列表类问题服务端直接格式化（可选省 token）
+4. **Function Calling**：模型主动请求单篇文章全文
 
 ---
 

@@ -1,6 +1,7 @@
 // ============================================================
-// Terminal Blog - 站点配置
-// 在 Docker 构建时会通过 sed 替换这些值
+// Terminal Blog - 站点配置（示例模板）
+// 复制为 public/config.js 后填写真实密钥；勿将含密钥的 config.js 提交到公开仓库
+// Docker 部署时也可由 entrypoint 根据环境变量生成 config.js
 // ============================================================
 
 const SITE_CONFIG = {
@@ -19,7 +20,7 @@ window.SITE_CONFIG = {
     // 终端雨配置项
     // ============================================================
     // 0. 终端雨模式说明：
-    //    '1' - 纯 Matrix 雨（绿色字符雨）: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミ姆メモヤユヨラリルレロワヲン'
+    //    '1' - 纯 Matrix 雨（绿色字符雨）: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン'
     //    '2' - 英文雨（随机英文字符雨）: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     //    '3' - 数字雨（随机数字字符雨）: '01'
     //    '4' - 混合雨（随机字母数字混合雨）: '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥临兵斗者皆阵列在前'
@@ -49,7 +50,27 @@ const AI_CONFIG = {
     // 启用 AI 功能
     enabled: true,
 
-    // API 配置（兼容 OpenAI 格式，可对接任意支持该格式的模型）
+    // API 协议：'openai' | 'anthropic' | 'gemini'
+    //
+    // apiBaseUrl：可省略或留空 ''，服务端会按 apiFormat 使用默认根地址。
+    //   openai    → https://api.openai.com/v1/chat/completions
+    //   anthropic → https://api.anthropic.com/v1/messages
+    //   gemini    → https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+    // 使用 Gemini 时通常无需填写 apiBaseUrl，只需配置 apiKey 与 model。
+    // 仅在使用代理、私有网关或固定完整端点 URL 时才需要自定义 apiBaseUrl。
+    //
+    // OpenAI 兼容示例（NVIDIA / DeepSeek 等）：
+    // apiFormat: 'openai',
+    // apiBaseUrl: 'https://integrate.api.nvidia.com/v1',
+    // apiKey: 'your-api-key',
+    // model: 'minimaxai/minimax-m2.7',
+    //
+    // Gemini 示例：
+    // apiFormat: 'gemini',
+    // apiKey: 'your-gemini-api-key',
+    // model: 'gemini-2.5-flash',
+
+    apiFormat: 'openai',
     apiBaseUrl: '',
     apiKey: '',
     model: '',
@@ -58,31 +79,19 @@ const AI_CONFIG = {
     maxTokens: 1500,
     temperature: 0.7,
 
-    // AI 系统提示词（定义 AI 回答边界）
-    systemPrompt: `你是 TerminalBlog 的 AI 助手。
+    // 后端会按场景动态生成「小美」提示词；此处作备用说明
+    systemPrompt: `你是小美，Terminal Blog 的守护天使与主人助手。基于服务端注入的文章索引与正文片段回答；默认简洁，引用文章时附链接。`,
 
-【你的能力】
-1. 回答关于博客文章内容的问题（基于提供的上下文）
-2. 基础闲聊和通用问题
-
-【你的限制】
-1. 只能回答与博客内容相关的问题或基础闲聊
-2. 如果用户询问与你无关的话题，请礼貌拒绝并引导回博客内容
-3. 请用中文回答，除非用户使用其他语言
-
-【回答风格】
-- 简洁、专业、有帮助
-- 可以适度使用 emoji 增加亲和力
-- 在引用博客内容时标注来源文章标题`,
-
-    // 搜索相关配置（预留升级空间）
+    // AI 对话文章检索与上下文（服务端 /api/ai/chat 使用）
     search: {
-        // 当前搜索模式：'keyword' | 'bm25' | 'vector'
+        // 检索模式：'keyword'（当前已实现）| 'bm25' | 'vector'（预留）
         mode: 'keyword',
-        // 最大返回相关文档数
+        // L2 最多附带几篇相关文章正文
         maxDocs: 5,
-        // 最大上下文 token 数（估算）
-        maxContextTokens: 8000
+        // 注入模型的上下文 token 上限（估算，用于截断正文）
+        maxContextTokens: 8000,
+        // L1 每篇文章开头摘要字符数
+        headerChars: 150
     },
 
     // 向量检索配置（预留）
@@ -100,12 +109,9 @@ const AI_CONFIG = {
 
     // UI 配置
     ui: {
-        // 对话窗口标题
-        windowTitle: 'AI 助手',
-        // 是否显示欢迎消息
+        windowTitle: '小美',
         showWelcome: true,
-        // 欢迎消息
-        welcomeMessage: '你好！我是 TerminalBlog 的 AI 助手，可以帮你解答关于博客内容的问题，有什么想了解的吗？'
+        welcomeMessage: '你好，我是小美～Terminal Blog 的守护天使，可以帮你查文章、聊技术，有什么想了解的吗？'
     }
 };
 

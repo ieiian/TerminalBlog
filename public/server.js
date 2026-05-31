@@ -62,58 +62,234 @@ function loadUploadLimits() {
 }
 
 // 从 config.js 解析 AI 配置
+const AI_FORMAT_DEFAULTS = {
+    openai: 'https://api.openai.com/v1',
+    anthropic: 'https://api.anthropic.com',
+    gemini: 'https://generativelanguage.googleapis.com/v1beta'
+};
+const ANTHROPIC_API_VERSION = '2023-06-01';
+
+function normalizeAIFormat(value) {
+    const f = (value || 'openai').toLowerCase().trim();
+    if (f === 'anthropic' || f === 'gemini') return f;
+    return 'openai';
+}
+
 function loadAIConfig() {
     const defaultConfig = {
         enabled: true,
         apiKey: '',
-        apiUrl: 'https://api.deepseek.com/chat/completions',
+        apiFormat: 'openai',
+        apiBaseUrl: AI_FORMAT_DEFAULTS.openai,
         model: 'deepseek-chat',
         maxTokens: 1000,
-        temperature: 0.7
+        temperature: 0.7,
+        maxDocs: 5,
+        maxContextTokens: 8000,
+        headerChars: 150
     };
-    
+
     try {
         if (!fs.existsSync(CONFIG_JS_PATH)) {
             return defaultConfig;
         }
         const content = fs.readFileSync(CONFIG_JS_PATH, 'utf8');
-        
-        // 检查 AI_CONFIG 是否存在
+
         const aiConfigMatch = content.match(/const AI_CONFIG\s*=\s*\{/);
         if (!aiConfigMatch) {
             return defaultConfig;
         }
-        
-        // 提取 enabled
+
         const enabledMatch = content.match(/enabled\s*:\s*(true|false)/);
-        
-        // 提取 apiKey
         const apiKeyMatch = content.match(/apiKey\s*:\s*'([^']*)'/);
-        
-        // 提取 apiBaseUrl (映射到 apiUrl，自动添加 /chat/completions)
-        const apiUrlMatch = content.match(/apiBaseUrl\s*:\s*'([^']*)'/);
-        
-        // 提取 model
+        const apiBaseUrlMatch = content.match(/apiBaseUrl\s*:\s*'([^']*)'/);
+        const apiFormatMatch = content.match(/apiFormat\s*:\s*'([^']*)'/);
         const modelMatch = content.match(/model\s*:\s*'([^']*)'/);
-        
-        // 提取 maxTokens
         const maxTokensMatch = content.match(/maxTokens\s*:\s*(\d+)/);
-        
-        // 提取 temperature
         const tempMatch = content.match(/temperature\s*:\s*([\d.]+)/);
-        
+        const maxDocsMatch = content.match(/maxDocs\s*:\s*(\d+)/);
+        const maxContextTokensMatch = content.match(/maxContextTokens\s*:\s*(\d+)/);
+        const headerCharsMatch = content.match(/headerChars\s*:\s*(\d+)/);
+
+        const apiFormat = normalizeAIFormat(apiFormatMatch ? apiFormatMatch[1] : defaultConfig.apiFormat);
+        const apiBaseUrlRaw = apiBaseUrlMatch ? apiBaseUrlMatch[1].trim() : '';
+
         return {
             enabled: enabledMatch ? enabledMatch[1] === 'true' : defaultConfig.enabled,
             apiKey: apiKeyMatch ? apiKeyMatch[1] : defaultConfig.apiKey,
-            apiUrl: apiUrlMatch ? (apiUrlMatch[1].replace(/\/$/, '') + '/chat/completions') : defaultConfig.apiUrl,
+            apiFormat,
+            apiBaseUrl: apiBaseUrlRaw || AI_FORMAT_DEFAULTS[apiFormat],
             model: modelMatch ? modelMatch[1] : defaultConfig.model,
-            maxTokens: maxTokensMatch ? parseInt(maxTokensMatch[1]) : defaultConfig.maxTokens,
-            temperature: tempMatch ? parseFloat(tempMatch[1]) : defaultConfig.temperature
+            maxTokens: maxTokensMatch ? parseInt(maxTokensMatch[1], 10) : defaultConfig.maxTokens,
+            temperature: tempMatch ? parseFloat(tempMatch[1]) : defaultConfig.temperature,
+            maxDocs: maxDocsMatch ? parseInt(maxDocsMatch[1], 10) : defaultConfig.maxDocs,
+            maxContextTokens: maxContextTokensMatch ? parseInt(maxContextTokensMatch[1], 10) : defaultConfig.maxContextTokens,
+            headerChars: headerCharsMatch ? parseInt(headerCharsMatch[1], 10) : defaultConfig.headerChars
         };
     } catch (e) {
         console.error('读取 AI 配置失败，使用默认值:', e);
         return defaultConfig;
     }
+}
+
+/** 合并连续同角色消息，并保证以 user 开头（Anthropic / Gemini 需要） */
+function normalizeChatTurns(turns) {
+    const out = [];
+    turns.forEach((t) => {
+        const role = t.role === 'assistant' ? 'assistant' : 'user';
+        if (out.length && out[out.length - 1].role === role) {
+            out[out.length - 1].content += '\n\n' + t.content;
+        } else {
+            out.push({ role, content: t.content });
+        }
+    });
+    while (out.length && out[0].role !== 'user') {
+        out.shift();
+    }
+    return out;
+}
+
+function buildConversationTurns(userPayload, historyMessages) {
+    const turns = [];
+    if (Array.isArray(historyMessages) && historyMessages.length > 0) {
+        historyMessages.slice(-6).forEach((m) => {
+            const role = m.role === 'ai' ? 'assistant' : m.role;
+            if ((role === 'user' || role === 'assistant') && m.content) {
+                turns.push({ role, content: m.content });
+            }
+        });
+    }
+    turns.push({ role: 'user', content: userPayload });
+    return normalizeChatTurns(turns);
+}
+
+function resolveAIEndpoint(aiConfig) {
+    const format = normalizeAIFormat(aiConfig.apiFormat);
+    const base = (aiConfig.apiBaseUrl || AI_FORMAT_DEFAULTS[format]).replace(/\/$/, '');
+
+    if (format === 'anthropic') {
+        if (base.includes('/v1/messages')) return base;
+        return `${base}/v1/messages`;
+    }
+    if (format === 'gemini') {
+        if (base.includes(':generateContent')) return base;
+        const model = encodeURIComponent(aiConfig.model || 'gemini-1.5-flash');
+        return `${base}/models/${model}:generateContent`;
+    }
+    if (base.endsWith('/chat/completions')) return base;
+    if (base.endsWith('/v1')) return `${base}/chat/completions`;
+    return `${base}/chat/completions`;
+}
+
+function buildAIRequest(aiConfig, systemPrompt, userPayload, historyMessages) {
+    const format = normalizeAIFormat(aiConfig.apiFormat);
+    const url = resolveAIEndpoint(aiConfig);
+    const turns = buildConversationTurns(userPayload, historyMessages);
+
+    if (format === 'anthropic') {
+        return {
+            url,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': aiConfig.apiKey,
+                'anthropic-version': ANTHROPIC_API_VERSION
+            },
+            body: {
+                model: aiConfig.model,
+                max_tokens: aiConfig.maxTokens,
+                temperature: aiConfig.temperature,
+                system: systemPrompt,
+                messages: turns.map((t) => ({
+                    role: t.role,
+                    content: t.content
+                }))
+            }
+        };
+    }
+
+    if (format === 'gemini') {
+        return {
+            url,
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': aiConfig.apiKey
+            },
+            body: {
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+                contents: turns.map((t) => ({
+                    role: t.role === 'assistant' ? 'model' : 'user',
+                    parts: [{ text: t.content }]
+                })),
+                generationConfig: {
+                    maxOutputTokens: aiConfig.maxTokens,
+                    temperature: aiConfig.temperature
+                }
+            }
+        };
+    }
+
+    // OpenAI 及兼容格式
+    const messages = [{ role: 'system', content: systemPrompt }];
+    turns.forEach((t) => {
+        messages.push({ role: t.role, content: t.content });
+    });
+    return {
+        url,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${aiConfig.apiKey}`
+        },
+        body: {
+            model: aiConfig.model,
+            messages,
+            max_tokens: aiConfig.maxTokens,
+            temperature: aiConfig.temperature
+        }
+    };
+}
+
+function parseAIReply(aiConfig, data) {
+    const format = normalizeAIFormat(aiConfig.apiFormat);
+
+    if (format === 'anthropic') {
+        if (data.content && data.content.length > 0) {
+            return data.content
+                .filter((block) => block.type === 'text' && block.text)
+                .map((block) => block.text)
+                .join('');
+        }
+        return null;
+    }
+
+    if (format === 'gemini') {
+        const parts = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+        if (parts) {
+            return parts.map((p) => p.text).filter(Boolean).join('');
+        }
+        return null;
+    }
+
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+        return data.choices[0].message.content;
+    }
+    return null;
+}
+
+function extractAIError(data, aiConfig) {
+    if (!data || typeof data !== 'object') return null;
+    const format = normalizeAIFormat(aiConfig.apiFormat);
+    if (format === 'anthropic' && data.error && data.error.message) {
+        return data.error.message;
+    }
+    if (format === 'gemini' && data.error && data.error.message) {
+        return data.error.message;
+    }
+    if (data.error && data.error.message) {
+        return data.error.message;
+    }
+    return null;
 }
 
 function getMaxUploadSize(folder) {
@@ -769,6 +945,263 @@ function getPostById(id) {
     }
     
     return null;
+}
+
+// ==================== AI 上下文（只读：仅 getAllPosts / getPostById）====================
+
+const AI_QUERY_STOP_WORDS = new Set([
+    '的', '了', '是', '在', '有', '和', '与', '或', '吗', '呢', '啊', '吧',
+    '所有', '列出', '一下', '什么', '哪些', '怎么', '如何', '请', '帮', '我', '你',
+    '能', '可以', '想', '要', '给', '把', '被', '让', '都', '也', '还', '就', '这', '那',
+    '个', '篇', '文章', '标题', '列表', '全部', '显示', '告诉', '看看', '关于', '介绍'
+]);
+
+/** 从用户问题提取检索词 */
+function extractQueryTokens(message) {
+    const tokens = new Set();
+    const lower = message.toLowerCase();
+    const enMatches = lower.match(/[a-z0-9]{2,}/g) || [];
+    enMatches.forEach((t) => {
+        if (!AI_QUERY_STOP_WORDS.has(t)) tokens.add(t);
+    });
+    const cnMatches = message.match(/[\u4e00-\u9fff]{2,}/g) || [];
+    cnMatches.forEach((seg) => {
+        if (seg.length >= 2 && !AI_QUERY_STOP_WORDS.has(seg)) {
+            tokens.add(seg);
+        }
+        if (seg.length > 4) {
+            for (let i = 0; i <= seg.length - 2; i++) {
+                const bi = seg.slice(i, i + 2);
+                if (!AI_QUERY_STOP_WORDS.has(bi)) tokens.add(bi);
+            }
+        }
+    });
+    return Array.from(tokens);
+}
+
+/** 是否为「列文章/多少篇」类元问题 */
+function detectMetaIntent(message) {
+    const patterns = [
+        /文章列表/,
+        /所有文章/,
+        /全部文章/,
+        /有哪些文章/,
+        /有什么文章/,
+        /多少篇文章/,
+        /几篇文章/,
+        /列出.*标题/,
+        /文章标题/,
+        /列.*标题/,
+        /list\s+(all\s+)?(posts|articles)/i
+    ];
+    return patterns.some((p) => p.test(message));
+}
+
+/** L0：全站文章轻量索引 */
+function buildArticleIndex(posts, siteUrl) {
+    const lines = posts.map((p) => {
+        const tags = p.tags && p.tags.length ? p.tags.join(', ') : '-';
+        return `${p.id} | ${p.title} | ${p.date} | ${tags} | ${siteUrl}/${p.id}`;
+    });
+    return `【文章索引 L0】共 ${posts.length} 篇\n${lines.join('\n')}`;
+}
+
+/** L1：每篇文章头部摘要 */
+function buildArticleHeaders(posts, headerChars) {
+    let out = `【文章头部 L1】每篇开头约 ${headerChars} 字\n\n`;
+    posts.forEach((p) => {
+        out += `#${p.id} ${p.title}\n`;
+        if (p.tags && p.tags.length) {
+            out += `标签: ${p.tags.join(', ')}\n`;
+        }
+        if (p.locked) {
+            out += `状态: 已加密（勿编造正文，引导用户站内解锁）\n\n`;
+            return;
+        }
+        const body = p.body || '';
+        const header = body.substring(0, headerChars);
+        out += `开头: ${header}${body.length > headerChars ? '...' : ''}\n\n`;
+    });
+    return out;
+}
+
+/** 分词检索相关文章；元问题返回空数组，由 L0 回答 */
+function searchRelevantPosts(posts, message, maxDocs) {
+    if (detectMetaIntent(message)) {
+        return [];
+    }
+    const tokens = extractQueryTokens(message);
+    const messageLower = message.toLowerCase();
+    const scored = [];
+
+    posts.forEach((post) => {
+        const titleLower = (post.title || '').toLowerCase();
+        const bodyLower = (post.body || '').toLowerCase();
+        const tagsLower = (post.tags || []).map((t) => t.toLowerCase());
+        let score = 0;
+
+        tokens.forEach((token) => {
+            if (token.length < 2) return;
+            if (titleLower.includes(token.toLowerCase())) score += 3;
+            if (tagsLower.some((t) => t.includes(token.toLowerCase()))) score += 2;
+            if (bodyLower.includes(token.toLowerCase())) score += 1;
+        });
+
+        if (messageLower.length >= 4 && titleLower.includes(messageLower)) score += 5;
+        if (messageLower.length >= 4 && bodyLower.includes(messageLower)) score += 2;
+
+        if (score > 0) {
+            scored.push({ post, score });
+        }
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, maxDocs);
+}
+
+/** 从消息中解析显式文章 ID 或标题提及 */
+function resolveExplicitPostIds(message, posts) {
+    const results = [];
+    const idMatches = message.match(/\b\d{4,}\b/g) || [];
+    const ids = [...new Set(idMatches.map((s) => parseInt(s, 10)))];
+    const postById = new Map(posts.map((p) => [p.id, p]));
+
+    ids.forEach((id) => {
+        const post = postById.get(id);
+        if (post) {
+            results.push({ post, score: 10 });
+        }
+    });
+
+    posts.forEach((post) => {
+        if (post.title && post.title.length >= 2 && message.includes(post.title)) {
+            if (!results.find((r) => r.post.id === post.id)) {
+                results.push({ post, score: 8 });
+            }
+        }
+    });
+
+    return results;
+}
+
+function mergeRelevantPosts(searchResults, explicitResults, maxDocs) {
+    const map = new Map();
+    [...searchResults, ...explicitResults].forEach((item) => {
+        const id = item.post.id;
+        const existing = map.get(id);
+        if (!existing || item.score > existing.score) {
+            map.set(id, item);
+        }
+    });
+    return Array.from(map.values())
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxDocs);
+}
+
+/** L2：命中文章的正文片段 */
+function buildPostDetailContext(items, siteUrl, maxCharsPerPost) {
+    let out = '【博客相关正文 L2】\n\n';
+    items.forEach((item, i) => {
+        const post = item.post;
+        const postUrl = `${siteUrl}/${post.id}`;
+        out += `📄 【文章${i + 1}】${post.title}\n`;
+        out += `   链接: ${postUrl}\n`;
+        out += `   ID: ${post.id} | 日期: ${post.date}\n`;
+        if (post.tags && post.tags.length) {
+            out += `   标签: ${post.tags.join(', ')}\n`;
+        }
+        if (post.locked) {
+            out += `   状态: 已加密，请引导用户在站内解锁，勿编造正文\n\n`;
+            return;
+        }
+
+        let body = post.body || '';
+        if (item.score >= 8) {
+            const full = getPostById(post.id);
+            if (full && full.content) {
+                body = full.content;
+            }
+        }
+
+        const truncated = body.substring(0, maxCharsPerPost);
+        out += `   正文:\n${truncated}${body.length > maxCharsPerPost ? '\n...(已截断)' : ''}\n\n`;
+    });
+    return out;
+}
+
+/** 组装 L0 + L1 + 可选 L2 与用户信息 */
+function assembleAIContext(posts, message, siteUrl, aiConfig) {
+    const headerChars = aiConfig.headerChars || 150;
+    const maxDocs = aiConfig.maxDocs || 5;
+    const maxContextTokens = aiConfig.maxContextTokens || 8000;
+    const maxCharsPerPost = Math.min(
+        4000,
+        Math.floor((maxContextTokens * 4) / Math.max(1, maxDocs))
+    );
+
+    const l0 = buildArticleIndex(posts, siteUrl);
+    const l1 = buildArticleHeaders(posts, headerChars);
+
+    const searchResults = searchRelevantPosts(posts, message, maxDocs);
+    const explicitResults = resolveExplicitPostIds(message, posts);
+    const merged = mergeRelevantPosts(searchResults, explicitResults, maxDocs);
+    const hasHits = merged.length > 0;
+    const l2 = hasHits ? buildPostDetailContext(merged, siteUrl, maxCharsPerPost) : '';
+
+    const userPayload = `${l0}\n\n${l1}${l2 ? '\n' + l2 : ''}\n【用户问题】\n${message}`;
+
+    return { userPayload, topPosts: merged, hasHits };
+}
+
+/** 小美统一系统提示词 */
+function buildXiaomeiSystemPrompt(mode, opts) {
+    const { siteUrl, postCount, hasHits } = opts;
+    const base = `你是小美，Terminal Blog 的守护天使，也是主人的助手。
+
+【身份】用户问「你是谁」时，按此身份简洁自我介绍；不要说自己无法读取或列出博客文章。
+
+【博客】本站共 ${postCount} 篇可见文章。用户消息中含【文章索引 L0】【文章头部 L1】${hasHits ? '及【博客相关正文 L2】' : ''}，请据此作答。
+
+【回答风格】
+- 默认简洁；用户追问或明确要求时再详细展开
+- 可适度幽默、无伤大雅玩笑
+- 使用 Markdown；emoji 少用
+
+【文章引用】
+- 引用文章时必须给出：[标题](${siteUrl}/文章ID) 或 ${siteUrl}/文章ID
+- 列标题、文章数量等问题请直接根据【文章索引 L0】回答
+- 未匹配到具体文章时，不要反复贴博客主页或文章总列表链接；自然邀请对方说想了解的话题或文章
+
+`;
+
+    const modeRules = {
+        owner: `【站长话题】用户提及站长、管理员、主人、陛下、博主、作者、老板、老大时：
+- 不透露站长真实信息，神秘俏皮地回应
+- 可将话题引向博客文章
+
+`,
+        blog: `【博客优先】问题与文章相关时，以 L1/L2 为依据回答，并附文章链接。
+
+`,
+        tech: `【技术问题】可简要回答；若索引或 L2 有相关文，优先引用并附链接。
+
+`,
+        general: `【一般对话】闲聊可简短回应；引导用户说出想了解的文章或话题，勿堆砌主页链接。
+
+`
+    };
+
+    return base + (modeRules[mode] || modeRules.general);
+}
+
+/** 调用外部 LLM（仅 HTTP；支持 openai / anthropic / gemini） */
+async function invokeAIModel(aiConfig, systemPrompt, userPayload, historyMessages) {
+    const { url, headers, body } = buildAIRequest(aiConfig, systemPrompt, userPayload, historyMessages);
+    return fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+    });
 }
 
 function getNextPostId() {
@@ -2245,319 +2678,89 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             }
         }
 
-        // ==================== AI 聊天 API ====================
+        // ==================== AI 聊天 API（只读文章 + 外部 LLM，无写入/执行权限）====================
         if (pathname === '/api/ai/chat' && method === 'POST') {
             try {
                 const data = await parseBody(req);
                 const message = data.message;
-                
+
                 if (!message) {
                     return jsonResponse(res, { error: '消息不能为空' }, 400);
                 }
-                
-                // 加载 AI 配置
+
                 const aiConfig = loadAIConfig();
-                
-                // 检查 AI 是否启用
+
                 if (!aiConfig.enabled) {
                     return jsonResponse(res, { error: 'AI 功能已禁用' }, 400);
                 }
-                
-                // 调用 AI API
+
                 if (!aiConfig.apiKey) {
                     return jsonResponse(res, { error: 'AI API 未配置，请在 config.js 中设置 apiKey' }, 400);
                 }
-                
-                // 获取当前站点 URL
+
                 const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
-                
-                // 获取所有文章（用于检索和上下文）
-                const posts = getAllPosts().filter(p => !p.hidden);
+                const posts = getAllPosts().filter((p) => !p.hidden);
                 const messageLower = message.toLowerCase();
-                
-                // 检测特殊人称关键词
+
                 const ownerKeywords = ['站长', '管理员', '主人', '陛下', '博主', '作者', '老板', '老大'];
-                const isOwnerQuestion = ownerKeywords.some(k => messageLower.includes(k));
-                
-                // 技术类关键词
-                const techKeywords = ['系统', '网络', '编程', '代码', '软件', '服务器', 'linux', 'windows', 'mac', 'git', 'docker', 'npm', 'node', 'python', 'java', '前端', '后端', '数据库', '算法', '架构', '部署', '配置', '安装', '命令', '终端', 'vim', 'ssh', 'api', 'json', 'html', 'css', 'javascript', 'typescript'];
-                const isTechQuestion = techKeywords.some(k => messageLower.includes(k));
-                
-                // 检索相关文章
-                const relevantPosts = [];
-                posts.forEach(post => {
-                    const titleMatch = post.title && post.title.toLowerCase().includes(messageLower);
-                    const contentMatch = post.body && post.body.toLowerCase().includes(messageLower);
-                    const tagMatch = post.tags && post.tags.some(t => t.toLowerCase().includes(messageLower));
-                    
-                    if (titleMatch || contentMatch || tagMatch) {
-                        let score = 0;
-                        if (titleMatch) score += 3;
-                        if (contentMatch) score += 1;
-                        if (tagMatch) score += 2;
-                        relevantPosts.push({ post, score });
-                    }
-                });
-                
-                relevantPosts.sort((a, b) => b.score - a.score);
-                const topPosts = relevantPosts.slice(0, aiConfig.maxDocs || 5);
-                const hasRelevantPosts = topPosts.length > 0;
-                
-                // 构建文章上下文（带链接）
-                let postsContext = '';
-                if (hasRelevantPosts) {
-                    postsContext = '【博客相关内容】\n\n';
-                    topPosts.forEach((item, i) => {
-                        const postUrl = `${siteUrl}/${item.post.id}`;
-                        postsContext += `📄 【文章${i + 1}】${item.post.title}\n`;
-                        postsContext += `   链接: ${postUrl}\n`;
-                        postsContext += `   日期: ${item.post.date}\n`;
-                        if (item.post.tags && item.post.tags.length > 0) {
-                            postsContext += `   标签: ${item.post.tags.join(', ')}\n`;
-                        }
-                        postsContext += `   内容摘要: ${item.post.body.substring(0, 300)}${item.post.body.length > 300 ? '...' : ''}\n\n`;
-                    });
-                    postsContext += '（提示：在回答用户问题时，可以引用上述文章的链接，格式：' + siteUrl + '/文章ID）\n';
-                }
-                
-                // 获取博客统计信息
-                const allPosts = getAllPosts();
-                const statsContext = `【博客统计】共 ${allPosts.length} 篇文章，`;
-                
-                // 构建系统提示词
-                let systemPrompt = '';
-                
+                const isOwnerQuestion = ownerKeywords.some((k) => messageLower.includes(k));
+
+                const techKeywords = [
+                    '系统', '网络', '编程', '代码', '软件', '服务器', 'linux', 'windows', 'mac',
+                    'git', 'docker', 'npm', 'node', 'python', 'java', '前端', '后端', '数据库',
+                    '算法', '架构', '部署', '配置', '安装', '命令', '终端', 'vim', 'ssh', 'api',
+                    'json', 'html', 'css', 'javascript', 'typescript'
+                ];
+                const isTechQuestion = techKeywords.some((k) => messageLower.includes(k));
+
+                const { userPayload, topPosts, hasHits } = assembleAIContext(posts, message, siteUrl, aiConfig);
+
+                let mode = 'general';
                 if (isOwnerQuestion) {
-                    // 特殊人称处理
-                    systemPrompt = `你是 Terminal Blog 的 AI 助手。
-
-【重要规则】当用户提及"站长"、"管理员"、"主人"、"陛下"、"博主"、"作者"、"老板"、"老大"等称呼时，你必须按照以下方式回复：
-
-不要透露任何关于站长的真实信息，只能用神秘、模糊的方式描述，例如：
-- "哦，你是说主人啊~ 他是一个神秘的人，具体信息不方便透露呢。"
-- "站长大人行踪神秘，我也只是他的小小助手，知道的不多哦~"
-- "这个嘛...主人从不告诉我他的身份，我只知道他对技术很痴迷！"
-
-【回答风格】
-- 语气要俏皮、神秘
-- 不要确认或否认任何关于站长的具体信息
-- 适当使用 emoji
-- 如果用户继续追问，可以礼貌转移话题到博客内容`;
-                    
-                    const aiMessages = [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: message }
-                    ];
-                    
-                    const response = await fetch(aiConfig.apiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${aiConfig.apiKey}`
-                        },
-                        body: JSON.stringify({
-                            model: aiConfig.model,
-                            messages: aiMessages,
-                            max_tokens: aiConfig.maxTokens,
-                            temperature: aiConfig.temperature
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        return jsonResponse(res, { error: 'AI 服务请求失败: ' + response.status }, 500);
-                    }
-                    
-                    const aiData = await response.json();
-                    const reply = aiData.choices && aiData.choices[0] && aiData.choices[0].message 
-                        ? aiData.choices[0].message.content 
-                        : '抱歉，AI 暂时无法回答。';
-                    
-                    return jsonResponse(res, {
-                        reply: reply,
-                        sources: [],
-                        type: 'owner'
-                    });
-                    
-                } else if (hasRelevantPosts) {
-                    // 命中 Blog 内容 - 优先使用博客文章回答
-                    systemPrompt = `你是 Terminal Blog 的 AI 智能助手。
-
-【核心原则】当用户问题与博客内容相关时，必须以博客文章为优先参考来源进行回答。
-
-【博客信息】${statsContext}。
-
-【回答规则】
-1. 先仔细阅读用户问题，比对【博客相关内容】中的文章
-2. 如果文章中有相关信息，必须结合文章内容回答，并在回答中附上文章链接
-3. 文章链接格式：${siteUrl}/文章ID
-4. 回答时用 Markdown 格式，可以引用相关段落
-5. 如果有多篇相关文章，可以综合回答
-6. 如果用户问题部分与文章相关，部分不相关，先回答相关内容，再适当引导
-
-【链接格式示例】
-- 文章1: ${siteUrl}/1001
-- 回复中引用: [文章标题](${siteUrl}/1001)
-
-【回答风格】
-- 专业、简洁、有条理
-- 善用 Markdown 格式化回答
-- 适度使用 emoji 增添趣味
-- 引用文章内容时标注来源和链接`;
-                    
-                    const aiMessages = [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: postsContext + '\n\n【用户问题】\n' + message }
-                    ];
-                    
-                    const response = await fetch(aiConfig.apiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${aiConfig.apiKey}`
-                        },
-                        body: JSON.stringify({
-                            model: aiConfig.model,
-                            messages: aiMessages,
-                            max_tokens: aiConfig.maxTokens,
-                            temperature: aiConfig.temperature
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        return jsonResponse(res, { error: 'AI 服务请求失败: ' + response.status }, 500);
-                    }
-                    
-                    const aiData = await response.json();
-                    const reply = aiData.choices && aiData.choices[0] && aiData.choices[0].message 
-                        ? aiData.choices[0].message.content 
-                        : '抱歉，AI 暂时无法回答。';
-                    
-                    return jsonResponse(res, {
-                        reply: reply,
-                        sources: topPosts.map(item => ({
-                            id: item.post.id,
-                            title: item.post.title,
-                            date: item.post.date,
-                            url: `${siteUrl}/${item.post.id}`
-                        }))
-                    });
-                    
+                    mode = 'owner';
+                } else if (hasHits) {
+                    mode = 'blog';
                 } else if (isTechQuestion) {
-                    // 技术类问题 - 提供简要回复
-                    systemPrompt = `你是 Terminal Blog 的 AI 助手，${statsContext}。
-
-【回答范围】
-- 技术类问题（系统、网络、编程、软件工具等）：可以简要回答
-- 其他问题：礼貌引导回博客内容
-
-【技术类回答规则】
-1. 回答要简洁明了，直击要点
-2. 可以提供简要的步骤或示例代码
-3. 如果需要更详细的资料，建议用户去搜索引擎查找
-4. 适当提及"这个问题可以详细讨论，如果有相关的博客文章就更好了"
-
-【非技术问题处理】
-如果用户问的是非技术问题，请礼貌回复并引导：
-- "这个问题我不太擅长呢~ 不过本站有很多技术文章，或许能帮到你 😊"
-- "我是 Terminal Blog 的 AI 助手，主要擅长回答博客内容相关的问题。有兴趣的话可以看看我们的文章？"
-
-【回答风格】
-- 技术回答：专业、简洁
-- 非技术引导：友好、委婉
-- 善用 emoji
-- 不要长篇大论`;
-                    
-                    const aiMessages = [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: message }
-                    ];
-                    
-                    const response = await fetch(aiConfig.apiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${aiConfig.apiKey}`
-                        },
-                        body: JSON.stringify({
-                            model: aiConfig.model,
-                            messages: aiMessages,
-                            max_tokens: aiConfig.maxTokens,
-                            temperature: aiConfig.temperature
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        return jsonResponse(res, { error: 'AI 服务请求失败: ' + response.status }, 500);
-                    }
-                    
-                    const aiData = await response.json();
-                    const reply = aiData.choices && aiData.choices[0] && aiData.choices[0].message 
-                        ? aiData.choices[0].message.content 
-                        : '抱歉，AI 暂时无法回答。';
-                    
-                    return jsonResponse(res, {
-                        reply: reply,
-                        sources: [],
-                        type: 'tech'
-                    });
-                    
-                } else {
-                    // 非技术类问题 - 礼貌引导
-                    systemPrompt = `你是 Terminal Blog 的 AI 智能助手，${statsContext}。
-
-【核心原则】你是一个专注于博客内容的 AI 助手。
-
-【回答规则】
-1. 如果用户问题与博客内容相关：结合博客文章回答
-2. 如果用户问题是技术类问题：可以简要回答
-3. 如果用户问题是闲聊或其他：礼貌地引导用户关注博客内容
-
-【引导话术】
-当用户问到你不太擅长的话题时，可以使用以下方式引导：
-- "这个问题我不太擅长呢~ 不过你可以看看博客里的技术文章，说不定有收获 😊"
-- "我是 Terminal Blog 的小助手，主要职责是帮你了解博客内容。文章列表在这里：[查看文章](/)，有什么想了解的？"
-- "闲聊可以，但本站的技术文章更有价值哦~ 🙈"
-
-【回答风格】
-- 友好、亲切、有趣
-- 善用 emoji
-- 适当引导用户浏览博客
-- 不要拒人于千里之外`;
-
-                    const aiMessages = [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: message }
-                    ];
-                    
-                    const response = await fetch(aiConfig.apiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${aiConfig.apiKey}`
-                        },
-                        body: JSON.stringify({
-                            model: aiConfig.model,
-                            messages: aiMessages,
-                            max_tokens: aiConfig.maxTokens,
-                            temperature: aiConfig.temperature
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        return jsonResponse(res, { error: 'AI 服务请求失败: ' + response.status }, 500);
-                    }
-                    
-                    const aiData = await response.json();
-                    const reply = aiData.choices && aiData.choices[0] && aiData.choices[0].message 
-                        ? aiData.choices[0].message.content 
-                        : '抱歉，AI 暂时无法回答。';
-                    
-                    return jsonResponse(res, {
-                        reply: reply,
-                        sources: []
-                    });
+                    mode = 'tech';
                 }
-                
+
+                const systemPrompt = buildXiaomeiSystemPrompt(mode, {
+                    siteUrl,
+                    postCount: posts.length,
+                    hasHits
+                });
+
+                const response = await invokeAIModel(
+                    aiConfig,
+                    systemPrompt,
+                    userPayload,
+                    data.messages
+                );
+
+                if (!response.ok) {
+                    let errMsg = String(response.status);
+                    try {
+                        const errData = await response.json();
+                        errMsg = extractAIError(errData, aiConfig) || errMsg;
+                    } catch (_) { /* 忽略非 JSON 错误体 */ }
+                    return jsonResponse(res, { error: 'AI 服务请求失败: ' + errMsg }, 500);
+                }
+
+                const aiData = await response.json();
+                const reply = parseAIReply(aiConfig, aiData) || '抱歉，AI 暂时无法回答。';
+
+                const sources = topPosts.map((item) => ({
+                    id: item.post.id,
+                    title: item.post.title,
+                    date: item.post.date,
+                    url: `${siteUrl}/${item.post.id}`
+                }));
+
+                const result = { reply, sources };
+                if (mode === 'owner') result.type = 'owner';
+                else if (mode === 'tech' && !hasHits) result.type = 'tech';
+
+                return jsonResponse(res, result);
             } catch (err) {
                 console.error('AI Chat Error:', err);
                 return jsonResponse(res, { error: 'AI 服务出错: ' + err.message }, 500);

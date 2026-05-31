@@ -163,7 +163,8 @@ docker run -d \
 | `SITE_CONFIG.siteUrl` | 站点 URL（用于生成文章链接） |
 | `SITE_CONFIG.icpNumber` | ICP 备案号 |
 | `AI_CONFIG.enabled` | 是否启用 AI |
-| `AI_CONFIG.apiBaseUrl` | AI API 地址 |
+| `AI_CONFIG.apiFormat` | API 协议：`openai` / `anthropic` / `gemini` |
+| `AI_CONFIG.apiBaseUrl` | AI API 根地址 |
 | `AI_CONFIG.apiKey` | AI API 密钥 |
 | `AI_CONFIG.model` | AI 模型名称 |
 | `AI_CONFIG.maxTokens` | 最大 token 数 |
@@ -178,7 +179,8 @@ docker run -d \
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `AI_ENABLED` | `false` | 启用 AI (`true`/`false`) |
-| `AI_API_BASE_URL` | - | API 地址 |
+| `AI_API_FORMAT` | `openai` | API 协议：`openai` / `anthropic` / `gemini` |
+| `AI_API_BASE_URL` | - | API 根地址 |
 | `AI_API_KEY` | - | API 密钥 |
 | `AI_MODEL` | - | 模型名称 |
 | `AI_MAX_TOKENS` | `2048` | 最大 token |
@@ -190,7 +192,8 @@ docker run -d \
 # 创建 .env 文件
 cat > .env << EOF
 AI_ENABLED=true
-AI_API_BASE_URL=https://api.deepseek.com
+AI_API_FORMAT=openai
+AI_API_BASE_URL=https://api.deepseek.com/v1
 AI_API_KEY=your-api-key-here
 AI_MODEL=deepseek-chat
 AI_MAX_TOKENS=2048
@@ -202,6 +205,7 @@ docker-compose.yml 中引用：
 ```yaml
 environment:
   - AI_ENABLED=${AI_ENABLED}
+  - AI_API_FORMAT=${AI_API_FORMAT:-openai}
   - AI_API_BASE_URL=${AI_API_BASE_URL}
   - AI_API_KEY=${AI_API_KEY}
   - AI_MODEL=${AI_MODEL}

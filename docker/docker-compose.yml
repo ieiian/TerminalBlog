@@ -46,6 +46,7 @@ services:
       - MATRIX_RAIN_ENABLE_BUDDHA_EFFECT=true
       # AI 相关
       - AI_ENABLED=${AI_ENABLED:-false}
+      - AI_API_FORMAT=${AI_API_FORMAT:-openai}
       - AI_API_BASE_URL=${AI_API_BASE_URL}
       - AI_API_KEY=${AI_API_KEY}
       - AI_MODEL=${AI_MODEL}

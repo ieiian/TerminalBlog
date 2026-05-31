@@ -26,6 +26,7 @@
             --gray-dim: #484f58;
             --border: #30363d;
             --text: #c9d1d9;
+            --terminal-max-width: 900px;
         }
 
         body {
@@ -90,7 +91,8 @@
         .terminal {
             position: relative;
             z-index: 1;
-            max-width: 900px;
+            /* max-width: 900px; */
+            max-width: var(--terminal-max-width);
             margin: 30px auto;
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -1535,16 +1537,44 @@
         }
         .ai-modal-window {
             width: 100%;
-            max-width: 700px;
+            /* AI 对话窗口最大宽度，根据需要调整 --terminal-max-width 值为 900px */
+            max-width: 800px;
+            /* max-width: var(--terminal-max-width); */
             max-height: 85vh;
             background: var(--bg);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: 8px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 0 40px rgba(0, 255, 65, 0.15), 0 0 80px rgba(0, 229, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 40px rgba(0, 255, 65, 0.12);
             animation: slideUp 0.3s ease;
+        }
+        @media (max-width: 768px) {
+            .ai-modal {
+                padding: 0;
+                align-items: stretch;
+                justify-content: stretch;
+            }
+            .ai-modal-window {
+                width: 100%;
+                max-width: none;
+                height: 100%;
+                max-height: none;
+                border-radius: 0;
+                border: none;
+                box-shadow: none;
+                animation: fadeIn 0.2s ease;
+            }
+            .ai-modal-header {
+                padding-top: max(12px, env(safe-area-inset-top));
+            }
+            .ai-modal-footer {
+                padding-bottom: max(12px, env(safe-area-inset-bottom));
+            }
+            .ai-message-content {
+                max-width: 85%;
+            }
         }
         @keyframes slideUp {
             from { transform: translateY(30px); opacity: 0; }
@@ -4863,7 +4893,7 @@
                 </div>
                 <div class="ai-modal-footer">
                     <div class="ai-input-wrapper">
-                        <textarea class="ai-input" id="aiInput" placeholder="输入问题... (Enter 发送，Shift+Enter 换行)" rows="1"></textarea>
+                        <textarea class="ai-input" id="aiInput" placeholder="输入问题..." rows="1"></textarea>
                         <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()">发送</button>
                         <button class="ai-clear-btn" onclick="clearAIMessages()">清空</button>
                     </div>
