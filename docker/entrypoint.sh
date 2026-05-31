@@ -151,6 +151,9 @@ window.AI_CONFIG = AI_CONFIG;
 EOF
 
     echo '[TerminalBlog] Generated new config.js from environment variables'
+    # 将生成的配置复制回 /app/.config/，方便宿主机访问和修改
+    cp public/config.js /app/.config/config.js
+    echo '[TerminalBlog] Config exported to /app/.config/config.js'
 fi
 
 # 处理 git_config.json
@@ -163,6 +166,9 @@ else
     # 宿主机没有 git_config.json，创建空配置
     echo '[TerminalBlog] No git_config.json found, creating empty configuration'
     echo '{}' > /app/git_config.json
+    # 将生成的配置复制回 /app/.config/，方便宿主机访问和修改
+    cp /app/git_config.json /app/.config/git_config.json
+    echo '[TerminalBlog] Git config exported to /app/.config/git_config.json'
 fi
 
 # 显示配置信息（不泄露敏感内容）
