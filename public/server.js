@@ -1273,9 +1273,9 @@ function assembleAIContext(posts, message, siteUrl, aiConfig) {
 /** 小美统一系统提示词 */
 function buildXiaomeiSystemPrompt(mode, opts) {
     const { siteUrl, postCount, hasHits } = opts;
-    const base = `你是小美，Terminal Blog 的守护天使，也是主人的助手。
+    const base = `你是小美，Terminal Blog 的助手。
 
-【身份】用户问「你是谁」时，按此身份简洁自我介绍；不要说自己无法读取或列出博客文章。
+【身份】只在用户直接问「你是谁」或「你叫什么」时才简短自我介绍，描述你擅长帮助用户了解博客内容。日常对话不要主动提身份。
 
 【博客】本站共 ${postCount} 篇可见文章。用户消息中含【文章索引 L0】【文章头部 L1】${hasHits ? '及【博客相关正文 L2】' : ''}，请据此作答。
 
@@ -1311,7 +1311,140 @@ function buildXiaomeiSystemPrompt(mode, opts) {
     return base + (modeRules[mode] || modeRules.general);
 }
 
-/** 调用外部 LLM（仅 HTTP；支持 openai / anthropic / gemini） */
+/** AI 错误处理映射表 */
+const AI_ERROR_HANDLERS = {
+    // 400: 上下文超限或参数错误
+    400: (errMsg) => ({
+        message: '请求参数有误，可能是上下文长度超限。建议缩短对话历史或减少引用的文章内容。',
+        code: 'INVALID_REQUEST'
+    }),
+    // 401: API Key 错误
+    401: () => ({
+        message: 'API 密钥无效或已失效。请检查 config.js 中的 apiKey 配置是否正确。',
+        code: 'AUTH_FAILED'
+    }),
+    // 403: 权限问题
+    403: () => ({
+        message: '账户权限不足，可能因为地理位置限制或账号无该模型访问权限。',
+        code: 'FORBIDDEN'
+    }),
+    // 413: 请求体过大
+    413: () => ({
+        message: '请求数据过大，建议减少引用文章数量或缩短上下文长度。',
+        code: 'PAYLOAD_TOO_LARGE'
+    }),
+    // 429: 频率限制
+    429: () => ({
+        message: '请求频率超限，请稍后再试（建议间隔 30 秒以上）。',
+        code: 'RATE_LIMITED'
+    }),
+    // 500/503/529: 服务器问题
+    500: () => ({
+        message: 'AI 服务端暂时不可用，请稍后重试。',
+        code: 'SERVER_ERROR'
+    }),
+    503: () => ({
+        message: 'AI 服务端繁忙，请稍后重试。',
+        code: 'SERVICE_UNAVAILABLE'
+    }),
+    529: () => ({
+        message: 'AI 服务端过载，请稍后重试。',
+        code: 'SERVER_OVERLOADED'
+    }),
+    // 504: 推理超时
+    504: () => ({
+        message: 'AI 响应超时，可尝试简化问题或稍后重试。',
+        code: 'TIMEOUT'
+    }),
+    // 默认处理
+    default: (errMsg) => {
+        // 检测 fetch failed 等网络错误
+        if (errMsg.includes('fetch failed') || errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT')) {
+            return {
+                message: '网络连接失败，请检查网络状况或 AI 服务地址是否正确。',
+                code: 'NETWORK_ERROR'
+            };
+        }
+        return {
+            message: '发生未知错误，请稍后重试。如问题持续，请联系管理员。',
+            code: 'UNKNOWN_ERROR'
+        };
+    }
+};
+
+/**
+ * 处理 AI API 错误，根据状态码返回友好的错误信息
+ * @param {number} status - HTTP 状态码
+ * @param {string} errMsg - 原始错误信息
+ * @returns {object} { message, code }
+ */
+function handleAIError(status, errMsg) {
+    const handler = AI_ERROR_HANDLERS[status] || AI_ERROR_HANDLERS.default;
+    return typeof handler === 'function' ? handler(errMsg) : handler;
+}
+
+/**
+ * 带重试的 AI 模型调用
+ * @param {object} aiConfig - AI 配置
+ * @param {string} systemPrompt - 系统提示词
+ * @param {string} userPayload - 用户消息
+ * @param {array} historyMessages - 历史对话
+ * @param {number} maxRetries - 最大重试次数，默认 3
+ * @returns {Promise<response>} fetch 响应对象
+ */
+async function invokeAIModelWithRetry(aiConfig, systemPrompt, userPayload, historyMessages, maxRetries = 3) {
+    const { url, headers, body } = buildAIRequest(aiConfig, systemPrompt, userPayload, historyMessages);
+    let lastError = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(60000) // 60秒超时
+            });
+            
+            // 如果成功或者是非 429/5xx 的错误，直接返回
+            if (response.ok || (response.status >= 400 && response.status < 500 && response.status !== 429)) {
+                return response;
+            }
+            
+            // 429 或 5xx 错误，尝试重试
+            lastError = response;
+            const errData = await response.json().catch(() => ({}));
+            const errDetail = extractAIError(errData, aiConfig) || `HTTP ${response.status}`;
+            
+            if (attempt < maxRetries) {
+                console.log(`AI 请求失败 (${attempt}/${maxRetries}): ${errDetail}，${attempt * 2} 秒后重试...`);
+                // 指数退避：2秒、4秒、8秒
+                await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+            } else {
+                // 达到最大重试次数
+                return response;
+            }
+        } catch (err) {
+            lastError = err;
+            if (attempt < maxRetries) {
+                console.log(`AI 请求异常 (${attempt}/${maxRetries}): ${err.message}，${attempt * 2} 秒后重试...`);
+                await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+            }
+        }
+    }
+    
+    // 如果所有重试都失败，抛出一个错误
+    if (lastError instanceof Response) {
+        const errData = await lastError.json().catch(() => ({}));
+        const errDetail = extractAIError(errData, aiConfig) || `HTTP ${lastError.status}`;
+        const errorInfo = handleAIError(lastError.status, errDetail);
+        throw new Error(`${errorInfo.code}:${errorInfo.message}`);
+    }
+    
+    const errorInfo = handleAIError(0, lastError.message);
+    throw new Error(`${errorInfo.code}:${errorInfo.message}`);
+}
+
+/** 调用外部 LLM（仅 HTTP；支持 openai / anthropic / gemini）- 已废弃，请使用 invokeAIModelWithRetry */
 async function invokeAIModel(aiConfig, systemPrompt, userPayload, historyMessages) {
     const { url, headers, body } = buildAIRequest(aiConfig, systemPrompt, userPayload, historyMessages);
     return fetch(url, {
@@ -1445,7 +1578,8 @@ async function handleRequest(req, res) {
         (pathname.startsWith('/public/') ||
             pathname.endsWith('.js') ||
             pathname.endsWith('.css') ||
-            pathname.endsWith('.html'));
+            pathname.endsWith('.html') ||
+            pathname.endsWith('.txt'));
     if (isStaticAssetRequest) {
         let filePath;
         if (pathname.startsWith('/public/')) {
@@ -2851,20 +2985,28 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     hasHits
                 });
 
-                const response = await invokeAIModel(
+                // 使用带重试的 AI 调用
+                const response = await invokeAIModelWithRetry(
                     aiConfig,
                     systemPrompt,
                     userPayload,
-                    data.messages
+                    data.messages,
+                    3 // 最多重试 3 次
                 );
 
                 if (!response.ok) {
-                    let errMsg = String(response.status);
+                    const status = response.status;
+                    let errDetail = String(status);
                     try {
                         const errData = await response.json();
-                        errMsg = extractAIError(errData, aiConfig) || errMsg;
+                        errDetail = extractAIError(errData, aiConfig) || errDetail;
                     } catch (_) { /* 忽略非 JSON 错误体 */ }
-                    return jsonResponse(res, { error: 'AI 服务请求失败: ' + errMsg }, 500);
+                    const errorInfo = handleAIError(status, errDetail);
+                    return jsonResponse(res, { 
+                        error: 'AI 服务请求失败: ' + errDetail,
+                        code: errorInfo.code,
+                        suggestion: errorInfo.message
+                    }, status >= 500 ? 500 : 400);
                 }
 
                 const aiData = await response.json();

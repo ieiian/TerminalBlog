@@ -278,8 +278,8 @@
         .post-content h2 { color: var(--green); margin: 20px 0 10px; font-size: 1.2em; }
         .post-content h3 { color: var(--cyan); margin: 16px 0 8px; font-size: 1.05em; }
         .post-content p { margin-bottom: 12px; }
-        .post-content a { color: var(--cyan); text-decoration: none; }
-        .post-content a:hover { text-decoration: underline; color: var(--green); }
+        .post-content a { color: var(--green); text-decoration: none; }
+        .post-content a:hover { text-decoration: underline; color: var(--cyan); }
         .post-content code {
             background: var(--bg-header);
             padding: 2px 6px;
@@ -1679,6 +1679,8 @@
             color: var(--text);
             border-radius: 12px 12px 12px 4px;
         }
+        .ai-message.ai .ai-message-content a { color: var(--green); text-decoration: none; }
+        .ai-message.ai .ai-message-content a:hover { text-decoration: underline; color: var(--cyan); }
         .ai-message.ai .ai-message-content code {
             background: var(--bg-header);
             padding: 2px 6px;
@@ -4859,6 +4861,40 @@
     let aiMessages = [];
     let isAiTyping = false;
 
+    const AI_STORAGE_KEY = 'terminal_blog_ai_messages';
+
+    function saveAIMessages() {
+        try {
+            localStorage.setItem(AI_STORAGE_KEY, JSON.stringify(aiMessages));
+        } catch (e) {
+            console.error('保存 AI 聊天记录失败:', e);
+        }
+    }
+
+    function loadAIMessages() {
+        try {
+            const saved = localStorage.getItem(AI_STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    aiMessages = parsed;
+                }
+            }
+        } catch (e) {
+            console.error('加载 AI 聊天记录失败:', e);
+            aiMessages = [];
+        clearAISavedMessages();
+        }
+    }
+
+    function clearAISavedMessages() {
+        try {
+            localStorage.removeItem(AI_STORAGE_KEY);
+        } catch (e) {
+            console.error('清除 AI 聊天记录失败:', e);
+        }
+    }
+
     function openAIModal() {
         if (aiModal) return;
 
@@ -4879,8 +4915,11 @@
         const showWelcome = uiConfig.showWelcome !== false;
         const welcomeMsg = uiConfig.welcomeMessage || '你好！我是 TerminalBlog 的 AI 助手，可以帮你解答关于博客内容的问题，有什么想了解的吗？';
 
+        // 加载历史聊天记录
+        loadAIMessages();
+
         let welcomeHtml = '';
-        if (showWelcome) {
+        if (showWelcome && aiMessages.length === 0) {
             welcomeHtml = `
                 <div class="ai-welcome">
                     <div class="ai-welcome-icon">🤖</div>
@@ -4915,6 +4954,45 @@
         document.body.appendChild(aiModal);
         document.body.style.overflow = 'hidden';
 
+        // 渲染历史消息（如果有的话）
+        if (aiMessages.length > 0) {
+            const msgList = document.getElementById('aiMessageList');
+            if (msgList) {
+                // 移除欢迎信息
+                const welcome = msgList.querySelector('.ai-welcome');
+                if (welcome) welcome.remove();
+                
+                // 逐条渲染历史消息
+                aiMessages.forEach(function(msg) {
+                    const avatar = msg.role === 'user' ? '👤' : '🤖';
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = 'ai-message ' + msg.role;
+                    
+                    let renderedContent;
+                    if (msg.role === 'user') {
+                        renderedContent = escapeHtml(msg.content);
+                    } else {
+                        // AI 消息渲染 Markdown
+                        if (typeof marked !== 'undefined') {
+                            try {
+                                renderedContent = marked.parse(msg.content);
+                            } catch (e) {
+                                renderedContent = '<pre style="white-space:pre-wrap;">' + escapeHtml(msg.content) + '</pre>';
+                            }
+                        } else {
+                            renderedContent = '<pre style="white-space:pre-wrap;">' + escapeHtml(msg.content) + '</pre>';
+                        }
+                    }
+                    
+                    msgDiv.innerHTML = '<div class="ai-message-avatar">' + avatar + '</div><div class="ai-message-content">' + renderedContent + '</div>';
+                    msgList.appendChild(msgDiv);
+                });
+                
+                // 滚动到底部
+                msgList.scrollTop = msgList.scrollHeight;
+            }
+        }
+
         const input = document.getElementById('aiInput');
         if (input) {
             input.addEventListener('keydown', function(e) {
@@ -4946,6 +5024,7 @@
         const welcomeMsg = uiConfig.welcomeMessage || '你好！我是 TerminalBlog 的 AI 助手，可以帮你解答关于博客内容的问题，有什么想了解的吗？';
 
         aiMessages = [];
+        clearAISavedMessages();
 
         const msgList = document.getElementById('aiMessageList');
         if (msgList) {
@@ -5000,6 +5079,7 @@
                 msgList.appendChild(msgDiv);
                 msgList.scrollTop = msgList.scrollHeight;
                 aiMessages.push({ role: role, content: content });
+                saveAIMessages();
                 
                 // 等待 marked 加载后更新内容
                 const checkMarked = setInterval(() => {
@@ -5031,6 +5111,7 @@
         msgList.scrollTop = msgList.scrollHeight;
 
         aiMessages.push({ role: role, content: content });
+                saveAIMessages();
     }
 
     function showAITyping() {
