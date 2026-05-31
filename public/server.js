@@ -2263,11 +2263,28 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     return jsonResponse(res, { error: 'AI 功能已禁用' }, 400);
                 }
                 
-                // 检索相关文章
+                // 调用 AI API
+                if (!aiConfig.apiKey) {
+                    return jsonResponse(res, { error: 'AI API 未配置，请在 config.js 中设置 apiKey' }, 400);
+                }
+                
+                // 获取当前站点 URL
+                const siteUrl = process.env.SITE_URL || `http://localhost:${PORT}`;
+                
+                // 获取所有文章（用于检索和上下文）
                 const posts = getAllPosts().filter(p => !p.hidden);
-                const relevantPosts = [];
                 const messageLower = message.toLowerCase();
                 
+                // 检测特殊人称关键词
+                const ownerKeywords = ['站长', '管理员', '主人', '陛下', '博主', '作者', '老板', '老大'];
+                const isOwnerQuestion = ownerKeywords.some(k => messageLower.includes(k));
+                
+                // 技术类关键词
+                const techKeywords = ['系统', '网络', '编程', '代码', '软件', '服务器', 'linux', 'windows', 'mac', 'git', 'docker', 'npm', 'node', 'python', 'java', '前端', '后端', '数据库', '算法', '架构', '部署', '配置', '安装', '命令', '终端', 'vim', 'ssh', 'api', 'json', 'html', 'css', 'javascript', 'typescript'];
+                const isTechQuestion = techKeywords.some(k => messageLower.includes(k));
+                
+                // 检索相关文章
+                const relevantPosts = [];
                 posts.forEach(post => {
                     const titleMatch = post.title && post.title.toLowerCase().includes(messageLower);
                     const contentMatch = post.body && post.body.toLowerCase().includes(messageLower);
@@ -2284,78 +2301,262 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                 
                 relevantPosts.sort((a, b) => b.score - a.score);
                 const topPosts = relevantPosts.slice(0, aiConfig.maxDocs || 5);
+                const hasRelevantPosts = topPosts.length > 0;
                 
-                // 构建上下文
-                let context = '';
-                if (topPosts.length > 0) {
-                    context = '根据博客文章找到以下相关信息：\n\n';
+                // 构建文章上下文（带链接）
+                let postsContext = '';
+                if (hasRelevantPosts) {
+                    postsContext = '【博客相关内容】\n\n';
                     topPosts.forEach((item, i) => {
-                        context += `【文章${i + 1}】${item.post.title}\n发布日期：${item.post.date}\n`;
+                        const postUrl = `${siteUrl}/${item.post.id}`;
+                        postsContext += `📄 【文章${i + 1}】${item.post.title}\n`;
+                        postsContext += `   链接: ${postUrl}\n`;
+                        postsContext += `   日期: ${item.post.date}\n`;
                         if (item.post.tags && item.post.tags.length > 0) {
-                            context += `标签：${item.post.tags.join(', ')}\n`;
+                            postsContext += `   标签: ${item.post.tags.join(', ')}\n`;
                         }
-                        context += `内容摘要：${item.post.body.substring(0, 500)}${item.post.body.length > 500 ? '...' : ''}\n\n`;
+                        postsContext += `   内容摘要: ${item.post.body.substring(0, 300)}${item.post.body.length > 300 ? '...' : ''}\n\n`;
                     });
+                    postsContext += '（提示：在回答用户问题时，可以引用上述文章的链接，格式：' + siteUrl + '/文章ID）\n';
                 }
                 
-                // 调用 AI API
-                if (!aiConfig.apiKey) {
-                    return jsonResponse(res, { error: 'AI API 未配置，请在 config.js 中设置 apiKey' }, 400);
-                }
+                // 获取博客统计信息
+                const allPosts = getAllPosts();
+                const statsContext = `【博客统计】共 ${allPosts.length} 篇文章，`;
                 
-                const aiMessages = [];
-                if (context) {
-                    aiMessages.push({
-                        role: 'system',
-                        content: `你是 Terminal Blog 的智能助手。用户询问问题时，请结合提供的博客文章内容来回答。如果文章中有相关信息，请引用文章标题。回答请简洁明了。`
+                // 构建系统提示词
+                let systemPrompt = '';
+                
+                if (isOwnerQuestion) {
+                    // 特殊人称处理
+                    systemPrompt = `你是 Terminal Blog 的 AI 助手。
+
+【重要规则】当用户提及"站长"、"管理员"、"主人"、"陛下"、"博主"、"作者"、"老板"、"老大"等称呼时，你必须按照以下方式回复：
+
+不要透露任何关于站长的真实信息，只能用神秘、模糊的方式描述，例如：
+- "哦，你是说主人啊~ 他是一个神秘的人，具体信息不方便透露呢。"
+- "站长大人行踪神秘，我也只是他的小小助手，知道的不多哦~"
+- "这个嘛...主人从不告诉我他的身份，我只知道他对技术很痴迷！"
+
+【回答风格】
+- 语气要俏皮、神秘
+- 不要确认或否认任何关于站长的具体信息
+- 适当使用 emoji
+- 如果用户继续追问，可以礼貌转移话题到博客内容`;
+                    
+                    const aiMessages = [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: message }
+                    ];
+                    
+                    const response = await fetch(aiConfig.apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${aiConfig.apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: aiConfig.model,
+                            messages: aiMessages,
+                            max_tokens: aiConfig.maxTokens,
+                            temperature: aiConfig.temperature
+                        })
                     });
-                    aiMessages.push({
-                        role: 'user',
-                        content: context + '\n\n用户问题：' + message
+                    
+                    if (!response.ok) {
+                        return jsonResponse(res, { error: 'AI 服务请求失败: ' + response.status }, 500);
+                    }
+                    
+                    const aiData = await response.json();
+                    const reply = aiData.choices && aiData.choices[0] && aiData.choices[0].message 
+                        ? aiData.choices[0].message.content 
+                        : '抱歉，AI 暂时无法回答。';
+                    
+                    return jsonResponse(res, {
+                        reply: reply,
+                        sources: [],
+                        type: 'owner'
                     });
+                    
+                } else if (hasRelevantPosts) {
+                    // 命中 Blog 内容 - 优先使用博客文章回答
+                    systemPrompt = `你是 Terminal Blog 的 AI 智能助手。
+
+【核心原则】当用户问题与博客内容相关时，必须以博客文章为优先参考来源进行回答。
+
+【博客信息】${statsContext}。
+
+【回答规则】
+1. 先仔细阅读用户问题，比对【博客相关内容】中的文章
+2. 如果文章中有相关信息，必须结合文章内容回答，并在回答中附上文章链接
+3. 文章链接格式：${siteUrl}/文章ID
+4. 回答时用 Markdown 格式，可以引用相关段落
+5. 如果有多篇相关文章，可以综合回答
+6. 如果用户问题部分与文章相关，部分不相关，先回答相关内容，再适当引导
+
+【链接格式示例】
+- 文章1: ${siteUrl}/1001
+- 回复中引用: [文章标题](${siteUrl}/1001)
+
+【回答风格】
+- 专业、简洁、有条理
+- 善用 Markdown 格式化回答
+- 适度使用 emoji 增添趣味
+- 引用文章内容时标注来源和链接`;
+                    
+                    const aiMessages = [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: postsContext + '\n\n【用户问题】\n' + message }
+                    ];
+                    
+                    const response = await fetch(aiConfig.apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${aiConfig.apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: aiConfig.model,
+                            messages: aiMessages,
+                            max_tokens: aiConfig.maxTokens,
+                            temperature: aiConfig.temperature
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        return jsonResponse(res, { error: 'AI 服务请求失败: ' + response.status }, 500);
+                    }
+                    
+                    const aiData = await response.json();
+                    const reply = aiData.choices && aiData.choices[0] && aiData.choices[0].message 
+                        ? aiData.choices[0].message.content 
+                        : '抱歉，AI 暂时无法回答。';
+                    
+                    return jsonResponse(res, {
+                        reply: reply,
+                        sources: topPosts.map(item => ({
+                            id: item.post.id,
+                            title: item.post.title,
+                            date: item.post.date,
+                            url: `${siteUrl}/${item.post.id}`
+                        }))
+                    });
+                    
+                } else if (isTechQuestion) {
+                    // 技术类问题 - 提供简要回复
+                    systemPrompt = `你是 Terminal Blog 的 AI 助手，${statsContext}。
+
+【回答范围】
+- 技术类问题（系统、网络、编程、软件工具等）：可以简要回答
+- 其他问题：礼貌引导回博客内容
+
+【技术类回答规则】
+1. 回答要简洁明了，直击要点
+2. 可以提供简要的步骤或示例代码
+3. 如果需要更详细的资料，建议用户去搜索引擎查找
+4. 适当提及"这个问题可以详细讨论，如果有相关的博客文章就更好了"
+
+【非技术问题处理】
+如果用户问的是非技术问题，请礼貌回复并引导：
+- "这个问题我不太擅长呢~ 不过本站有很多技术文章，或许能帮到你 😊"
+- "我是 Terminal Blog 的 AI 助手，主要擅长回答博客内容相关的问题。有兴趣的话可以看看我们的文章？"
+
+【回答风格】
+- 技术回答：专业、简洁
+- 非技术引导：友好、委婉
+- 善用 emoji
+- 不要长篇大论`;
+                    
+                    const aiMessages = [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: message }
+                    ];
+                    
+                    const response = await fetch(aiConfig.apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${aiConfig.apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: aiConfig.model,
+                            messages: aiMessages,
+                            max_tokens: aiConfig.maxTokens,
+                            temperature: aiConfig.temperature
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        return jsonResponse(res, { error: 'AI 服务请求失败: ' + response.status }, 500);
+                    }
+                    
+                    const aiData = await response.json();
+                    const reply = aiData.choices && aiData.choices[0] && aiData.choices[0].message 
+                        ? aiData.choices[0].message.content 
+                        : '抱歉，AI 暂时无法回答。';
+                    
+                    return jsonResponse(res, {
+                        reply: reply,
+                        sources: [],
+                        type: 'tech'
+                    });
+                    
                 } else {
-                    aiMessages.push({
-                        role: 'system',
-                        content: '你是 Terminal Blog 的智能助手。请简洁明了地回答用户的问题。'
+                    // 非技术类问题 - 礼貌引导
+                    systemPrompt = `你是 Terminal Blog 的 AI 智能助手，${statsContext}。
+
+【核心原则】你是一个专注于博客内容的 AI 助手。
+
+【回答规则】
+1. 如果用户问题与博客内容相关：结合博客文章回答
+2. 如果用户问题是技术类问题：可以简要回答
+3. 如果用户问题是闲聊或其他：礼貌地引导用户关注博客内容
+
+【引导话术】
+当用户问到你不太擅长的话题时，可以使用以下方式引导：
+- "这个问题我不太擅长呢~ 不过你可以看看博客里的技术文章，说不定有收获 😊"
+- "我是 Terminal Blog 的小助手，主要职责是帮你了解博客内容。文章列表在这里：[查看文章](/)，有什么想了解的？"
+- "闲聊可以，但本站的技术文章更有价值哦~ 🙈"
+
+【回答风格】
+- 友好、亲切、有趣
+- 善用 emoji
+- 适当引导用户浏览博客
+- 不要拒人于千里之外`;
+
+                    const aiMessages = [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: message }
+                    ];
+                    
+                    const response = await fetch(aiConfig.apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${aiConfig.apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: aiConfig.model,
+                            messages: aiMessages,
+                            max_tokens: aiConfig.maxTokens,
+                            temperature: aiConfig.temperature
+                        })
                     });
-                    aiMessages.push({
-                        role: 'user',
-                        content: message
+                    
+                    if (!response.ok) {
+                        return jsonResponse(res, { error: 'AI 服务请求失败: ' + response.status }, 500);
+                    }
+                    
+                    const aiData = await response.json();
+                    const reply = aiData.choices && aiData.choices[0] && aiData.choices[0].message 
+                        ? aiData.choices[0].message.content 
+                        : '抱歉，AI 暂时无法回答。';
+                    
+                    return jsonResponse(res, {
+                        reply: reply,
+                        sources: []
                     });
                 }
-                
-                const response = await fetch(aiConfig.apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${aiConfig.apiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: aiConfig.model,
-                        messages: aiMessages,
-                        max_tokens: aiConfig.maxTokens,
-                        temperature: aiConfig.temperature
-                    })
-                });
-                
-                if (!response.ok) {
-                    const errText = await response.text();
-                    return jsonResponse(res, { error: 'AI 服务请求失败: ' + response.status }, 500);
-                }
-                
-                const aiData = await response.json();
-                const reply = aiData.choices && aiData.choices[0] && aiData.choices[0].message 
-                    ? aiData.choices[0].message.content 
-                    : '抱歉，AI 暂时无法回答。';
-                
-                return jsonResponse(res, {
-                    reply: reply,
-                    sources: topPosts.map(item => ({
-                        id: item.post.id,
-                        title: item.post.title,
-                        date: item.post.date
-                    }))
-                });
                 
             } catch (err) {
                 console.error('AI Chat Error:', err);

@@ -1,6 +1,6 @@
 # TerminalBlog AI 聊天功能文档
 
-> 本文档描述本轮新增的 AI 大模型对话功能，包括功能说明、实现细节和代码位置。
+> 本文档描述 AI 大模型对话功能，包括功能说明、实现细节和代码位置。
 
 ## 📌 功能概述
 
@@ -12,6 +12,9 @@
 - **打字机效果**：显示 AI "思考中" 的加载动画
 - **对话历史**：支持多轮对话，AI 可以理解上下文
 - **错误处理**：优雅地处理网络错误和 API 配置问题
+- **智能边界判断**：根据问题类型采用不同的回答策略
+- **博客文章检索**：自动检索相关内容并提供链接
+- **特殊人称保护**：对询问站长的敏感问题进行神秘化处理
 
 ---
 
@@ -77,6 +80,106 @@ const response = await fetch('/api/ai/chat', {
 1. 接收前端发送的对话历史和最新消息
 2. 调用 AI 大模型 API（支持 OpenAI 兼容格式）
 3. 返回 AI 的回复内容
+
+### 3. 智能边界判断系统
+
+**实现位置**：`public/server.js` 中的 `/api/ai/chat` 路由（约第 2249 行起）
+
+#### 判断流程
+
+```
+用户提问
+    ↓
+检测问题类型：
+├─ 包含"站长/管理员/主人/陛下/博主/作者/老板/老大"
+│   → 特殊人称保护模式（神秘化回复）
+│
+├─ 匹配博客文章内容
+│   → 博客内容优先模式（引用文章+链接）
+│
+├─ 包含技术关键词（系统/网络/编程/代码等）
+│   → 技术问答模式（简要回答）
+│
+└─ 其他问题
+    → 礼貌引导模式（引导浏览博客）
+```
+
+#### 三种回答模式
+
+| 模式 | 触发条件 | 回答策略 | 返回字段 |
+|------|----------|----------|----------|
+| **特殊人称保护** | 询问站长相关信息 | 神秘化、模糊化回复，不透露真实信息 | `type: 'owner'` |
+| **博客内容优先** | 匹配到相关文章 | 结合文章内容，附上链接 | `sources: [...]` |
+| **技术问答** | 包含技术关键词 | 简要专业回答，可适当引导 | `type: 'tech'` |
+| **礼貌引导** | 其他问题 | 友好引导浏览博客 | 无特殊字段 |
+
+#### 文章检索逻辑
+
+```javascript
+// 检索相关文章
+const relevantPosts = [];
+posts.forEach(post => {
+    const titleMatch = post.title.toLowerCase().includes(messageLower);
+    const contentMatch = post.body.toLowerCase().includes(messageLower);
+    const tagMatch = post.tags.some(t => t.toLowerCase().includes(messageLower));
+    
+    if (titleMatch || contentMatch || tagMatch) {
+        let score = 0;
+        if (titleMatch) score += 3;   // 标题匹配权重最高
+        if (contentMatch) score += 1;   // 内容匹配权重
+        if (tagMatch) score += 2;       // 标签匹配权重
+        
+        relevantPosts.push({ post, score });
+    }
+});
+
+// 按分数排序，返回最高匹配的前 N 篇
+relevantPosts.sort((a, b) => b.score - a.score);
+const topPosts = relevantPosts.slice(0, aiConfig.maxDocs || 5);
+```
+
+#### 文章链接格式
+
+返回的 sources 包含完整链接（URL 格式：`${siteUrl}/文章ID`，如 `https://example.com/1001`）：
+```json
+{
+    "sources": [
+        {
+            "id": 10001,
+            "title": "Docker 入门教程",
+            "date": "2024-01-15",
+            "url": "https://example.com/1001"
+        }
+    ]
+}
+```
+
+#### 特殊人称关键词
+
+```javascript
+const ownerKeywords = [
+    '站长', '管理员', '主人', '陛下',
+    '博主', '作者', '老板', '老大'
+];
+```
+
+**典型回复示例**：
+- "哦，你是说主人啊~ 他是一个神秘的人，具体信息不方便透露呢。"
+- "站长大人行踪神秘，我也只是他的小小助手，知道的不多哦~"
+
+#### 技术关键词
+
+```javascript
+const techKeywords = [
+    '系统', '网络', '编程', '代码', '软件',
+    '服务器', 'linux', 'windows', 'mac',
+    'git', 'docker', 'npm', 'node', 'python',
+    'java', '前端', '后端', '数据库', '算法',
+    '架构', '部署', '配置', '安装', '命令',
+    '终端', 'vim', 'ssh', 'api', 'json',
+    'html', 'css', 'javascript', 'typescript'
+];
+```
 
 ---
 
