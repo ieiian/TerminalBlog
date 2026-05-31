@@ -75,6 +75,54 @@ function normalizeAIFormat(value) {
     return 'openai';
 }
 
+/** 提取 AI_CONFIG 对象体，并去掉 // 行注释，避免误读注释中的示例配置 */
+function extractAIConfigSource(content) {
+    const marker = 'const AI_CONFIG';
+    const start = content.indexOf(marker);
+    if (start === -1) return '';
+    const braceStart = content.indexOf('{', start);
+    if (braceStart === -1) return '';
+
+    let depth = 0;
+    for (let i = braceStart; i < content.length; i++) {
+        const ch = content[i];
+        if (ch === '{') depth++;
+        else if (ch === '}') {
+            depth--;
+            if (depth === 0) {
+                const body = content.slice(braceStart + 1, i);
+                return body
+                    .split('\n')
+                    .map((line) => {
+                        const trimmed = line.trim();
+                        if (trimmed.startsWith('//')) return '';
+                        const commentIdx = line.indexOf('//');
+                        if (commentIdx === -1) return line;
+                        return line.slice(0, commentIdx);
+                    })
+                    .join('\n');
+            }
+        }
+    }
+    return '';
+}
+
+function matchAIConfigValue(source, pattern) {
+    const re = new RegExp(pattern, 'g');
+    let match = null;
+    let last = null;
+    while ((match = re.exec(source)) !== null) {
+        last = match;
+    }
+    return last;
+}
+
+/** 匹配 AI_CONFIG 顶层字段（取首次出现，避免 vector.enabled 等嵌套字段干扰） */
+function matchAIConfigTopLevel(source, key, pattern) {
+    const re = new RegExp(String.raw`^\s*${key}\s*:\s*${pattern}`, 'm');
+    return source.match(re);
+}
+
 function loadAIConfig() {
     const defaultConfig = {
         enabled: true,
@@ -94,32 +142,31 @@ function loadAIConfig() {
             return defaultConfig;
         }
         const content = fs.readFileSync(CONFIG_JS_PATH, 'utf8');
-
-        const aiConfigMatch = content.match(/const AI_CONFIG\s*=\s*\{/);
-        if (!aiConfigMatch) {
+        const aiSource = extractAIConfigSource(content);
+        if (!aiSource) {
             return defaultConfig;
         }
 
-        const enabledMatch = content.match(/enabled\s*:\s*(true|false)/);
-        const apiKeyMatch = content.match(/apiKey\s*:\s*'([^']*)'/);
-        const apiBaseUrlMatch = content.match(/apiBaseUrl\s*:\s*'([^']*)'/);
-        const apiFormatMatch = content.match(/apiFormat\s*:\s*'([^']*)'/);
-        const modelMatch = content.match(/model\s*:\s*'([^']*)'/);
-        const maxTokensMatch = content.match(/maxTokens\s*:\s*(\d+)/);
-        const tempMatch = content.match(/temperature\s*:\s*([\d.]+)/);
-        const maxDocsMatch = content.match(/maxDocs\s*:\s*(\d+)/);
-        const maxContextTokensMatch = content.match(/maxContextTokens\s*:\s*(\d+)/);
-        const headerCharsMatch = content.match(/headerChars\s*:\s*(\d+)/);
+        const enabledMatch = matchAIConfigTopLevel(aiSource, 'enabled', String.raw`(true|false)`);
+        const apiKeyMatch = matchAIConfigValue(aiSource, String.raw`apiKey\s*:\s*'([^']*)'`);
+        const apiBaseUrlMatch = matchAIConfigValue(aiSource, String.raw`apiBaseUrl\s*:\s*'([^']*)'`);
+        const apiFormatMatch = matchAIConfigValue(aiSource, String.raw`apiFormat\s*:\s*'([^']*)'`);
+        const modelMatch = matchAIConfigValue(aiSource, String.raw`model\s*:\s*'([^']*)'`);
+        const maxTokensMatch = matchAIConfigTopLevel(aiSource, 'maxTokens', String.raw`(\d+)`);
+        const tempMatch = matchAIConfigTopLevel(aiSource, 'temperature', String.raw`([\d.]+)`);
+        const maxDocsMatch = matchAIConfigValue(aiSource, String.raw`maxDocs\s*:\s*(\d+)`);
+        const maxContextTokensMatch = matchAIConfigValue(aiSource, String.raw`maxContextTokens\s*:\s*(\d+)`);
+        const headerCharsMatch = matchAIConfigValue(aiSource, String.raw`headerChars\s*:\s*(\d+)`);
 
         const apiFormat = normalizeAIFormat(apiFormatMatch ? apiFormatMatch[1] : defaultConfig.apiFormat);
         const apiBaseUrlRaw = apiBaseUrlMatch ? apiBaseUrlMatch[1].trim() : '';
 
         return {
             enabled: enabledMatch ? enabledMatch[1] === 'true' : defaultConfig.enabled,
-            apiKey: apiKeyMatch ? apiKeyMatch[1] : defaultConfig.apiKey,
+            apiKey: apiKeyMatch ? apiKeyMatch[1].trim() : defaultConfig.apiKey,
             apiFormat,
             apiBaseUrl: apiBaseUrlRaw || AI_FORMAT_DEFAULTS[apiFormat],
-            model: modelMatch ? modelMatch[1] : defaultConfig.model,
+            model: modelMatch ? modelMatch[1].trim() : defaultConfig.model,
             maxTokens: maxTokensMatch ? parseInt(maxTokensMatch[1], 10) : defaultConfig.maxTokens,
             temperature: tempMatch ? parseFloat(tempMatch[1]) : defaultConfig.temperature,
             maxDocs: maxDocsMatch ? parseInt(maxDocsMatch[1], 10) : defaultConfig.maxDocs,
