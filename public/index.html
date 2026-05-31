@@ -2551,10 +2551,21 @@
             return;
         }
 
-        // If post is locked and we don't have content, show unlock prompt
+        // 已上锁且服务端未返回正文：弹出密码框（直接访问 /文章ID 也生效）
         if (post.locked && !post.content) {
+            setTitle(`${post.title} ~ blog`);
+            updatePostUrl(post.id || currentSlug);
             showLockPasswordPrompt(currentSlug, post.title);
-            navigate('home');  // Go back to home while waiting for password
+            body.innerHTML = `
+                ${prompt('hacker', 'blog', `cat ./posts/${currentSlug}.md`)}
+                <div class="nav-links">
+                    <a onclick="navigate('home')">[← 返回首页]</a>
+                </div>
+                <div class="post-detail" style="padding: 32px; text-align: center;">
+                    <p style="color: var(--orange); font-size: 1.1em;">🔒 此文已上锁</p>
+                    <p style="color: var(--gray); margin-top: 12px;">请输入解锁密码后查看正文。</p>
+                </div>
+            `;
             return;
         }
 

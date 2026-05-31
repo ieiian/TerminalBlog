@@ -1020,6 +1020,50 @@ function getPostById(id) {
     return null;
 }
 
+/**
+ * 按访问权限返回文章（隐藏/上锁文章不泄露正文与 lockPassword）
+ * - 管理员（Bearer）：完整内容
+ * - 已上锁：需请求头 X-Unlock-Password 与 lockPassword 一致
+ */
+function formatPostForClient(post, req) {
+    if (!post) return null;
+
+    const isAdmin = isAdminAuthorized(req);
+
+    if (post.hidden && !isAdmin) {
+        return null;
+    }
+
+    if (!post.locked || isAdmin) {
+        const safe = { ...post };
+        if (!isAdmin) {
+            delete safe.lockPassword;
+        }
+        return safe;
+    }
+
+    const unlockPassword = req.headers['x-unlock-password'];
+    if (unlockPassword && unlockPassword === post.lockPassword) {
+        const safe = { ...post };
+        delete safe.lockPassword;
+        return safe;
+    }
+
+    return {
+        id: post.id,
+        title: post.title,
+        date: post.date,
+        tags: post.tags || [],
+        hidden: !!post.hidden,
+        locked: true,
+        size: post.size,
+        contentLength: post.contentLength,
+        readTime: post.readTime,
+        content: '',
+        htmlContent: ''
+    };
+}
+
 // ==================== AI 上下文（只读：仅 getAllPosts / getPostById）====================
 
 const AI_QUERY_STOP_WORDS = new Set([
@@ -1572,7 +1616,11 @@ async function handleRequest(req, res) {
                 if (!post) {
                     return jsonResponse(res, { error: '文章不存在' }, 404);
                 }
-                return jsonResponse(res, post);
+                const clientPost = formatPostForClient(post, req);
+                if (!clientPost) {
+                    return jsonResponse(res, { error: '文章不存在' }, 404);
+                }
+                return jsonResponse(res, clientPost);
             }
             
             if (method === 'PUT') {
@@ -2856,17 +2904,21 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             
             const queryLower = query.toLowerCase();
             const results = posts
-                .filter(p => 
-                    p.title.toLowerCase().includes(queryLower) ||
-                    p.content.toLowerCase().includes(queryLower) ||
-                    (p.tags && p.tags.some(t => t.toLowerCase().includes(queryLower)))
-                )
-                .map(p => ({
+                .filter((p) => {
+                    const bodyLower = (p.body || '').toLowerCase();
+                    return (
+                        p.title.toLowerCase().includes(queryLower) ||
+                        bodyLower.includes(queryLower) ||
+                        (p.tags && p.tags.some((t) => t.toLowerCase().includes(queryLower)))
+                    );
+                })
+                .map((p) => ({
                     id: p.id,
                     title: p.title,
                     date: p.date,
                     tags: p.tags || [],
-                    excerpt: p.content.substring(0, 200)
+                    locked: !!p.locked,
+                    excerpt: p.locked && !admin ? '' : (p.body || '').substring(0, 200)
                 }))
                 .slice(0, 20);
             
