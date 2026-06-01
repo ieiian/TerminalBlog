@@ -1857,7 +1857,7 @@
             <div class="dot yellow" onclick="navigate('tags')"></div>
             <div class="dot green" onclick="navigate('admin')"></div>
             <div class="ai-btn" id="aiBtn" onclick="openAIModal()" title="AI 助手">✨ AI</div>
-            <div class="title" id="titleBar">${SITE_CONFIG ? SITE_CONFIG.siteTitle : 'TerminalBlog'} ~ zsh</div>
+            <div class="title" id="titleBar">${SITE_CONFIG ? SITE_CONFIG.siteTitle : 'TerminalBlog'}</div>
         </div>
 
         <div class="term-body" id="termBody">
@@ -2294,7 +2294,9 @@
     }
 
     async function renderHome(body) {
-        setTitle(SITE_CONFIG ? SITE_CONFIG.siteTitle + ' ~ zsh' : 'TerminalBlog ~ zsh');
+        // 去除 ~ zsh 后缀
+        // setTitle(SITE_CONFIG ? SITE_CONFIG.siteTitle + ' ~ zsh' : 'TerminalBlog ~ zsh');
+        setTitle(SITE_CONFIG ? SITE_CONFIG.siteTitle : 'TerminalBlog');
         document.getElementById('statusMode').textContent = 'NORMAL';
 
         const [stats, posts] = await Promise.all([
