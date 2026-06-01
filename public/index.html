@@ -4861,6 +4861,42 @@
     let aiMessages = [];
     let isAiTyping = false;
 
+    // 打字机效果函数
+    function typeWriterEffect(msgDiv, text) {
+        if (!msgDiv || !text) return;
+        const contentEl = msgDiv.querySelector('.ai-message-content');
+        if (!contentEl) return;
+        
+        let index = 0;
+        const speed = 30; // 每个字符间隔 30ms
+        
+        function type() {
+            if (index < text.length) {
+                // 实时渲染 Markdown
+                if (typeof marked !== 'undefined') {
+                    try {
+                        const partialText = text.substring(0, index + 1);
+                        contentEl.innerHTML = marked.parse(partialText);
+                    } catch (e) {
+                        contentEl.textContent = text.substring(0, index + 1);
+                    }
+                } else {
+                    contentEl.textContent = text.substring(0, index + 1);
+                }
+                index++;
+                const msgList = document.getElementById('aiMessageList');
+                if (msgList) msgList.scrollTop = msgList.scrollHeight;
+                setTimeout(type, speed);
+            } else {
+                // 完成时保存消息
+                aiMessages.push({ role: 'ai', content: text });
+                saveAIMessages();
+            }
+        }
+        
+        type();
+    }
+
     const AI_STORAGE_KEY = 'terminal_blog_ai_messages';
 
     function saveAIMessages() {
@@ -5199,8 +5235,30 @@
                 return;
             }
 
-            // Add AI response
-            addAIMessage('ai', data.reply || '抱歉，我没有理解您的问题。');
+            // Add AI response with streaming effect
+            const replyText = data.reply || '抱歉，我没有理解您的问题。';
+            if (replyText.length < 200) {
+                // 短回复直接显示
+                addAIMessage('ai', replyText);
+            } else {
+                // 长回复打字机效果 - 直接创建空消息，由 typeWriterEffect 填充
+                const msgList = document.getElementById('aiMessageList');
+                if (!msgList) return;
+                
+                // 移除欢迎信息
+                const welcome = msgList.querySelector('.ai-welcome');
+                if (welcome) welcome.remove();
+                
+                // 创建空消息元素
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'ai-message ai';
+                msgDiv.innerHTML = '<div class="ai-message-avatar">🤖</div><div class="ai-message-content"></div>';
+                msgList.appendChild(msgDiv);
+                msgList.scrollTop = msgList.scrollHeight;
+                
+                // 启动打字机效果
+                typeWriterEffect(msgDiv, replyText);
+            }
 
         } catch (err) {
             hideAITyping();
