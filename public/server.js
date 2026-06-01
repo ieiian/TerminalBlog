@@ -223,15 +223,42 @@ function normalizeChatTurns(turns) {
     return out;
 }
 
+function buildChatWindowContext(historyMessages) {
+    if (!Array.isArray(historyMessages) || historyMessages.length === 0) {
+        return '';
+    }
+
+    const maxHistoryChars = 12000;
+    let usedChars = 0;
+    const lines = [];
+
+    for (let i = historyMessages.length - 1; i >= 0; i--) {
+        const msg = historyMessages[i];
+        if (!msg || !msg.content) continue;
+
+        const role = msg.role === 'ai' || msg.role === 'assistant' ? 'AI' : '用户';
+        const content = String(msg.content).trim();
+        if (!content) continue;
+
+        const line = `${role}: ${content}`;
+        usedChars += line.length;
+        lines.unshift(line);
+
+        if (usedChars >= maxHistoryChars) {
+            lines.unshift('...(更早的聊天记录因长度限制已省略)');
+            break;
+        }
+    }
+
+    if (!lines.length) return '';
+    return `【聊天窗口已有上下文】\n以下内容来自当前 AI 聊天窗口，按时间顺序排列；用户点击“清空”后这里会重置。请在回答需要总结或回顾聊天内容时纳入这些内容，尤其不要忽略 AI 自动生成的文章总结。\n\n${lines.join('\n\n')}`;
+}
+
 function buildConversationTurns(userPayload, historyMessages) {
     const turns = [];
-    if (Array.isArray(historyMessages) && historyMessages.length > 0) {
-        historyMessages.slice(-6).forEach((m) => {
-            const role = m.role === 'ai' ? 'assistant' : m.role;
-            if ((role === 'user' || role === 'assistant') && m.content) {
-                turns.push({ role, content: m.content });
-            }
-        });
+    const chatWindowContext = buildChatWindowContext(historyMessages);
+    if (chatWindowContext) {
+        turns.push({ role: 'user', content: chatWindowContext });
     }
     turns.push({ role: 'user', content: userPayload });
     return normalizeChatTurns(turns);
@@ -1248,7 +1275,7 @@ function buildPostDetailContext(items, siteUrl, maxCharsPerPost) {
 }
 
 /** 组装 L0 + L1 + 可选 L2 与用户信息 */
-function assembleAIContext(posts, message, siteUrl, aiConfig) {
+function assembleAIContext(posts, message, siteUrl, aiConfig, opts = {}) {
     const headerChars = aiConfig.headerChars || 150;
     const maxDocs = aiConfig.maxDocs || 5;
     const maxContextTokens = aiConfig.maxContextTokens || 8000;
@@ -1259,16 +1286,28 @@ function assembleAIContext(posts, message, siteUrl, aiConfig) {
 
     const l0 = buildArticleIndex(posts, siteUrl);
     const l1 = buildArticleHeaders(posts, headerChars);
+    const currentPostId = opts.currentPostId ? String(opts.currentPostId) : '';
+    const currentPost = currentPostId
+        ? posts.find((p) => String(p.id) === currentPostId)
+        : null;
+    const currentPage = opts.currentPage && typeof opts.currentPage === 'object' ? opts.currentPage : null;
 
     const searchResults = searchRelevantPosts(posts, message, maxDocs);
     const explicitResults = resolveExplicitPostIds(message, posts);
-    const merged = mergeRelevantPosts(searchResults, explicitResults, maxDocs);
+    const currentResults = currentPost ? [{ post: currentPost, score: 12 }] : [];
+    const merged = mergeRelevantPosts(searchResults, explicitResults.concat(currentResults), maxDocs);
     const hasHits = merged.length > 0;
     const l2 = hasHits ? buildPostDetailContext(merged, siteUrl, maxCharsPerPost) : '';
+    const currentContext = currentPost
+        ? `【当前正在阅读的文章】\nID: ${currentPost.id}\n标题: ${currentPost.title}\n链接: ${siteUrl}/${currentPost.id}\n日期: ${currentPost.date}\n标签: ${(currentPost.tags || []).join(', ') || '-'}\n请优先把“这篇文章 / 当前文章 / 本文”理解为这篇文章。\n\n`
+        : '';
+    const pageContext = currentPage
+        ? `【当前页面】\n类型: ${String(currentPage.view || 'home')}\n路径: ${String(currentPage.path || '/')}\n${currentPage.tag ? `标签: ${String(currentPage.tag)}\n` : ''}${currentPage.title ? `页面标题: ${String(currentPage.title).slice(0, 120)}\n` : ''}\n`
+        : '';
 
-    const userPayload = `${l0}\n\n${l1}${l2 ? '\n' + l2 : ''}\n【用户问题】\n${message}`;
+    const userPayload = `${pageContext}${currentContext}${l0}\n\n${l1}${l2 ? '\n' + l2 : ''}\n【用户问题】\n${message}`;
 
-    return { userPayload, topPosts: merged, hasHits };
+    return { userPayload, topPosts: merged, hasHits, currentPost };
 }
 
 /** 小美统一系统提示词 */
@@ -3009,12 +3048,15 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                 ];
                 const isTechQuestion = techKeywords.some((k) => messageLower.includes(k));
 
-                const { userPayload, topPosts, hasHits } = assembleAIContext(posts, message, siteUrl, aiConfig);
+                const { userPayload, topPosts, hasHits, currentPost } = assembleAIContext(posts, message, siteUrl, aiConfig, {
+                    currentPostId: data.currentPostId,
+                    currentPage: data.currentPage
+                });
 
                 let mode = 'general';
                 if (isOwnerQuestion) {
                     mode = 'owner';
-                } else if (hasHits) {
+                } else if (hasHits || currentPost) {
                     mode = 'blog';
                 } else if (isTechQuestion) {
                     mode = 'tech';

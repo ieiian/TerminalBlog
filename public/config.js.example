@@ -112,8 +112,16 @@ const AI_CONFIG = {
         windowTitle: '小美',
         showWelcome: true,
         welcomeMessage: '你好，我是小美～Terminal Blog 的守护天使，可以帮你查文章、聊技术，有什么想了解的吗？'
+    },
+
+    // 自动总结功能配置
+    autoSummarize: {
+        // 是否在打开 AI 窗口时自动对当前文章生成总结
+        enabled: true,
+        // 总结时生成的不同回复格式数量（用于随机选择回复开头）
+        replyFormats: 4
     }
 };
 
-// 挂载到 window 以便前端访问
-window.AI_CONFIG = AI_CONFIG;
+    // 挂载到 window 以便前端访问
+    window.AI_CONFIG = AI_CONFIG;

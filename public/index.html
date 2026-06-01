@@ -1679,6 +1679,17 @@
             color: var(--text);
             border-radius: 12px 12px 12px 4px;
         }
+        .ai-message.ai .ai-message-content ul,
+        .ai-message.ai .ai-message-content ol {
+            margin: 8px 0;
+            padding-left: 24px;
+            max-width: 100%;
+            overflow-x: auto;
+            word-break: break-word;
+        }
+        .ai-message.ai .ai-message-content li {
+            word-break: break-word;
+        }
         .ai-message.ai .ai-message-content a { color: var(--green); text-decoration: none; }
         .ai-message.ai .ai-message-content a:hover { text-decoration: underline; color: var(--cyan); }
         .ai-message.ai .ai-message-content code {
@@ -2557,7 +2568,9 @@
 
         // 已上锁且服务端未返回正文：弹出密码框（直接访问 /文章ID 也生效）
         if (post.locked && !post.content) {
-            setTitle(`${post.title} ~ blog`);
+            // setTitle(`${post.title} ~ blog`);
+            // 去除 ~ blog 后缀
+            setTitle(post.title);
             updatePostUrl(post.id || currentSlug);
             showLockPasswordPrompt(currentSlug, post.title);
             body.innerHTML = `
@@ -2573,7 +2586,9 @@
             return;
         }
 
-        setTitle(`${post.title} ~ blog`);
+        // setTitle(`${post.title} ~ blog`);
+        // 去除 ~ blog 后缀
+        setTitle(post.title);
         document.getElementById('statusMode').textContent = 'INSERT';
 
         const tags = (post.tags || []).map(t => `<span class="tag">[${escapeHtml(t)}]</span>`).join(' · ');
@@ -2618,7 +2633,9 @@
     }
 
     async function renderTagPosts(body) {
-        setTitle(`${currentTag || '全部标签'} ~ blog`);
+        // setTitle(`${currentTag || '全部标签'} ~ blog`);
+        // 去除 ~ blog 后缀
+        setTitle(currentTag || '全部标签');
         document.getElementById('statusMode').textContent = 'NORMAL';
 
         const posts = await apiGet(`/posts?tag=${encodeURIComponent(currentTag || '')}&page=${currentPage}&limit=${POSTS_PER_PAGE}`);
@@ -2648,7 +2665,9 @@
     }
 
     async function renderTags(body) {
-        setTitle('tags ~ blog');
+        // setTitle('tags ~ blog');
+        // 去除 ~ blog 后缀
+        setTitle('tags');
         document.getElementById('statusMode').textContent = 'NORMAL';
 
         const tagsData = await apiGet('/tags');
@@ -2682,7 +2701,9 @@
     }
 
     async function renderAdmin(body) {
-        setTitle('admin ~ blog');
+        // setTitle('admin ~ blog');
+        // 去除 ~ blog 后缀
+        setTitle('admin');
         document.getElementById('statusMode').textContent = 'ADMIN';
 
         // Check if logged in
@@ -2776,7 +2797,7 @@
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0;">
-                <div style="color: var(--gray-dim); font-size: 0.85em;"># ${'─'.repeat(4)} 已有文章 ${'─'.repeat(30)}</div>
+                <div style="color: var(--gray-dim); font-size: 0.85em;"># ${'─'.repeat(4)} 已有文章 ${'─'.repeat(15)}</div>
                 <div style="display: flex; gap: 8px;">
                     <button class="admin-btn" style="padding: 4px 10px; font-size: 0.75em; color: var(--cyan); border-color: var(--cyan);" onclick="document.getElementById('importFile').click()" title="导入">↙️</button>
                     <button class="admin-btn" style="padding: 4px 10px; font-size: 0.75em;" onclick="exportPosts()" title="导出">↗️</button>
@@ -4860,21 +4881,23 @@
 
     // ============ AI Chat Functions ============
     let aiModal = null;
-    let aiMessages = [];
+    let aiMessages = [];          // 对外显示的对话记录
     let isAiTyping = false;
+    let pendingAIRequests = 0;
+    let aiHistoryVersion = 0;
+    const pendingAutoSummaries = new Set();
 
-    // 打字机效果函数
     function typeWriterEffect(msgDiv, text) {
         if (!msgDiv || !text) return;
         const contentEl = msgDiv.querySelector('.ai-message-content');
         if (!contentEl) return;
-        
+
         let index = 0;
         const speed = 30; // 每个字符间隔 30ms
-        
+
         function type() {
+            if (!document.body.contains(msgDiv)) return;
             if (index < text.length) {
-                // 实时渲染 Markdown
                 if (typeof marked !== 'undefined') {
                     try {
                         const partialText = text.substring(0, index + 1);
@@ -4889,17 +4912,75 @@
                 const msgList = document.getElementById('aiMessageList');
                 if (msgList) msgList.scrollTop = msgList.scrollHeight;
                 setTimeout(type, speed);
-            } else {
-                // 完成时保存消息
-                aiMessages.push({ role: 'ai', content: text });
-                saveAIMessages();
             }
         }
-        
+
         type();
     }
 
     const AI_STORAGE_KEY = 'terminal_blog_ai_messages';
+    const AI_POST_MARKER_RE = /\s*<!--\s*post:([^|>]+)(?:\|summary)?\s*-->\s*$/;
+
+    function getActivePostId() {
+        if (currentView === 'post' && currentSlug) return String(currentSlug);
+        return getCurrentPostIdFromUrl();
+    }
+
+    function getCurrentAIPageContext() {
+        return {
+            view: currentView || 'home',
+            postId: isOnPostPage() ? getActivePostId() : null,
+            tag: currentView === 'tag' ? (currentTag || '') : '',
+            path: window.location.pathname,
+            title: document.title || ''
+        };
+    }
+
+    function stripAIMessageMetadata(content) {
+        return String(content || '')
+            .replace(/\s*<!--\s*post:[^>]+\s*-->\s*$/, '')
+            .replace(/\s*<!-- \/[^/]+\/ -->\s*$/, '');
+    }
+
+    function buildAIMessageContent(content, options) {
+        const opts = options || {};
+        let savedContent = stripAIMessageMetadata(content);
+        if (opts.postId) {
+            savedContent += `<!-- post:${opts.postId}${opts.summary ? '|summary' : ''} -->`;
+        }
+        return savedContent;
+    }
+
+    function getAIMessagePostId(content) {
+        const modern = String(content || '').match(AI_POST_MARKER_RE);
+        if (modern) return modern[1];
+        const legacy = String(content || '').match(/<!-- \/([^/]+)\/ -->\s*$/);
+        return legacy ? legacy[1] : null;
+    }
+
+    function isAIMessageSummary(content) {
+        const value = String(content || '');
+        return /\s*<!--\s*post:[^|>]+\|summary\s*-->\s*$/.test(value) || /<!-- \/[^/]+\/ -->\s*$/.test(value);
+    }
+
+    function saveAIMessage(role, content, options) {
+        const opts = options || {};
+        const savedContent = role === 'ai'
+            ? buildAIMessageContent(content, opts)
+            : stripAIMessageMetadata(content);
+        aiMessages.push({ role: role, content: savedContent });
+        saveAIMessages();
+    }
+
+    function getVisibleAIMessages() {
+        return aiMessages
+            .filter((msg) => msg && (msg.role === 'user' || msg.role === 'ai'))
+            .map((msg) => ({
+                role: msg.role,
+                content: stripAIMessageMetadata(msg.content)
+            }))
+            .filter((msg) => msg.content);
+    }
 
     function saveAIMessages() {
         try {
@@ -4921,7 +5002,7 @@
         } catch (e) {
             console.error('加载 AI 聊天记录失败:', e);
             aiMessages = [];
-        clearAISavedMessages();
+            clearAISavedMessages();
         }
     }
 
@@ -4930,6 +5011,111 @@
             localStorage.removeItem(AI_STORAGE_KEY);
         } catch (e) {
             console.error('清除 AI 聊天记录失败:', e);
+        }
+    }
+
+    function isOnPostPage() {
+        if (currentView === 'post' && currentSlug) return true;
+        const path = window.location.pathname;
+        if (path === '/' || path === '/index.html' || path === '') return false;
+        if (path.startsWith('/api/') || path.startsWith('/config.js')) return false;
+        return /^\/[a-zA-Z0-9_-]+\/?$/.test(path);
+    }
+
+    function getCurrentPostIdFromUrl() {
+        const path = window.location.pathname;
+        const match = path.match(/^\/([a-zA-Z0-9_-]+)\/?$/);
+        return match ? match[1] : null;
+    }
+
+    // 检查聊天记录中是否已有当前文章的总结（通过文章 URL 识别）
+    function hasPostSummary() {
+        if (!isOnPostPage()) return false;
+
+        const postSlug = getActivePostId();
+        if (!postSlug) return false;
+        return aiMessages.some((msg) => (
+            msg.role === 'ai' &&
+            getAIMessagePostId(msg.content) === postSlug &&
+            isAIMessageSummary(msg.content)
+        ));
+    }
+
+    // 获取文章标题用于总结提示
+    function getPostSummaryPrompt(postTitle, postContent) {
+        // 截取前2000字符作为摘要材料
+        const contentPreview = postContent.length > 2000 
+            ? postContent.substring(0, 2000) + '...' 
+            : postContent;
+        
+        const prompts = [
+            `当前打开的这篇文章是《${postTitle}》，以下是文章摘要：\n\n${contentPreview}\n\n请用简洁的语言为读者总结这篇文章的主要内容。`,
+            `当前打开的这篇文章是《${postTitle}》，以下是文章摘要：\n\n${contentPreview}\n\n请为读者简要介绍这篇文章在讲什么。`
+        ];
+        
+        return prompts[Math.floor(Math.random() * prompts.length)];
+    }
+
+    // 自动总结当前文章
+    async function autoSummarizePost() {
+        const postId = getActivePostId();
+        if (!postId || pendingAutoSummaries.has(postId) || hasPostSummary()) return;
+        pendingAutoSummaries.add(postId);
+        const requestVersion = aiHistoryVersion;
+
+        try {
+            const config = window.AI_CONFIG || {};
+            if (!config.apiKey) {
+                console.log('AI 未配置 API Key，跳过自动总结');
+                return;
+            }
+
+            const post = await apiGet('/post/' + postId);
+            if (!post || !post.content) {
+                console.log('无法获取文章内容，跳过自动总结');
+                return;
+            }
+
+            const summaryPrompt = getPostSummaryPrompt(post.title || '未命名文章', post.content || '');
+
+            const msgList = document.getElementById('aiMessageList');
+            const welcome = msgList ? msgList.querySelector('.ai-welcome') : null;
+            if (welcome) welcome.remove();
+
+            beginAIRequest();
+
+            const response = await fetch('/api/ai/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: [],
+                    message: summaryPrompt,
+                    currentPostId: postId,
+                    currentPage: getCurrentAIPageContext(),
+                    hiddenRequest: true
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                showAIError('❌ ' + (data.error || '请求失败'));
+                return;
+            }
+
+            if (data.error) {
+                showAIError('❌ ' + data.error);
+                return;
+            }
+
+            const replyText = data.reply || '抱歉，无法生成总结。';
+            if (requestVersion !== aiHistoryVersion) return;
+            saveAIMessage('ai', replyText, { postId: postId, summary: true });
+            renderAIMessage('ai', replyText, { animate: replyText.length >= 200 });
+        } catch (err) {
+            console.error('自动总结失败:', err);
+        } finally {
+            pendingAutoSummaries.delete(postId);
+            endAIRequest();
         }
     }
 
@@ -4956,8 +5142,12 @@
         // 加载历史聊天记录
         loadAIMessages();
 
+        const autoSummarizeConfig = config.autoSummarize || {};
+        const autoSummarizeEnabled = autoSummarizeConfig.enabled !== false;
+        const shouldAutoSummarize = autoSummarizeEnabled && isOnPostPage() && !hasPostSummary();
+
         let welcomeHtml = '';
-        if (showWelcome && aiMessages.length === 0) {
+        if (showWelcome && aiMessages.length === 0 && !shouldAutoSummarize) {
             welcomeHtml = `
                 <div class="ai-welcome">
                     <div class="ai-welcome-icon">🤖</div>
@@ -4996,39 +5186,20 @@
         if (aiMessages.length > 0) {
             const msgList = document.getElementById('aiMessageList');
             if (msgList) {
-                // 移除欢迎信息
                 const welcome = msgList.querySelector('.ai-welcome');
                 if (welcome) welcome.remove();
-                
-                // 逐条渲染历史消息
+
                 aiMessages.forEach(function(msg) {
-                    const avatar = msg.role === 'user' ? '👤' : '🤖';
-                    const msgDiv = document.createElement('div');
-                    msgDiv.className = 'ai-message ' + msg.role;
-                    
-                    let renderedContent;
-                    if (msg.role === 'user') {
-                        renderedContent = escapeHtml(msg.content);
-                    } else {
-                        // AI 消息渲染 Markdown
-                        if (typeof marked !== 'undefined') {
-                            try {
-                                renderedContent = marked.parse(msg.content);
-                            } catch (e) {
-                                renderedContent = '<pre style="white-space:pre-wrap;">' + escapeHtml(msg.content) + '</pre>';
-                            }
-                        } else {
-                            renderedContent = '<pre style="white-space:pre-wrap;">' + escapeHtml(msg.content) + '</pre>';
-                        }
+                    if (msg.role === 'user' || msg.role === 'ai') {
+                        renderAIMessage(msg.role, stripAIMessageMetadata(msg.content), { save: false });
                     }
-                    
-                    msgDiv.innerHTML = '<div class="ai-message-avatar">' + avatar + '</div><div class="ai-message-content">' + renderedContent + '</div>';
-                    msgList.appendChild(msgDiv);
                 });
-                
-                // 滚动到底部
+
                 msgList.scrollTop = msgList.scrollHeight;
             }
+        }
+        if (pendingAIRequests > 0) {
+            showAITyping();
         }
 
         const input = document.getElementById('aiInput');
@@ -5044,6 +5215,10 @@
                 this.style.height = Math.min(this.scrollHeight, 120) + 'px';
             });
             setTimeout(() => input.focus(), 100);
+        }
+
+        if (shouldAutoSummarize) {
+            setTimeout(() => autoSummarizePost(), 300);
         }
     }
 
@@ -5062,7 +5237,9 @@
         const welcomeMsg = uiConfig.welcomeMessage || '你好！我是 TerminalBlog 的 AI 助手，可以帮你解答关于博客内容的问题，有什么想了解的吗？';
 
         aiMessages = [];
+        aiHistoryVersion++;
         clearAISavedMessages();
+        pendingAutoSummaries.clear();
 
         const msgList = document.getElementById('aiMessageList');
         if (msgList) {
@@ -5080,67 +5257,30 @@
         }
     }
 
-    function addAIMessage(role, content) {
-        const msgList = document.getElementById('aiMessageList');
-        if (!msgList) return;
+    function renderMarkdownContent(content) {
+        if (typeof marked !== 'undefined') {
+            try {
+                return marked.parse(content);
+            } catch (e) {
+                return '<pre style="white-space:pre-wrap;">' + escapeHtml(content) + '</pre>';
+            }
+        }
+        return '<pre style="white-space:pre-wrap;">' + escapeHtml(content) + '</pre>';
+    }
 
-        // Remove welcome message if exists
+    function renderAIMessage(role, content, options) {
+        const opts = options || {};
+        const msgList = document.getElementById('aiMessageList');
+        if (!msgList) return null;
+
         const welcome = msgList.querySelector('.ai-welcome');
         if (welcome) welcome.remove();
 
         const avatar = role === 'user' ? '👤' : '🤖';
         const msgDiv = document.createElement('div');
         msgDiv.className = 'ai-message ' + role;
-        
-        // 用户输入使用 escapeHtml 防止 XSS
-        let renderedContent = role === 'user' ? escapeHtml(content) : null;
-        
-        // AI 回复需要先渲染 Markdown
-        if (role === 'ai') {
-            // 同步处理：如果 marked 已加载，直接使用；否则等待
-            if (typeof marked !== 'undefined') {
-                try {
-                    renderedContent = marked.parse(content);
-                } catch (e) {
-                    renderedContent = '<pre>' + escapeHtml(content) + '</pre>';
-                }
-            } else {
-                // marked 未加载，先显示原始文本，然后异步更新
-                renderedContent = '<pre style="white-space:pre-wrap;">' + escapeHtml(content) + '</pre>';
-                // 异步更新
-                const contentDiv = document.createElement('div');
-                contentDiv.innerHTML = renderedContent;
-                msgDiv.innerHTML = `
-                    <div class="ai-message-avatar">${avatar}</div>
-                    <div class="ai-message-content"></div>
-                `;
-                msgList.appendChild(msgDiv);
-                msgList.scrollTop = msgList.scrollHeight;
-                aiMessages.push({ role: role, content: content });
-                saveAIMessages();
-                
-                // 等待 marked 加载后更新内容
-                const checkMarked = setInterval(() => {
-                    if (typeof marked !== 'undefined') {
-                        clearInterval(checkMarked);
-                        try {
-                            const contentEl = msgDiv.querySelector('.ai-message-content');
-                            if (contentEl) {
-                                contentEl.innerHTML = marked.parse(content);
-                                msgList.scrollTop = msgList.scrollHeight;
-                            }
-                        } catch (e) {
-                            console.error('Markdown parse error:', e);
-                        }
-                    }
-                }, 100);
-                
-                // 最多等待 3 秒
-                setTimeout(() => clearInterval(checkMarked), 3000);
-                return;
-            }
-        }
-        
+
+        const renderedContent = role === 'user' ? escapeHtml(content) : (opts.animate ? '' : renderMarkdownContent(content));
         msgDiv.innerHTML = `
             <div class="ai-message-avatar">${avatar}</div>
             <div class="ai-message-content">${renderedContent}</div>
@@ -5148,13 +5288,28 @@
         msgList.appendChild(msgDiv);
         msgList.scrollTop = msgList.scrollHeight;
 
-        aiMessages.push({ role: role, content: content });
-                saveAIMessages();
+        if (opts.animate && role === 'ai') {
+            typeWriterEffect(msgDiv, content);
+        }
+        return msgDiv;
+    }
+
+    function addAIMessage(role, content, options) {
+        const opts = options || {};
+        const postId = opts.postId || (role === 'ai' && isOnPostPage() ? getActivePostId() : null);
+        renderAIMessage(role, content, opts);
+        if (opts.save !== false) {
+            saveAIMessage(role, content, {
+                postId: postId,
+                summary: !!opts.summary
+            });
+        }
     }
 
     function showAITyping() {
         const msgList = document.getElementById('aiMessageList');
         if (!msgList) return;
+        if (document.getElementById('aiTypingIndicator')) return;
 
         const typingDiv = document.createElement('div');
         typingDiv.className = 'ai-message ai';
@@ -5177,6 +5332,18 @@
         const typing = document.getElementById('aiTypingIndicator');
         if (typing) typing.remove();
         isAiTyping = false;
+    }
+
+    function beginAIRequest() {
+        pendingAIRequests++;
+        showAITyping();
+    }
+
+    function endAIRequest() {
+        pendingAIRequests = Math.max(0, pendingAIRequests - 1);
+        if (pendingAIRequests === 0) {
+            hideAITyping();
+        }
     }
 
     function showAIError(message) {
@@ -5207,25 +5374,31 @@
         input.value = '';
         input.style.height = 'auto';
 
-        // Add user message
         addAIMessage('user', content);
 
-        // Show typing indicator
-        showAITyping();
+        beginAIRequest();
         sendBtn.disabled = true;
+
+        const currentPostId = isOnPostPage() ? getActivePostId() : null;
+        const historyMessages = getVisibleAIMessages();
+        if (historyMessages.length && historyMessages[historyMessages.length - 1].role === 'user') {
+            historyMessages.pop();
+        }
+        const requestVersion = aiHistoryVersion;
 
         try {
             const response = await fetch('/api/ai/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    messages: aiMessages,
-                    message: content
+                    messages: historyMessages,
+                    message: content,
+                    currentPostId: currentPostId,
+                    currentPage: getCurrentAIPageContext()
                 })
             });
 
             const data = await response.json();
-            hideAITyping();
 
             if (!response.ok) {
                 showAIError('❌ ' + (data.error || '请求失败'));
@@ -5237,37 +5410,17 @@
                 return;
             }
 
-            // Add AI response with streaming effect
             const replyText = data.reply || '抱歉，我没有理解您的问题。';
-            if (replyText.length < 200) {
-                // 短回复直接显示
-                addAIMessage('ai', replyText);
-            } else {
-                // 长回复打字机效果 - 直接创建空消息，由 typeWriterEffect 填充
-                const msgList = document.getElementById('aiMessageList');
-                if (!msgList) return;
-                
-                // 移除欢迎信息
-                const welcome = msgList.querySelector('.ai-welcome');
-                if (welcome) welcome.remove();
-                
-                // 创建空消息元素
-                const msgDiv = document.createElement('div');
-                msgDiv.className = 'ai-message ai';
-                msgDiv.innerHTML = '<div class="ai-message-avatar">🤖</div><div class="ai-message-content"></div>';
-                msgList.appendChild(msgDiv);
-                msgList.scrollTop = msgList.scrollHeight;
-                
-                // 启动打字机效果
-                typeWriterEffect(msgDiv, replyText);
-            }
+            if (requestVersion !== aiHistoryVersion) return;
+            saveAIMessage('ai', replyText, { postId: currentPostId });
+            renderAIMessage('ai', replyText, { animate: replyText.length >= 200 });
 
         } catch (err) {
-            hideAITyping();
             showAIError('❌ 网络错误: ' + err.message);
         } finally {
-            sendBtn.disabled = false;
-            input.focus();
+            endAIRequest();
+            if (sendBtn) sendBtn.disabled = false;
+            if (input) input.focus();
         }
     }
 
