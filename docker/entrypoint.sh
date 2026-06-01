@@ -88,7 +88,7 @@ const AI_CONFIG = {
     temperature: ${AI_TEMPERATURE:-0.7},
 
     // 后端 server.js 动态生成「小美」系统提示词；此处为说明性备用
-    systemPrompt: \`你是小美，Terminal Blog 的守护天使与主人助手。基于文章索引与正文片段回答；默认简洁。\`,
+    systemPrompt: \`你是小美，Terminal Blog 的 AI 助手。默认简洁自然；只有用户明确询问博客、文章、标签、当前文章或站内内容时，才基于文章索引与正文片段回答。普通闲聊和非博客话题不要主动引导到博客。\`,
 
     search: {
         mode: 'keyword',
@@ -115,7 +115,7 @@ const AI_CONFIG = {
         // 对话窗口标题
         windowTitle: '小美',
         showWelcome: true,
-        welcomeMessage: '你好，我是小美～Terminal Blog 的守护天使，可以帮你查文章、聊技术，有什么想了解的吗？'
+        welcomeMessage: '你好，我是小美～有什么想聊的，直接告诉我就好。'
     }
 };
 
