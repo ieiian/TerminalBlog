@@ -3701,8 +3701,80 @@
         }
     }
 
+    // ============ 弹窗检测函数 ============
+    function hasActiveModal() {
+        // 检查所有可能的弹窗/覆盖层是否处于活动状态
+        return !!(
+            aiModal ||
+            document.getElementById('gitSyncModal') ||
+            document.getElementById('fileManagerModal') ||
+            document.getElementById('guestUploadModal') ||
+            document.getElementById('previewOverlay') ||
+            document.getElementById('lockOverlay') ||
+            document.getElementById('lockDialogOverlay') ||
+            document.getElementById('fullscreenOverlay') ||
+            document.getElementById('uploadCodePromptOverlay')
+        );
+    }
+    
+    // ============ 关闭所有弹窗函数 ============
+    function closeAllModals() {
+        // 关闭 AI 弹窗
+        if (aiModal) {
+            closeAIModal();
+        }
+        // 关闭 Git Sync 弹窗
+        var gitModal = document.getElementById('gitSyncModal');
+        if (gitModal) {
+            closeGitSyncModal();
+        }
+        // 关闭文件管理器
+        var fileModal = document.getElementById('fileManagerModal');
+        if (fileModal) {
+            closeFileManager();
+        }
+        // 关闭游客上传弹窗
+        var guestModal = document.getElementById('guestUploadModal');
+        if (guestModal) {
+            closeGuestUploadModal();
+        }
+        // 关闭预览
+        var preview = document.getElementById('previewOverlay');
+        if (preview && preview.parentNode) {
+            preview.parentNode.removeChild(preview);
+        }
+        // 关闭锁定提示
+        var lockOverlay = document.getElementById('lockOverlay');
+        if (lockOverlay) {
+            closeLockPrompt();
+        }
+        // 关闭锁定对话框
+        var lockDialog = document.getElementById('lockDialogOverlay');
+        if (lockDialog) {
+            closeLockDialog();
+        }
+        // 关闭全屏编辑
+        var fullscreen = document.getElementById('fullscreenOverlay');
+        if (fullscreen) {
+            toggleFullscreen();
+        }
+        // 关闭上传码提示
+        var uploadPrompt = document.getElementById('uploadCodePromptOverlay');
+        if (uploadPrompt) {
+            closeUploadCodePrompt();
+        }
+        // 恢复背景滚动
+        document.body.style.overflow = '';
+    }
+    
     // ============ 浏览器后退/前进按钮支持 ============
     window.addEventListener('popstate', function(e) {
+        // 如果有弹窗打开，优先关闭弹窗，不执行页面返回
+        if (hasActiveModal()) {
+            closeAllModals();
+            return;
+        }
+        
         var path = window.location.pathname;
         var search = window.location.search;
         
@@ -3768,10 +3840,43 @@
     // ============ Init ============
     // Handle direct URL: /<ID> (numeric) - 支持任意位数的数字
     (function() {
+        // 检查是否有刷新后需要恢复的状态
+        var refreshState = sessionStorage.getItem('refresh_state');
+        sessionStorage.removeItem('refresh_state'); // 清除状态，只使用一次
+        
+        if (refreshState) {
+            try {
+                var state = JSON.parse(refreshState);
+                currentView = state.view || 'home';
+                currentSlug = state.slug || null;
+                currentTag = state.tag || null;
+                currentPage = state.page || 1;
+                return; // 已恢复状态，不需要再解析 URL
+            } catch (e) {
+                console.error('恢复刷新状态失败:', e);
+            }
+        }
+        
+        // 正常解析 URL
         var pathMatch = window.location.pathname.match(/^\/(\d+)\/?$/);
         if (pathMatch) {
             currentView = 'post';
             currentSlug = pathMatch[1];
+        } else {
+            // 解析查询参数
+            var params = new URLSearchParams(window.location.search);
+            var view = params.get('view');
+            var tag = params.get('tag');
+            if (view === 'tags') {
+                currentView = 'tags';
+            } else if (view === 'tag' && tag) {
+                currentView = 'tag';
+                currentTag = decodeURIComponent(tag);
+            } else if (view === 'admin') {
+                currentView = 'admin';
+            } else {
+                currentView = 'home';
+            }
         }
     })();
 
@@ -5231,10 +5336,21 @@
 
     // ============ Terminal Dot Buttons Functions ============
     
-    // 绿色按钮：刷新页面 + 触发 AI 光晕效果
+    // 绿色按钮：刷新页面 + 触发 AI 光晕效果（保持当前页面状态）
     function refreshWithEffect() {
         // 清除 AI 光晕标记，这样刷新后会重新触发
         sessionStorage.removeItem('ai_corona_shown');
+        
+        // 保存当前页面状态，用于刷新后恢复
+        var refreshState = {
+            view: currentView,
+            slug: currentSlug,
+            tag: currentTag,
+            page: currentPage,
+            url: window.location.pathname + window.location.search
+        };
+        sessionStorage.setItem('refresh_state', JSON.stringify(refreshState));
+        
         // 刷新页面
         location.reload();
     }
@@ -5265,9 +5381,9 @@
             var rect = terminal.getBoundingClientRect();
             var startX = rect.left + rect.width / 2;
             var startY = rect.top + rect.height / 2;
-            var endY = window.innerHeight - 80; // 小球最终位置
+            var endY = -rect.height; // 向上收起至屏幕外
             
-            // 创建吸收动画
+            // 创建吸收动画（向上收纳）
             var absorbDuration = 600;
             var startTime = performance.now();
             
@@ -5276,14 +5392,15 @@
                 var progress = Math.min(elapsed / absorbDuration, 1);
                 var easeProgress = 1 - Math.pow(1 - progress, 3); // easeOutCubic
                 
-                // terminal 收缩并向中心移动
+                // terminal 收缩并向上移动
                 var scale = 1 - easeProgress * 0.95;
                 var opacity = 1 - easeProgress;
+                var currentY = startY + (endY - startY) * easeProgress;
                 
                 terminal.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
                 terminal.style.opacity = opacity;
                 terminal.style.left = '50%';
-                terminal.style.top = (startY + (endY - startY) * easeProgress) + 'px';
+                terminal.style.top = currentY + 'px';
                 terminal.style.margin = '0';
                 terminal.style.position = 'fixed';
                 terminal.style.width = rect.width + 'px';
@@ -5295,7 +5412,7 @@
                     terminal.style.display = 'none';
                     termFooter.style.display = 'none';
                     isMinimized = true;
-                    createMinimizeBall(endY);
+                    createMinimizeBall(startY); // 小球从 terminal 中心位置掉落
                 }
             }
             
@@ -5450,9 +5567,10 @@
         
         if (!ball) return;
         
-        // 球向上飞走动画
+        // 球向上飞向屏幕中央上方
         var ballRect = ball.getBoundingClientRect();
         var targetY = -100;
+        var targetX = window.innerWidth / 2 - 30;
         
         var startY = ballRect.top;
         var startX = ballRect.left;
@@ -5465,7 +5583,9 @@
             var easeProgress = 1 - Math.pow(1 - progress, 2);
             
             var currentY = startY + (targetY - startY) * easeProgress;
+            var currentX = startX + (targetX - startX) * easeProgress;
             ball.style.top = currentY + 'px';
+            ball.style.left = currentX + 'px';
             ball.style.opacity = 1 - progress;
             ball.style.transform = 'scale(' + (1 - progress * 0.5) + ')';
             
@@ -5484,6 +5604,7 @@
                 terminal.style.width = '';
                 terminal.style.margin = '';
                 termFooter.style.display = '';
+                termFooter.style.visibility = '';
                 
                 // 淡入效果
                 terminal.style.opacity = '0';
@@ -5794,7 +5915,10 @@
                         <span class="ai-icon">✨</span>
                         <span>${uiConfig.windowTitle || 'AI 助手'}</span>
                     </div>
-                    <button class="ai-modal-close" onclick="closeAIModal()">✕</button>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="ai-modal-close" onclick="clearAIMessages()" style="background: transparent; border: 1px solid var(--border); color: var(--gray); width: auto; padding: 4px 10px; font-size: 0.75em; border-radius: 4px; cursor: pointer;">🗑️ 清空</button>
+                        <button class="ai-modal-close" onclick="closeAIModal()">✕</button>
+                    </div>
                 </div>
                 <div class="ai-modal-body" id="aiMessageList">
                     ${welcomeHtml}
@@ -5803,7 +5927,6 @@
                     <div class="ai-input-wrapper">
                         <textarea class="ai-input" id="aiInput" placeholder="输入问题..." rows="1"></textarea>
                         <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()">发送</button>
-                        <button class="ai-clear-btn" onclick="clearAIMessages()">清空</button>
                     </div>
                 </div>
             </div>
