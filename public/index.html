@@ -1909,99 +1909,12 @@
             transform: scale(1.15);
         }
         
-        /* ============ 样式1：科技光球（默认） ============ */
-        #minimizeBall.style-1:hover .ball-core {
-            box-shadow: 0 0 30px rgba(0, 255, 65, 0.8), 0 0 60px rgba(0, 229, 255, 0.4);
-        }
-        #minimizeBall.style-1 .ball-core {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, #ffffff, #00ff41 40%, #00e5ff 100%);
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.6), 0 0 40px rgba(0, 229, 255, 0.3);
-            animation: ballCorePulse 2s ease-in-out infinite;
-        }
-        @keyframes ballCorePulse {
-            0%, 100% {
-                box-shadow: 0 0 15px rgba(0, 255, 65, 0.5), 0 0 30px rgba(0, 229, 255, 0.25);
-            }
-            50% {
-                box-shadow: 0 0 25px rgba(0, 255, 65, 0.7), 0 0 50px rgba(0, 229, 255, 0.4);
-            }
-        }
-        #minimizeBall.style-1 .ball-ring {
-            position: absolute;
-            border-radius: 50%;
-            border: 2px solid;
-            animation: ringRotate 4s linear infinite;
-        }
-        #minimizeBall.style-1 .ball-ring-1 {
-            top: 0; left: 0; right: 0; bottom: 0;
-            border-color: rgba(0, 255, 65, 0.4);
-            animation-duration: 6s;
-        }
-        #minimizeBall.style-1 .ball-ring-2 {
-            top: -5px; left: -5px; right: -5px; bottom: -5px;
-            border-color: rgba(0, 229, 255, 0.3);
-            animation-duration: 8s;
-            animation-direction: reverse;
-        }
-        #minimizeBall.style-1 .ball-ring-3 {
-            top: -10px; left: -10px; right: -10px; bottom: -10px;
-            border-color: rgba(210, 168, 255, 0.2);
-            animation-duration: 10s;
-        }
-        @keyframes ringRotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        #minimizeBall.style-1 .ball-particles {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 100%;
-            height: 100%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-        }
-        #minimizeBall.style-1 .ball-particles::before,
-        #minimizeBall.style-1 .ball-particles::after {
-            content: '';
-            position: absolute;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: #00ff41;
-            box-shadow: 0 0 10px rgba(0, 255, 65, 0.8);
-            animation: particleOrbit 3s linear infinite;
-        }
-        #minimizeBall.style-1 .ball-particles::after {
-            width: 4px;
-            height: 4px;
-            background: #00e5ff;
-            box-shadow: 0 0 8px rgba(0, 229, 255, 0.8);
-            animation-duration: 4s;
-            animation-delay: -1s;
-        }
-        @keyframes particleOrbit {
-            from { 
-                transform: rotate(0deg) translateX(22px) rotate(0deg);
-            }
-            to { 
-                transform: rotate(360deg) translateX(22px) rotate(-360deg);
-            }
-        }
-        
-        /* ============ 样式2：黑洞虫洞 ============ */
-        #minimizeBall.style-2 {
+        /* ============ 黑洞虫洞小球样式 ============ */
+        #minimizeBall {
             width: 55px;
             height: 55px;
         }
-        #minimizeBall.style-2 .blackhole-core {
+        #minimizeBall.style-1 .blackhole-core {
             position: absolute;
             top: 50%;
             left: 50%;
@@ -2017,25 +1930,25 @@
             from { transform: translate(-50%, -50%) rotate(0deg); }
             to { transform: translate(-50%, -50%) rotate(360deg); }
         }
-        #minimizeBall.style-2 .blackhole-ring {
+        #minimizeBall.style-1 .blackhole-ring {
             position: absolute;
             border-radius: 50%;
             border: 1px dashed;
             animation: blackholeRingRotate 3s linear infinite;
         }
-        #minimizeBall.style-2 .blackhole-ring-1 {
+        #minimizeBall.style-1 .blackhole-ring-1 {
             top: -8px; left: -8px; right: -8px; bottom: -8px;
             border-color: rgba(255, 0, 128, 0.5);
             animation-duration: 4s;
         }
-        #minimizeBall.style-2 .blackhole-ring-2 {
+        #minimizeBall.style-1 .blackhole-ring-2 {
             top: -15px; left: -15px; right: -15px; bottom: -15px;
             border-color: rgba(138, 43, 226, 0.4);
             animation-duration: 6s;
             animation-direction: reverse;
             border-style: dotted;
         }
-        #minimizeBall.style-2 .blackhole-ring-3 {
+        #minimizeBall.style-1 .blackhole-ring-3 {
             top: -22px; left: -22px; right: -22px; bottom: -22px;
             border-color: rgba(75, 0, 130, 0.3);
             animation-duration: 8s;
@@ -2045,7 +1958,7 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-        #minimizeBall.style-2 .blackhole-swirl {
+        #minimizeBall.style-1 .blackhole-swirl {
             position: absolute;
             top: 50%;
             left: 50%;
@@ -2053,8 +1966,8 @@
             height: 40px;
             transform: translate(-50%, -50%);
         }
-        #minimizeBall.style-2 .blackhole-swirl::before,
-        #minimizeBall.style-2 .blackhole-swirl::after {
+        #minimizeBall.style-1 .blackhole-swirl::before,
+        #minimizeBall.style-1 .blackhole-swirl::after {
             content: '';
             position: absolute;
             width: 100%;
@@ -2065,7 +1978,7 @@
             border-right-color: rgba(0, 255, 255, 0.4);
             animation: swirlRotate 1.5s linear infinite;
         }
-        #minimizeBall.style-2 .blackhole-swirl::after {
+        #minimizeBall.style-1 .blackhole-swirl::after {
             width: 70%;
             height: 70%;
             top: 15%;
@@ -2079,113 +1992,8 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-        #minimizeBall.style-2:hover .blackhole-core {
+        #minimizeBall.style-1:hover .blackhole-core {
             box-shadow: 0 0 25px rgba(138, 43, 226, 1), 0 0 50px rgba(255, 0, 128, 0.7), inset 0 0 15px rgba(0, 0, 0, 1);
-        }
-        
-        /* ============ 样式3：能量晶体 ============ */
-        #minimizeBall.style-3 {
-            width: 50px;
-            height: 50px;
-        }
-        #minimizeBall.style-3 .crystal-core {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 18px;
-            height: 18px;
-            background: linear-gradient(135deg, #00ffff 0%, #00ff88 50%, #ffff00 100%);
-            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.8), 0 0 30px rgba(0, 255, 136, 0.5);
-            animation: crystalPulse 1.5s ease-in-out infinite;
-        }
-        @keyframes crystalPulse {
-            0%, 100% {
-                filter: brightness(1) drop-shadow(0 0 10px rgba(0, 255, 255, 0.6));
-            }
-            50% {
-                filter: brightness(1.3) drop-shadow(0 0 20px rgba(0, 255, 136, 0.8));
-            }
-        }
-        #minimizeBall.style-3 .crystal-facets {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 35px;
-            height: 35px;
-        }
-        #minimizeBall.style-3 .crystal-facet {
-            position: absolute;
-            background: linear-gradient(45deg, transparent 40%, rgba(255, 255, 255, 0.3) 50%, transparent 60%);
-            animation: facetShine 2s ease-in-out infinite;
-        }
-        #minimizeBall.style-3 .crystal-facet-1 {
-            top: 0; left: 0; right: 0; height: 2px;
-            animation-delay: 0s;
-        }
-        #minimizeBall.style-3 .crystal-facet-2 {
-            bottom: 0; left: 0; right: 0; height: 2px;
-            animation-delay: 0.5s;
-        }
-        #minimizeBall.style-3 .crystal-facet-3 {
-            top: 0; bottom: 0; left: 0; width: 2px;
-            animation-delay: 1s;
-        }
-        #minimizeBall.style-3 .crystal-facet-4 {
-            top: 0; bottom: 0; right: 0; width: 2px;
-            animation-delay: 1.5s;
-        }
-        @keyframes facetShine {
-            0%, 100% { opacity: 0.3; }
-            50% { opacity: 1; }
-        }
-        #minimizeBall.style-3 .crystal-glow {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(0, 255, 255, 0.2) 0%, transparent 70%);
-            animation: crystalGlow 2s ease-in-out infinite;
-        }
-        @keyframes crystalGlow {
-            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
-            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.8; }
-        }
-        #minimizeBall.style-3 .crystal-particles {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 100%;
-            height: 100%;
-            transform: translate(-50%, -50%);
-        }
-        #minimizeBall.style-3 .crystal-spark {
-            position: absolute;
-            width: 3px;
-            height: 3px;
-            background: #fff;
-            border-radius: 50%;
-            animation: crystalSparkle 1.5s ease-in-out infinite;
-        }
-        #minimizeBall.style-3 .crystal-spark:nth-child(1) { top: 5px; left: 50%; animation-delay: 0s; }
-        #minimizeBall.style-3 .crystal-spark:nth-child(2) { top: 50%; right: 0; animation-delay: 0.3s; }
-        #minimizeBall.style-3 .crystal-spark:nth-child(3) { bottom: 5px; left: 50%; animation-delay: 0.6s; }
-        #minimizeBall.style-3 .crystal-spark:nth-child(4) { top: 50%; left: 0; animation-delay: 0.9s; }
-        #minimizeBall.style-3 .crystal-spark:nth-child(5) { top: 15%; left: 15%; animation-delay: 1.2s; }
-        #minimizeBall.style-3 .crystal-spark:nth-child(6) { top: 15%; right: 15%; animation-delay: 0.15s; }
-        #minimizeBall.style-3 .crystal-spark:nth-child(7) { bottom: 15%; left: 15%; animation-delay: 0.45s; }
-        #minimizeBall.style-3 .crystal-spark:nth-child(8) { bottom: 15%; right: 15%; animation-delay: 0.75s; }
-        @keyframes crystalSparkle {
-            0%, 100% { transform: scale(0.5); opacity: 0.3; }
-            50% { transform: scale(1.2); opacity: 1; }
-        }
-        #minimizeBall.style-3:hover .crystal-core {
-            box-shadow: 0 0 25px rgba(0, 255, 255, 1), 0 0 50px rgba(0, 255, 136, 0.8);
         }
         
         /* 小球悬停提示 */
@@ -5375,7 +5183,6 @@
     // 黄色按钮：最小化 Terminal
     var isMinimized = false;
     var terminalOriginalState = null;
-    var lastBallStyle = null; // 记录上一次的小球样式，避免连续重复
     
         function minimizeTerminal() {
         var terminal = document.querySelector('.terminal');
@@ -5410,22 +5217,22 @@
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             
-            // 收缩动画参数 - 聚焦到屏幕上方的中心点
-            var absorbDuration = 500;
+            // 收缩动画参数 - 黑洞三层圈效果，更流畅
+            var absorbDuration = 1200; // 增加动画时长，更流畅
             var startTime = performance.now();
-            var maxRadius = Math.max(rect.width, rect.height) * 0.6;
+            var maxRadius = Math.max(rect.width, rect.height) * 1.2; // 从更大的半径开始
             // 目标位置：屏幕正上方中心
             var targetX = window.innerWidth / 2;
-            var targetY = window.innerHeight * 0.15; // 屏幕上方15%的位置
+            var targetY = window.innerHeight * 0.12;
             
-            function easeInOutCubic(t) {
-                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            function easeInOutQuart(t) {
+                return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
             }
             
             function animateShrink(ts) {
                 var elapsed = ts - startTime;
                 var progress = Math.min(elapsed / absorbDuration, 1);
-                var ease = easeInOutCubic(progress);
+                var ease = easeInOutQuart(progress);
                 
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
@@ -5433,32 +5240,53 @@
                 var currentX = startX + (targetX - startX) * ease;
                 var currentY = startY + (targetY - startY) * ease;
                 
-                // 圆圈半径逐渐缩小
-                var radius = maxRadius * (1 - ease);
+                // 圆圈半径逐渐缩小（从大到小）
+                var radius = maxRadius * (1 - Math.pow(ease, 0.8));
                 
                 // 圆圈透明度：渐入渐出
                 var alpha = 1;
-                if (progress < 0.2) {
-                    alpha = progress / 0.2;
-                } else if (progress > 0.8) {
-                    alpha = (1 - progress) / 0.2;
+                if (progress < 0.15) {
+                    alpha = progress / 0.15;
+                } else if (progress > 0.85) {
+                    alpha = (1 - progress) / 0.15;
                 }
                 
-                // 透明圆环从无限大向内收缩，包围并吞噬 Terminal
-                if (alpha > 0.01) {
-                    // 圆环只有边框，没有填充（中间透明）
+                // 黑洞三层圈效果（类似小球样式）
+                if (alpha > 0.01 && radius > 5) {
+                    // 外圈 - 粉紫色虚线
                     ctx.beginPath();
-                    ctx.arc(currentX, currentY, radius, 0, Math.PI * 2);
-                    ctx.strokeStyle = 'rgba(255, 255, 255, ' + (alpha * 0.4) + ')';
-                    ctx.lineWidth = 2 + (1 - progress) * 3; // 收缩时线条变粗
+                    ctx.arc(currentX, currentY, radius * 1.15, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(255, 0, 128, ' + (alpha * 0.5) + ')';
+                    ctx.lineWidth = 1.5;
+                    ctx.setLineDash([5, 3]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    
+                    // 中圈 - 紫色
+                    ctx.beginPath();
+                    ctx.arc(currentX, currentY, radius * 1.07, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(138, 43, 226, ' + (alpha * 0.6) + ')';
+                    ctx.lineWidth = 2;
                     ctx.stroke();
                     
-                    // 内层更淡的光晕
+                    // 内圈 - 深紫色实线
                     ctx.beginPath();
-                    ctx.arc(currentX, currentY, radius * 0.95, 0, Math.PI * 2);
-                    ctx.strokeStyle = 'rgba(255, 255, 255, ' + (alpha * 0.15) + ')';
-                    ctx.lineWidth = 1;
+                    ctx.arc(currentX, currentY, radius, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(75, 0, 130, ' + (alpha * 0.7) + ')';
+                    ctx.lineWidth = 2.5;
                     ctx.stroke();
+                    
+                    // 中心黑洞核心
+                    if (radius > 15) {
+                        var coreGrad = ctx.createRadialGradient(currentX, currentY, 0, currentX, currentY, radius * 0.5);
+                        coreGrad.addColorStop(0, 'rgba(0, 0, 0, ' + (alpha * 0.8) + ')');
+                        coreGrad.addColorStop(0.7, 'rgba(0, 0, 0, ' + (alpha * 0.3) + ')');
+                        coreGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                        ctx.beginPath();
+                        ctx.arc(currentX, currentY, radius * 0.5, 0, Math.PI * 2);
+                        ctx.fillStyle = coreGrad;
+                        ctx.fill();
+                    }
                 }
                 
                 // Terminal 跟随收缩并向上移动，逐渐透明消失
@@ -5510,63 +5338,20 @@
         
         var ball = document.createElement('div');
         ball.id = 'minimizeBall';
+        ball.className = 'style-1';
         // 立即设置位置，避免在左上角闪烁
         ball.style.position = 'fixed';
-        ball.style.left = (window.innerWidth / 2 - 30) + 'px';
+        ball.style.left = (window.innerWidth / 2 - 27.5) + 'px';
         ball.style.top = '-60px';
-        // 随机选择小球样式（排除上一次使用的样式）
-        var availableStyles = [];
-        for (var i = 1; i <= 3; i++) {
-            var styleName = 'style-' + i;
-            if (styleName !== lastBallStyle) {
-                availableStyles.push(i);
-            }
-        }
-        // 如果只有一种可选，直接用它；否则随机选择
-        var chosenIndex = availableStyles[Math.floor(Math.random() * availableStyles.length)];
-        var ballStyle = 'style-' + chosenIndex;
-        lastBallStyle = ballStyle; // 更新上一次使用的样式
-        ball.className = ballStyle;
         
-        // 根据样式生成不同的 HTML 结构
-        if (ballStyle === 'style-1') {
-            ball.innerHTML = `
-                <div class="ball-core"></div>
-                <div class="ball-ring ball-ring-1"></div>
-                <div class="ball-ring ball-ring-2"></div>
-                <div class="ball-ring ball-ring-3"></div>
-                <div class="ball-particles"></div>
-            `;
-        } else if (ballStyle === 'style-2') {
-            ball.innerHTML = `
-                <div class="blackhole-swirl"></div>
-                <div class="blackhole-ring blackhole-ring-1"></div>
-                <div class="blackhole-ring blackhole-ring-2"></div>
-                <div class="blackhole-ring blackhole-ring-3"></div>
-                <div class="blackhole-core"></div>
-            `;
-        } else if (ballStyle === 'style-3') {
-            ball.innerHTML = `
-                <div class="crystal-glow"></div>
-                <div class="crystal-facets">
-                    <div class="crystal-facet crystal-facet-1"></div>
-                    <div class="crystal-facet crystal-facet-2"></div>
-                    <div class="crystal-facet crystal-facet-3"></div>
-                    <div class="crystal-facet crystal-facet-4"></div>
-                </div>
-                <div class="crystal-particles">
-                    <div class="crystal-spark"></div>
-                    <div class="crystal-spark"></div>
-                    <div class="crystal-spark"></div>
-                    <div class="crystal-spark"></div>
-                    <div class="crystal-spark"></div>
-                    <div class="crystal-spark"></div>
-                    <div class="crystal-spark"></div>
-                    <div class="crystal-spark"></div>
-                </div>
-                <div class="crystal-core"></div>
-            `;
-        }
+        // 黑洞样式 HTML 结构
+        ball.innerHTML = `
+            <div class="blackhole-swirl"></div>
+            <div class="blackhole-ring blackhole-ring-1"></div>
+            <div class="blackhole-ring blackhole-ring-2"></div>
+            <div class="blackhole-ring blackhole-ring-3"></div>
+            <div class="blackhole-core"></div>
+        `;
         // 点击恢复 terminal
         ball.addEventListener('click', restoreTerminal);
         
