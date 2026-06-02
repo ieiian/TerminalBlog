@@ -3717,6 +3717,20 @@
         );
     }
     
+    // 获取当前页面应该显示的 URL
+    function getExpectedUrl() {
+        if (currentView === 'post' && currentSlug) {
+            return '/' + currentSlug + '/';
+        } else if (currentView === 'tag' && currentTag) {
+            return '/?view=tag&tag=' + encodeURIComponent(currentTag);
+        } else if (currentView === 'tags') {
+            return '/?view=tags';
+        } else if (currentView === 'admin') {
+            return '/?view=admin';
+        }
+        return '/';
+    }
+    
     // ============ 关闭所有弹窗函数 ============
     function closeAllModals() {
         // 关闭 AI 弹窗
@@ -3769,9 +3783,12 @@
     
     // ============ 浏览器后退/前进按钮支持 ============
     window.addEventListener('popstate', function(e) {
-        // 如果有弹窗打开，优先关闭弹窗，不执行页面返回
+        // 如果有弹窗打开，优先关闭弹窗并恢复 URL，不执行页面返回
         if (hasActiveModal()) {
             closeAllModals();
+            // 恢复 URL 到当前页面应有的状态
+            var expectedUrl = getExpectedUrl();
+            history.replaceState(null, '', expectedUrl);
             return;
         }
         
@@ -5362,11 +5379,8 @@
     
         function minimizeTerminal() {
         var terminal = document.querySelector('.terminal');
-        var termBody = document.getElementById('termBody');
-        var statusBar = document.querySelector('.status-bar');
         var termFooter = document.querySelector('.term-footer');
         
-        // 立即隐藏 footer，避免闪烁
         if (termFooter) termFooter.style.visibility = 'hidden';
         
         if (!isMinimized) {
@@ -5374,49 +5388,117 @@
             terminalOriginalState = {
                 opacity: terminal.style.opacity || '1',
                 transform: terminal.style.transform || 'none',
-                margin: terminal.style.margin || ''
+                margin: terminal.style.margin || '',
+                position: terminal.style.position || '',
+                left: terminal.style.left || '',
+                top: terminal.style.top || '',
+                width: terminal.style.width || ''
             };
             
-            // 获取 terminal 位置
+            // 获取 terminal 位置和尺寸
             var rect = terminal.getBoundingClientRect();
             var startX = rect.left + rect.width / 2;
             var startY = rect.top + rect.height / 2;
-            var endY = -rect.height; // 向上收起至屏幕外
             
-            // 创建吸收动画（向上收纳）
-            var absorbDuration = 600;
+            // 创建收缩圆圈 canvas
+            var canvas = document.createElement('canvas');
+            canvas.id = 'minimizeSwallowCanvas';
+            canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;';
+            document.body.appendChild(canvas);
+            
+            var ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // 收缩动画参数 - 聚焦到屏幕上方的中心点
+            var absorbDuration = 500;
             var startTime = performance.now();
+            var maxRadius = Math.max(rect.width, rect.height) * 0.6;
+            // 目标位置：屏幕正上方中心
+            var targetX = window.innerWidth / 2;
+            var targetY = window.innerHeight * 0.15; // 屏幕上方15%的位置
             
-            function animateAbsorb(ts) {
+            function easeInOutCubic(t) {
+                return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            }
+            
+            function animateShrink(ts) {
                 var elapsed = ts - startTime;
                 var progress = Math.min(elapsed / absorbDuration, 1);
-                var easeProgress = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+                var ease = easeInOutCubic(progress);
                 
-                // terminal 收缩并向上移动
-                var scale = 1 - easeProgress * 0.95;
-                var opacity = 1 - easeProgress;
-                var currentY = startY + (endY - startY) * easeProgress;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                terminal.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
-                terminal.style.opacity = opacity;
-                terminal.style.left = '50%';
-                terminal.style.top = currentY + 'px';
-                terminal.style.margin = '0';
+                // 计算当前位置（从原位置向目标位置移动）
+                var currentX = startX + (targetX - startX) * ease;
+                var currentY = startY + (targetY - startY) * ease;
+                
+                // 圆圈半径逐渐缩小
+                var radius = maxRadius * (1 - ease);
+                
+                // 圆圈透明度：渐入渐出
+                var alpha = 1;
+                if (progress < 0.2) {
+                    alpha = progress / 0.2;
+                } else if (progress > 0.8) {
+                    alpha = (1 - progress) / 0.2;
+                }
+                
+                // 透明圆环从无限大向内收缩，包围并吞噬 Terminal
+                if (alpha > 0.01) {
+                    // 圆环只有边框，没有填充（中间透明）
+                    ctx.beginPath();
+                    ctx.arc(currentX, currentY, radius, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, ' + (alpha * 0.4) + ')';
+                    ctx.lineWidth = 2 + (1 - progress) * 3; // 收缩时线条变粗
+                    ctx.stroke();
+                    
+                    // 内层更淡的光晕
+                    ctx.beginPath();
+                    ctx.arc(currentX, currentY, radius * 0.95, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, ' + (alpha * 0.15) + ')';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+                
+                // Terminal 跟随收缩并向上移动，逐渐透明消失
+                var terminalScale = 1 - ease * 0.95;
+                var terminalOpacity = 1 - ease; // 逐渐消失
+                var terminalX = startX + (targetX - startX) * ease;
+                var terminalY = startY + (targetY - startY) * ease;
+                
                 terminal.style.position = 'fixed';
+                terminal.style.left = terminalX + 'px';
+                terminal.style.top = terminalY + 'px';
+                terminal.style.transform = 'translate(-50%, -50%) scale(' + terminalScale + ')';
+                terminal.style.opacity = terminalOpacity;
                 terminal.style.width = rect.width + 'px';
+                terminal.style.transformOrigin = 'center center';
+                termFooter.style.opacity = terminalOpacity;
                 
                 if (progress < 1) {
-                    requestAnimationFrame(animateAbsorb);
+                    requestAnimationFrame(animateShrink);
                 } else {
-                    // 动画完成，隐藏 terminal
+                    // 动画完成
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    canvas.remove();
+                    
                     terminal.style.display = 'none';
+                    terminal.style.transform = '';
+                    terminal.style.opacity = '';
+                    terminal.style.position = '';
+                    terminal.style.left = '';
+                    terminal.style.top = '';
+                    terminal.style.width = '';
                     termFooter.style.display = 'none';
+                    termFooter.style.opacity = '';
+                    
                     isMinimized = true;
-                    createMinimizeBall(startY); // 小球从 terminal 中心位置掉落
+                    createMinimizeBall(targetY); // 小球从最终位置掉落
                 }
             }
             
-            requestAnimationFrame(animateAbsorb);
+            requestAnimationFrame(animateShrink);
         }
     }
     
