@@ -5487,16 +5487,25 @@
             var W = window.innerWidth;
             var H = window.innerHeight;
 
-            // 以 AI 按钮中心为光晕原点
-            var btnRect = aiBtn.getBoundingClientRect();
-            var cx = btnRect.left + btnRect.width  / 2;
-            var cy = btnRect.top  + btnRect.height / 2;
-
-            // 最大扩散半径
-            var maxDist = Math.sqrt(
-                Math.pow(Math.max(cx, W - cx), 2) +
-                Math.pow(Math.max(cy, H - cy), 2)
-            ) * 1.15;
+            // 以 AI 按钮中心为光晕原点（动态更新以跟随滚动）
+            function updateButtonPosition() {
+                var btnRect = aiBtn.getBoundingClientRect();
+                var newCx = btnRect.left + btnRect.width  / 2;
+                var newCy = btnRect.top  + btnRect.height / 2;
+                
+                // 动态更新最大扩散半径
+                maxDist = Math.sqrt(
+                    Math.pow(Math.max(newCx, W - newCx), 2) +
+                    Math.pow(Math.max(newCy, H - newCy), 2)
+                ) * 1.15;
+                
+                return { cx: newCx, cy: newCy };
+            }
+            
+            var maxDist = 0;
+            var btnPos = updateButtonPosition();
+            var cx = btnPos.cx;
+            var cy = btnPos.cy;
 
             // 参数配置
             var TOTAL_DURATION = 4800;  // 总动画时长 ms
@@ -5581,6 +5590,11 @@
                     canvas.style.display = 'none';
                     return;
                 }
+
+                // 动态更新 AI 按钮位置（跟随滚动）
+                var btnPos = updateButtonPosition();
+                cx = btnPos.cx;
+                cy = btnPos.cy;
 
                 ctx.clearRect(0, 0, W, H);
 
