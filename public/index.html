@@ -862,7 +862,8 @@
             font-size: 0.75em;
             margin-bottom: 4px;
         }
-        .git-form-group input[type="text"] {
+        .git-form-group input[type="text"],
+        .git-form-group input[type="password"] {
             width: 100%;
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -874,7 +875,8 @@
             box-sizing: border-box;
             transition: all 0.2s;
         }
-        .git-form-group input[type="text"]:focus {
+        .git-form-group input[type="text"]:focus,
+        .git-form-group input[type="password"]:focus {
             outline: none;
             border-color: var(--green);
             box-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
@@ -4636,6 +4638,10 @@
 
     // ============ 远程 Git 仓库同步管理器 ============
     let isSyncing = false; // 是否正在执行 Git 动作
+    let gitHasSavedPatToken = false;
+    let gitLoadedRepositoryUrl = '';
+    let gitLastSshRepositoryUrl = '';
+    let gitLastHttpsRepositoryUrl = '';
     
     async function openGitSyncModal() {
         var modal = document.createElement('div');
@@ -4657,8 +4663,19 @@
                                 '<input type="text" id="gitUser" placeholder="例如: your-github-username (请勿输入注册邮箱)" />' +
                             '</div>' +
                             '<div class="git-form-group">' +
-                                '<label>仓库远程 URL (支持 SSH / HTTPS)</label>' +
-                                '<input type="text" id="gitRepoUrl" placeholder="git@github.com:user/repo.git 或 https://..." oninput="detectRepoType(this.value)" />' +
+                                '<label>仓库远程 URL (公共 HTTPS / SSH / 私有 HTTPS+PAT)</label>' +
+                                '<input type="text" id="gitRepoUrl" placeholder="https://github.com/user/repo.git 或 git@github.com:user/repo.git" oninput="detectRepoType(this.value)" />' +
+                                '<div class="git-btn-row" id="gitRepoUrlSwitchRow" style="display:none; margin-top: 8px;">' +
+                                    '<button class="git-btn full" id="gitUseLastHttpsBtn" onclick="useSavedRepoUrl(\'https\')" style="display:none;">使用上次 HTTPS</button>' +
+                                    '<button class="git-btn full" id="gitUseLastSshBtn" onclick="useSavedRepoUrl(\'ssh\')" style="display:none;">使用上次 SSH</button>' +
+                                '</div>' +
+                            '</div>' +
+                            '<div class="git-form-group" id="gitPatGroup">' +
+                                '<label>Personal Access Token (仅私有 HTTPS 仓库需要)</label>' +
+                                '<input type="password" id="gitPatToken" autocomplete="off" placeholder="公共仓库留空；已保存的 Token 不会回显" />' +
+                                '<div style="color: var(--gray-dim); font-size: 0.7em; margin-top: 6px; line-height: 1.4;">' +
+                                    'GitHub HTTPS 已不支持账号密码登录。公共仓库无需凭据；私有 HTTPS 仓库请填写具备仓库读写权限的 PAT；SSH 仓库请使用下方部署公钥。若 GitHub 仓库需要走代理，请使用 HTTPS 地址，SSH 不走此 HTTP 代理。' +
+                                '</div>' +
                             '</div>' +
                             '<div class="git-form-group">' +
                                 '<label>同步分支名称 (Branch)</label>' +
@@ -4673,11 +4690,15 @@
                             '<div id="gitSshArea" style="display:none; margin-top: 10px; border-top: 1px dashed rgba(0, 255, 255, 0.1); padding-top: 10px;">' +
                                 '<label style="color: var(--cyan); font-size: 0.75em;">🛡️ 本博客专属 SSH 部署公钥 (已隔离防护):</label>' +
                                 '<div class="git-ssh-key-box" id="gitSshKey">正在生成专属密钥对...</div>' +
-                                '<button class="git-btn full" onclick="copySshPublicKey()" style="margin-top: 8px;">📋 复制专属公钥</button>' +
+                                '<div class="git-btn-row" style="margin-top: 8px;">' +
+                                    '<button class="git-btn primary full" onclick="copySshPublicKey()">📋 复制专属公钥</button>' +
+                                    '<button class="git-btn warning full" onclick="confirmRefreshSshKey()">刷新 SSH Key</button>' +
+                                '</div>' +
                                 '<div style="color: var(--gray-dim); font-size: 0.7em; margin-top: 6px; line-height: 1.4;">' +
                                     '提示：对于私有仓库，请将此专属公钥添加至：<br/>' +
                                     '1. <strong>仓库级（安全推荐）</strong>：该仓库的 <strong>Settings ➔ Deploy Keys</strong> 中（须勾选 <strong>Allow write access</strong> 启用写入权限）。<br/>' +
-                                    '2. <strong>账户级（全仓库通用）</strong>：您个人 GitHub 的 <strong>Settings ➔ SSH keys</strong> 中。' +
+                                    '2. <strong>账户级（全仓库通用）</strong>：您个人 GitHub 的 <strong>Settings ➔ SSH keys</strong> 中。<br/>' +
+                                    '刷新 SSH Key 会生成新的公钥；旧公钥将无法继续用于本系统，需要重新添加到 GitHub。' +
                                 '</div>' +
                             '</div>' +
                             '<div style="margin-top: 16px; display: flex; gap: 8px;">' +
@@ -4773,11 +4794,14 @@
     function detectRepoType(url) {
         var sshTrigger = document.getElementById('gitSshTrigger');
         var sshArea = document.getElementById('gitSshArea');
+        var patGroup = document.getElementById('gitPatGroup');
         if (!sshTrigger) return;
         if (url && (url.includes('git@') || url.includes('ssh://'))) {
             sshTrigger.style.display = 'flex';
+            if (patGroup) patGroup.style.display = 'none';
         } else {
             sshTrigger.style.display = 'none';
+            if (patGroup) patGroup.style.display = 'block';
             if (sshArea) {
                 sshArea.style.display = 'none';
                 sshTrigger.classList.remove('active');
@@ -4785,6 +4809,31 @@
                 if (iconSpan) iconSpan.innerText = '▶';
             }
         }
+        updateRepoUrlSwitchButtons();
+    }
+
+    function updateRepoUrlSwitchButtons() {
+        var row = document.getElementById('gitRepoUrlSwitchRow');
+        var httpsBtn = document.getElementById('gitUseLastHttpsBtn');
+        var sshBtn = document.getElementById('gitUseLastSshBtn');
+        var currentUrl = document.getElementById('gitRepoUrl') ? document.getElementById('gitRepoUrl').value.trim() : '';
+        if (!row || !httpsBtn || !sshBtn) return;
+
+        var showHttps = gitLastHttpsRepositoryUrl && gitLastHttpsRepositoryUrl !== currentUrl;
+        var showSsh = gitLastSshRepositoryUrl && gitLastSshRepositoryUrl !== currentUrl;
+        httpsBtn.style.display = showHttps ? 'block' : 'none';
+        sshBtn.style.display = showSsh ? 'block' : 'none';
+        row.style.display = (showHttps || showSsh) ? 'grid' : 'none';
+    }
+
+    function useSavedRepoUrl(type) {
+        var repoInput = document.getElementById('gitRepoUrl');
+        if (!repoInput) return;
+        var nextUrl = type === 'ssh' ? gitLastSshRepositoryUrl : gitLastHttpsRepositoryUrl;
+        if (!nextUrl) return;
+        repoInput.value = nextUrl;
+        detectRepoType(nextUrl);
+        updateRepoUrlSwitchButtons();
     }
     
     function toggleSshCollapse() {
@@ -4810,8 +4859,17 @@
             if (config) {
                 document.getElementById('gitUser').value = config.githubUser || '';
                 document.getElementById('gitRepoUrl').value = config.repositoryUrl || '';
+                gitLoadedRepositoryUrl = config.repositoryUrl || '';
+                gitLastSshRepositoryUrl = config.lastSshRepositoryUrl || '';
+                gitLastHttpsRepositoryUrl = config.lastHttpsRepositoryUrl || '';
                 document.getElementById('gitBranch').value = config.branch || 'markdown';
+                var patInput = document.getElementById('gitPatToken');
+                gitHasSavedPatToken = !!config.hasPatToken;
+                if (patInput && config.hasPatToken) {
+                    patInput.placeholder = '已保存 Token；留空保存时继续沿用';
+                }
                 detectRepoType(config.repositoryUrl);
+                updateRepoUrlSwitchButtons();
                 
                 if (config.sshPublicKey) {
                     document.getElementById('gitSshKey').innerText = config.sshPublicKey;
@@ -4826,6 +4884,10 @@
         var user = document.getElementById('gitUser').value.trim();
         var repoUrl = document.getElementById('gitRepoUrl').value.trim();
         var branchName = document.getElementById('gitBranch').value.trim();
+        var patToken = document.getElementById('gitPatToken').value.trim();
+        var usesSsh = repoUrl.includes('git@') || repoUrl.includes('ssh://');
+        var usesSavedPat = gitHasSavedPatToken && repoUrl === gitLoadedRepositoryUrl;
+        var usesPat = !usesSsh && (patToken || usesSavedPat);
         
         if (!repoUrl) {
             showToast('远程仓库 URL 不能为空', 'error');
@@ -4837,7 +4899,9 @@
             var result = await apiPost('/git/config', {
                 githubUser: user,
                 repositoryUrl: repoUrl,
-                isPrivate: repoUrl.includes('git@'),
+                isPrivate: usesSsh || !!usesPat,
+                authType: usesSsh ? 'ssh' : (usesPat ? 'https_pat' : 'https_public'),
+                patToken: patToken,
                 branch: branchName || 'markdown'
             });
             showToast('✅ 配置保存成功', 'success');
@@ -4850,6 +4914,21 @@
                 if (result.config.branch) {
                     document.getElementById('gitBranch').value = result.config.branch;
                 }
+                if (result.config.hasPatToken) {
+                    gitHasSavedPatToken = true;
+                    gitLoadedRepositoryUrl = result.config.repositoryUrl || repoUrl;
+                    gitLastSshRepositoryUrl = result.config.lastSshRepositoryUrl || gitLastSshRepositoryUrl;
+                    gitLastHttpsRepositoryUrl = result.config.lastHttpsRepositoryUrl || gitLastHttpsRepositoryUrl;
+                    document.getElementById('gitPatToken').value = '';
+                    document.getElementById('gitPatToken').placeholder = '已保存 Token；留空保存时继续沿用';
+                } else {
+                    gitHasSavedPatToken = false;
+                    gitLoadedRepositoryUrl = result.config.repositoryUrl || repoUrl;
+                    gitLastSshRepositoryUrl = result.config.lastSshRepositoryUrl || gitLastSshRepositoryUrl;
+                    gitLastHttpsRepositoryUrl = result.config.lastHttpsRepositoryUrl || gitLastHttpsRepositoryUrl;
+                    document.getElementById('gitPatToken').placeholder = '公共仓库留空；已保存的 Token 不会回显';
+                }
+                updateRepoUrlSwitchButtons();
             }
         } catch (err) {
             showToast('保存配置失败: ' + err.message, 'error');
@@ -4868,9 +4947,33 @@
             showToast('[ERROR] 复制失败', 'error');
         });
     }
+
+    function confirmRefreshSshKey() {
+        showToast('确认刷新 SSH Key？旧公钥将失效，需要重新添加到 GitHub。', 'warning', [
+            { label: '确认刷新', confirm: true, action: function() { refreshSshPublicKey(); } },
+            { label: '取消', action: function() {} }
+        ]);
+    }
+
+    async function refreshSshPublicKey() {
+        try {
+            showToast('正在刷新 SSH Key...', 'info');
+            var result = await apiPost('/git/ssh-key/refresh', {});
+            if (result.sshPublicKey) {
+                document.getElementById('gitSshKey').innerText = result.sshPublicKey;
+            }
+            showToast('✅ SSH Key 已刷新，请重新添加公钥到 GitHub', 'success');
+        } catch (err) {
+            showToast('刷新 SSH Key 失败: ' + err.message, 'error');
+        }
+    }
     
     async function testGitConnection() {
         var repoUrl = document.getElementById('gitRepoUrl').value.trim();
+        var patToken = document.getElementById('gitPatToken').value.trim();
+        var usesSsh = repoUrl.includes('git@') || repoUrl.includes('ssh://');
+        var usesSavedPat = gitHasSavedPatToken && repoUrl === gitLoadedRepositoryUrl;
+        var authType = usesSsh ? 'ssh' : ((patToken || usesSavedPat) ? 'https_pat' : 'https_public');
         if (!repoUrl) {
             showToast('远程仓库 URL 不能为空', 'error');
             return;
@@ -4882,7 +4985,7 @@
         writeTerminalLog('info', '正在发起非破坏性连接测试，测试 SSH 部署密钥和网络通畅度，这可能需要数秒时间...');
         
         try {
-            var res = await apiPost('/git/test', { repositoryUrl: repoUrl });
+            var res = await apiPost('/git/test', { repositoryUrl: repoUrl, patToken: patToken, authType: authType });
             if (res && res.success) {
                 writeTerminalLog('stdout', '✅ [SUCCESS] 远程仓库连接完美通过！读写校验全绿！');
                 showToast('✅ 连接测试成功！', 'success');

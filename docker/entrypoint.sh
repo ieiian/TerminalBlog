@@ -61,6 +61,16 @@ window.SITE_CONFIG = {
     matrixRainEnableBuddhaEffect: '${MATRIX_RAIN_ENABLE_BUDDHA_EFFECT:-false}',
 };
 
+// GitHub 仓库代理配置（仅影响远程仓库 HTTPS 连接；SSH 不走 HTTP 代理）
+// 如果 GitHub 仓库需要通过代理访问，请在管理员页使用 HTTPS 仓库地址。
+const GITHUB_PROXY_CONFIG = {
+    enabled: ${GITHUB_PROXY_ENABLED:-false},
+    baseUrl: '${GITHUB_PROXY_BASE_URL}',
+    mode: '${GITHUB_PROXY_MODE:-query}',
+    // 仅 mode: 'query' 时有效
+    queryParam: '${GITHUB_PROXY_QUERY_PARAM:-url}'
+};
+
 // 管理后台配置
 const ADMIN_USER = '${ADMIN_USER:-admin}';
 const ADMIN_PASS = '${ADMIN_PASS:-admin123}';
@@ -117,6 +127,15 @@ const AI_CONFIG = {
         showWelcome: true,
         welcomeMessage: '你好，我是小美～有什么想聊的，直接告诉我就好。'
     }
+};
+
+// AI baseURL 代理配置（仅影响服务端调用 AI API，不影响 GitHub 仓库代理）
+const AI_PROXY_CONFIG = {
+    enabled: ${AI_PROXY_ENABLED:-false},
+    baseUrl: '${AI_PROXY_BASE_URL}',
+    mode: '${AI_PROXY_MODE:-query}',
+    // 仅 mode: 'query' 时有效
+    queryParam: '${AI_PROXY_QUERY_PARAM:-url}'
 };
 
 // 挂载到 window 以便前端访问

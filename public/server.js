@@ -69,6 +69,12 @@ const AI_FORMAT_DEFAULTS = {
     gemini: 'https://generativelanguage.googleapis.com/v1beta'
 };
 const ANTHROPIC_API_VERSION = '2023-06-01';
+const DEFAULT_PROXY_CONFIG = {
+    enabled: false,
+    baseUrl: '',
+    mode: 'query',
+    queryParam: 'url'
+};
 
 function normalizeAIFormat(value) {
     const f = (value || 'openai').toLowerCase().trim();
@@ -108,9 +114,8 @@ function stripLineComment(line) {
     return line;
 }
 
-/** 提取 AI_CONFIG 对象体，并去掉 // 行注释，避免误读注释中的示例配置 */
-function extractAIConfigSource(content) {
-    const marker = 'const AI_CONFIG';
+function extractConfigObjectSource(content, constName) {
+    const marker = `const ${constName}`;
     const start = content.indexOf(marker);
     if (start === -1) return '';
     const braceStart = content.indexOf('{', start);
@@ -134,6 +139,11 @@ function extractAIConfigSource(content) {
     return '';
 }
 
+/** 提取 AI_CONFIG 对象体，并去掉 // 行注释，避免误读注释中的示例配置 */
+function extractAIConfigSource(content) {
+    return extractConfigObjectSource(content, 'AI_CONFIG');
+}
+
 function matchAIConfigValue(source, pattern) {
     const re = new RegExp(pattern, 'g');
     let match = null;
@@ -148,6 +158,102 @@ function matchAIConfigValue(source, pattern) {
 function matchAIConfigTopLevel(source, key, pattern) {
     const re = new RegExp(String.raw`^\s*${key}\s*:\s*${pattern}`, 'm');
     return source.match(re);
+}
+
+function matchConfigTopLevel(source, key, pattern) {
+    const re = new RegExp(String.raw`^\s*${key}\s*:\s*${pattern}`, 'm');
+    return source.match(re);
+}
+
+function normalizeProxyMode(value) {
+    return String(value || 'query').toLowerCase().trim() === 'path' ? 'path' : 'query';
+}
+
+function loadNamedProxyConfig(constName) {
+    const defaults = { ...DEFAULT_PROXY_CONFIG };
+    try {
+        if (!fs.existsSync(CONFIG_JS_PATH)) {
+            return defaults;
+        }
+        const content = fs.readFileSync(CONFIG_JS_PATH, 'utf8');
+        const source = extractConfigObjectSource(content, constName);
+        if (!source) {
+            return defaults;
+        }
+
+        const enabledMatch = matchConfigTopLevel(source, 'enabled', String.raw`(true|false)`);
+        const baseUrlMatch = matchConfigTopLevel(source, 'baseUrl', String.raw`'([^']*)'`);
+        const modeMatch = matchConfigTopLevel(source, 'mode', String.raw`'([^']*)'`);
+        const queryParamMatch = matchConfigTopLevel(source, 'queryParam', String.raw`'([^']*)'`);
+
+        return {
+            enabled: enabledMatch ? enabledMatch[1] === 'true' : defaults.enabled,
+            baseUrl: baseUrlMatch ? baseUrlMatch[1].trim() : defaults.baseUrl,
+            mode: normalizeProxyMode(modeMatch ? modeMatch[1] : defaults.mode),
+            queryParam: queryParamMatch ? queryParamMatch[1].trim() || defaults.queryParam : defaults.queryParam
+        };
+    } catch (e) {
+        console.error(`读取 ${constName} 失败，使用默认值:`, e);
+        return defaults;
+    }
+}
+
+function buildProxiedUrl(targetUrl, proxyConfig) {
+    if (!proxyConfig || !proxyConfig.enabled || !proxyConfig.baseUrl) {
+        return targetUrl;
+    }
+
+    const base = proxyConfig.baseUrl.replace(/\/+$/, '');
+    if (proxyConfig.mode === 'path') {
+        return `${base}/${targetUrl}`;
+    }
+
+    const separator = base.includes('?') ? '&' : '?';
+    const queryParam = proxyConfig.queryParam || 'url';
+    return `${base}${separator}${encodeURIComponent(queryParam)}=${encodeURIComponent(targetUrl)}`;
+}
+
+function maskSensitiveGitUrl(url) {
+    return String(url || '').replace(/\/\/([^/@\s:]+):([^/@\s]+)@/g, '//***:***@');
+}
+
+function normalizeRepositoryUrl(url) {
+    return String(url || '').trim();
+}
+
+function isSshRepositoryUrl(url) {
+    return String(url || '').startsWith('git@') || String(url || '').startsWith('ssh://');
+}
+
+function isHttpsRepositoryUrl(url) {
+    return String(url || '').startsWith('https://');
+}
+
+function addPatToHttpsUrl(repositoryUrl, patToken) {
+    if (!patToken || !isHttpsRepositoryUrl(repositoryUrl)) {
+        return repositoryUrl;
+    }
+    const parsed = new URL(repositoryUrl);
+    parsed.username = 'x-access-token';
+    parsed.password = patToken;
+    return parsed.toString();
+}
+
+function getEffectiveGitRemoteUrl(config) {
+    const repositoryUrl = normalizeRepositoryUrl(config.repositoryUrl);
+    if (!repositoryUrl) return '';
+
+    if (isSshRepositoryUrl(repositoryUrl) || !isHttpsRepositoryUrl(repositoryUrl)) {
+        return repositoryUrl;
+    }
+
+    const proxyConfig = loadNamedProxyConfig('GITHUB_PROXY_CONFIG');
+    const proxiedUrl = buildProxiedUrl(repositoryUrl, proxyConfig);
+    return addPatToHttpsUrl(proxiedUrl, config.patToken || '');
+}
+
+function getGitAuthErrorMessage() {
+    return '❌ [HTTPS AUTH ERROR] GitHub 已不支持 HTTPS 账号密码认证。\n\n当前支持方式：\n1. 公共仓库：可直接使用 HTTPS 或 SSH 地址，不需要密码。\n2. 私有仓库 HTTPS：请在仓库配置中填写 Personal Access Token (PAT)，系统会在运行时注入凭据且不会回显。\n3. 私有仓库 SSH：继续使用本页面生成的专属 SSH 公钥，将其添加到 GitHub Deploy Keys 并勾选写入权限。';
 }
 
 function loadAIConfig() {
@@ -282,9 +388,13 @@ function resolveAIEndpoint(aiConfig) {
     return `${base}/chat/completions`;
 }
 
+function resolveAIRequestUrl(aiConfig) {
+    return buildProxiedUrl(resolveAIEndpoint(aiConfig), loadNamedProxyConfig('AI_PROXY_CONFIG'));
+}
+
 function buildAIRequest(aiConfig, systemPrompt, userPayload, historyMessages) {
     const format = normalizeAIFormat(aiConfig.apiFormat);
-    const url = resolveAIEndpoint(aiConfig);
+    const url = resolveAIRequestUrl(aiConfig);
     const turns = buildConversationTurns(userPayload, historyMessages);
 
     if (format === 'anthropic') {
@@ -572,7 +682,11 @@ function loadGitConfig() {
             return {
                 githubUser: parsed.githubUser || '',
                 repositoryUrl: parsed.repositoryUrl || '',
+                lastSshRepositoryUrl: parsed.lastSshRepositoryUrl || '',
+                lastHttpsRepositoryUrl: parsed.lastHttpsRepositoryUrl || '',
                 isPrivate: parsed.isPrivate || false,
+                authType: parsed.authType || '',
+                patToken: parsed.patToken || '',
                 sshPublicKey: parsed.sshPublicKey || '',
                 sshPrivateKeyPath: parsed.sshPrivateKeyPath || '',
                 branch: parsed.branch || 'markdown'
@@ -584,7 +698,11 @@ function loadGitConfig() {
     return {
         githubUser: '',
         repositoryUrl: '',
+        lastSshRepositoryUrl: '',
+        lastHttpsRepositoryUrl: '',
         isPrivate: false,
+        authType: '',
+        patToken: '',
         sshPublicKey: '',
         sshPrivateKeyPath: '',
         branch: 'markdown'
@@ -603,7 +721,7 @@ function saveGitConfig(config) {
 }
 
 // 自动生成 SSH 密钥对，防御全局冲突且在本地安全存储
-function ensureSshKeyPair(config) {
+function ensureSshKeyPair(config, options = {}) {
     // 检查专属密钥对存储目录
     if (!fs.existsSync(SSH_KEY_DIR)) {
         fs.mkdirSync(SSH_KEY_DIR, { recursive: true, mode: 0o700 });
@@ -611,6 +729,11 @@ function ensureSshKeyPair(config) {
 
     const privateKeyPath = path.join(SSH_KEY_DIR, 'id_git_blog');
     const publicKeyPath = privateKeyPath + '.pub';
+
+    if (options.rotate) {
+        if (fs.existsSync(privateKeyPath)) fs.unlinkSync(privateKeyPath);
+        if (fs.existsSync(publicKeyPath)) fs.unlinkSync(publicKeyPath);
+    }
 
     // 如果密钥对不存在，则调用系统 ssh-keygen 自动生成专属 RSA 密钥
     if (!fs.existsSync(privateKeyPath)) {
@@ -643,12 +766,22 @@ function ensureSshKeyPair(config) {
 }
 
 // 获取专属于本系统的 Git 隔离运行环境变量对象
-function getGitEnv() {
-    const config = loadGitConfig();
+function getGitEnv(configOverride) {
+    const config = configOverride || loadGitConfig();
     const env = { ...process.env };
+
+    // Git 后台任务必须完全免交互，并隔离宿主机全局配置/credential helper。
+    // 这样 HTTPS 私有仓库只有显式填写 PAT 时才会成功，也不会被全局 insteadOf 重写回 SSH。
+    env.GIT_TERMINAL_PROMPT = '0';
+    env.GIT_ASKPASS = 'echo';
+    env.GIT_CONFIG_NOSYSTEM = '1';
+    env.GIT_CONFIG_GLOBAL = process.platform === 'win32' ? 'NUL' : '/dev/null';
+    env.GIT_CONFIG_COUNT = '1';
+    env.GIT_CONFIG_KEY_0 = 'credential.helper';
+    env.GIT_CONFIG_VALUE_0 = '';
     
     // 如果是 SSH 链接且生成了私钥，则强行配置专属 GIT_SSH_COMMAND，隔离用户的全局 ~/.ssh/config 密钥冲突
-    if (config.repositoryUrl && config.repositoryUrl.includes('git@') && config.sshPrivateKeyPath) {
+    if (config.repositoryUrl && isSshRepositoryUrl(config.repositoryUrl) && config.sshPrivateKeyPath) {
         if (fs.existsSync(config.sshPrivateKeyPath)) {
             // -i 指定专用私钥，-o StrictHostKeyChecking=no 避免首次连接时终端阻断交互确认
             env.GIT_SSH_COMMAND = `ssh -i "${config.sshPrivateKeyPath}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`;
@@ -675,7 +808,7 @@ function readJsonBody(req) {
 
 // 同步命令执行并向日志数组中写入标准输出与错误的辅助函数
 function runCommandAndLog(cmd, cwd, logs) {
-    logs.push({ type: 'command', text: `> ${cmd}` });
+    logs.push({ type: 'command', text: `> ${maskSensitiveGitUrl(cmd)}` });
     try {
         const stdout = execSync(cmd, {
             cwd: cwd,
@@ -2610,7 +2743,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
         // 1. 获取 Git 配置
         if (pathname === '/api/git/config' && method === 'GET') {
             let config = loadGitConfig();
-            if (config.repositoryUrl && config.repositoryUrl.includes('git@')) {
+            if (config.repositoryUrl && isSshRepositoryUrl(config.repositoryUrl)) {
                 try {
                     config = ensureSshKeyPair(config);
                 } catch (e) {
@@ -2620,7 +2753,11 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             const safeConfig = {
                 githubUser: config.githubUser || '',
                 repositoryUrl: config.repositoryUrl || '',
+                lastSshRepositoryUrl: config.lastSshRepositoryUrl || '',
+                lastHttpsRepositoryUrl: config.lastHttpsRepositoryUrl || '',
                 isPrivate: config.isPrivate || false,
+                authType: config.authType || '',
+                hasPatToken: !!config.patToken,
                 sshPublicKey: config.sshPublicKey || '',
                 branch: config.branch || 'markdown'
             };
@@ -2631,7 +2768,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
         if (pathname === '/api/git/config' && method === 'POST') {
             try {
                 const body = await readJsonBody(req);
-                const { githubUser, repositoryUrl, isPrivate, branch } = body;
+                const { githubUser, repositoryUrl, isPrivate, branch, authType, patToken } = body;
                 
                 if (!repositoryUrl) {
                     return jsonResponse(res, { error: '仓库 URL 不能为空' }, 400);
@@ -2640,10 +2777,21 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                 let config = loadGitConfig();
                 config.githubUser = githubUser || '';
                 config.repositoryUrl = repositoryUrl.trim();
+                if (isSshRepositoryUrl(config.repositoryUrl)) {
+                    config.lastSshRepositoryUrl = config.repositoryUrl;
+                } else if (isHttpsRepositoryUrl(config.repositoryUrl)) {
+                    config.lastHttpsRepositoryUrl = config.repositoryUrl;
+                }
                 config.isPrivate = !!isPrivate;
+                config.authType = authType || (isSshRepositoryUrl(config.repositoryUrl) ? 'ssh' : (patToken ? 'https_pat' : 'https_public'));
+                if (config.authType === 'https_public') {
+                    config.patToken = '';
+                } else if (typeof patToken === 'string' && patToken.trim()) {
+                    config.patToken = patToken.trim();
+                }
                 config.branch = (branch || 'markdown').trim();
 
-                if (config.repositoryUrl.includes('git@')) {
+                if (isSshRepositoryUrl(config.repositoryUrl)) {
                     config = ensureSshKeyPair(config);
                 }
 
@@ -2653,7 +2801,11 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     config: {
                         githubUser: config.githubUser,
                         repositoryUrl: config.repositoryUrl,
+                        lastSshRepositoryUrl: config.lastSshRepositoryUrl || '',
+                        lastHttpsRepositoryUrl: config.lastHttpsRepositoryUrl || '',
                         isPrivate: config.isPrivate,
+                        authType: config.authType || '',
+                        hasPatToken: !!config.patToken,
                         sshPublicKey: config.sshPublicKey,
                         branch: config.branch
                     }
@@ -2663,7 +2815,21 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
             }
         }
 
-        // 3. 测试 Git 仓库连通性
+        // 3. 手动刷新 SSH 部署密钥
+        if (pathname === '/api/git/ssh-key/refresh' && method === 'POST') {
+            try {
+                let config = loadGitConfig();
+                config = ensureSshKeyPair(config, { rotate: true });
+                return jsonResponse(res, {
+                    message: 'SSH 部署密钥已刷新',
+                    sshPublicKey: config.sshPublicKey || ''
+                });
+            } catch (err) {
+                return jsonResponse(res, { error: '刷新 SSH 部署密钥失败: ' + err.message }, 400);
+            }
+        }
+
+        // 4. 测试 Git 仓库连通性
         if (pathname === '/api/git/test' && method === 'POST') {
             let repositoryUrl = '';
             try {
@@ -2680,14 +2846,22 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                 }
 
                 let config = loadGitConfig();
-                if (repositoryUrl.includes('git@') && !config.sshPrivateKeyPath) {
+                config.repositoryUrl = repositoryUrl;
+                config.authType = body.authType || (isSshRepositoryUrl(repositoryUrl) ? 'ssh' : (body.patToken ? 'https_pat' : 'https_public'));
+                if (typeof body.patToken === 'string' && body.patToken.trim()) {
+                    config.patToken = body.patToken.trim();
+                } else if (config.authType === 'https_public') {
+                    config.patToken = '';
+                }
+                if (isSshRepositoryUrl(repositoryUrl) && !config.sshPrivateKeyPath) {
                     config.repositoryUrl = repositoryUrl;
                     config = ensureSshKeyPair(config);
                 }
+                const effectiveRepositoryUrl = getEffectiveGitRemoteUrl(config);
 
                 // 异步测试指令以防止网络挂死
-                execSync(`git ls-remote "${repositoryUrl}"`, {
-                    env: getGitEnv(),
+                execSync(`git ls-remote "${effectiveRepositoryUrl}"`, {
+                    env: getGitEnv(config),
                     stdio: 'pipe',
                     timeout: 15000
                 });
@@ -2702,7 +2876,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                 // 特化拦截 HTTPS 交互失败的报错
                 if (repositoryUrl.includes('https://') && 
                     (errorMsg.includes('Username') || errorMsg.includes('Terminal') || errorMsg.includes('Device not configured') || errorMsg.includes('could not read') || errorMsg.includes('Credential') || errorMsg.includes('Authentication'))) {
-                    errorMsg = '❌ [HTTPS AUTH ERROR] 检测到您使用了 HTTPS 链接，且 Git 试图要求输入用户名/密码。在自动化同步的无交互环境下这会被强行阻断。\n\n建议方案：\n1. 强烈推荐在上方改用更安全、适合自动化的 SSH 格式链接 (git@github.com:user/repo.git)，并使用下方生成的公钥添加到 GitHub 中。\n2. 如果必须使用 HTTPS，请确保在服务器全局配置了 Git 凭据助手(credential helper)或在 URL 中写入 Personal Access Token。';
+                    errorMsg = getGitAuthErrorMessage();
                 }
                 
                 return jsonResponse(res, { success: false, error: errorMsg }, 400);
@@ -2725,6 +2899,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     return jsonResponse(res, { error: '请先配置远程仓库 URL' }, 400);
                 }
 
+                const effectiveRepositoryUrl = getEffectiveGitRemoteUrl(config);
                 const targetBranch = config.branch || 'markdown';
 
                 // 定义一个本地同步错误辅助函数，特化拦截 HTTPS 账号密码卡死报错并进行友好提示汉化
@@ -2737,10 +2912,10 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     );
                     
                     if (hasHttpsAuthError && config.repositoryUrl && config.repositoryUrl.includes('https://')) {
-                        errorMsg = '❌ [HTTPS AUTH ERROR] 检测到您使用了 HTTPS 链接且同步失败。在免交互的自动化后台环境下，Git 无法读取您的用户名/密码。\n\n建议方案：\n1. 强烈推荐在左侧将仓库配置改用 SSH 格式链接 (git@github.com:user/repo.git)，并使用下方生成的专属公钥添加到 GitHub 中。\n2. 如果必须使用 HTTPS，请确保已在服务器全局配置了 Git 凭据助手(credential helper)或在 URL 中写入 Personal Access Token。';
+                        errorMsg = getGitAuthErrorMessage();
                         logs.push({
                             type: 'stderr',
-                            text: '💡 [系统修复建议]：请将仓库配置修改为 SSH 格式，并将本博客生成的部署公钥添加到您的 GitHub 部署密钥 (Deploy Keys) 中。'
+                            text: '💡 [系统修复建议]：公共仓库可使用无凭据 HTTPS；私有仓库请填写 PAT Token 或切换 SSH Deploy Key。'
                         });
                     }
                     return jsonResponse(res, { success: false, error: errorMsg, logs }, statusCode);
@@ -2797,9 +2972,9 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                 } catch (e) {}
 
                 if (!currentRemote) {
-                    runCommandAndLog(`git remote add origin "${config.repositoryUrl}"`, MARKDOWN_DIR, logs);
-                } else if (currentRemote !== config.repositoryUrl) {
-                    runCommandAndLog(`git remote set-url origin "${config.repositoryUrl}"`, MARKDOWN_DIR, logs);
+                    runCommandAndLog(`git remote add origin "${effectiveRepositoryUrl}"`, MARKDOWN_DIR, logs);
+                } else if (currentRemote !== effectiveRepositoryUrl) {
+                    runCommandAndLog(`git remote set-url origin "${effectiveRepositoryUrl}"`, MARKDOWN_DIR, logs);
                 }
 
                 // 4.4 执行具体的同步逻辑
@@ -2912,6 +3087,7 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     return jsonResponse(res, { error: '请先配置远程仓库 URL' }, 400);
                 }
 
+                const effectiveRepositoryUrl = getEffectiveGitRemoteUrl(config);
                 const targetBranch = config.branch || 'markdown';
                 logs.push({ type: 'stdout', text: '开始对比检查（只读模式，不会推送、拉取或写入任何文章文件）...' });
 
@@ -2957,9 +3133,9 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                 } catch (e) {}
 
                 if (!currentRemote) {
-                    runCommandAndLog(`git remote add origin "${config.repositoryUrl}"`, MARKDOWN_DIR, logs);
-                } else if (currentRemote !== config.repositoryUrl) {
-                    runCommandAndLog(`git remote set-url origin "${config.repositoryUrl}"`, MARKDOWN_DIR, logs);
+                    runCommandAndLog(`git remote add origin "${effectiveRepositoryUrl}"`, MARKDOWN_DIR, logs);
+                } else if (currentRemote !== effectiveRepositoryUrl) {
+                    runCommandAndLog(`git remote set-url origin "${effectiveRepositoryUrl}"`, MARKDOWN_DIR, logs);
                 }
 
                 const fetchSuccess = runCommandAndLog('git fetch origin', MARKDOWN_DIR, logs);

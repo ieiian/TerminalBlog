@@ -44,6 +44,21 @@ window.SITE_CONFIG = {
 };
 
 // ============================================================
+// GitHub 仓库代理配置（仅影响远程仓库 HTTPS 连接；SSH 不走 HTTP 代理）
+// 如果 GitHub 仓库需要通过代理访问，请在管理员页使用 HTTPS 仓库地址。
+// ============================================================
+const GITHUB_PROXY_CONFIG = {
+    // 是否启用 Cloudflare Workers 代理
+    enabled: false,
+    // 例如：https://your-worker.workers.dev
+    baseUrl: '',
+    // 代理 URL 模式：'query' -> ?url=https://...；'path' -> /https://...
+    mode: 'query',
+    // 仅 mode: 'query' 时有效；需要与 Workers 脚本保持一致
+    queryParam: 'url'
+};
+
+// ============================================================
 // AI 大模型配置
 // ============================================================
 const AI_CONFIG = {
@@ -121,6 +136,20 @@ const AI_CONFIG = {
         // 总结时生成的不同回复格式数量（用于随机选择回复开头）
         replyFormats: 4
     }
+};
+
+// ============================================================
+// AI baseURL 代理配置（仅影响服务端调用 AI API，不影响 GitHub 仓库代理）
+// ============================================================
+const AI_PROXY_CONFIG = {
+    // 是否启用 Cloudflare Workers 代理
+    enabled: false,
+    // 例如：https://your-worker.workers.dev
+    baseUrl: '',
+    // 代理 URL 模式：'query' -> ?url=https://...；'path' -> /https://...
+    mode: 'query',
+    // 仅 mode: 'query' 时有效；需要与 Workers 脚本保持一致
+    queryParam: 'url'
 };
 
     // 挂载到 window 以便前端访问

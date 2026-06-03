@@ -185,6 +185,14 @@ docker run -d \
 | `AI_MODEL` | - | 模型名称 |
 | `AI_MAX_TOKENS` | `2048` | 最大 token |
 | `AI_TEMPERATURE` | `0.7` | 随机性 (0-2) |
+| `GITHUB_PROXY_ENABLED` | `false` | GitHub HTTPS 仓库代理开关 |
+| `GITHUB_PROXY_BASE_URL` | - | GitHub 仓库代理 Workers 地址 |
+| `GITHUB_PROXY_MODE` | `query` | GitHub 仓库代理模式：`query` / `path` |
+| `GITHUB_PROXY_QUERY_PARAM` | `url` | Query 模式参数名，仅 `GITHUB_PROXY_MODE=query` 时有效 |
+| `AI_PROXY_ENABLED` | `false` | AI baseURL 代理开关 |
+| `AI_PROXY_BASE_URL` | - | AI 代理 Workers 地址 |
+| `AI_PROXY_MODE` | `query` | AI 代理模式：`query` / `path` |
+| `AI_PROXY_QUERY_PARAM` | `url` | Query 模式参数名，仅 `AI_PROXY_MODE=query` 时有效 |
 
 ### 推荐 .env 文件管理
 
@@ -198,6 +206,12 @@ AI_API_KEY=your-api-key-here
 AI_MODEL=deepseek-chat
 AI_MAX_TOKENS=2048
 AI_TEMPERATURE=0.7
+GITHUB_PROXY_ENABLED=false
+GITHUB_PROXY_BASE_URL=https://your-worker.workers.dev
+GITHUB_PROXY_MODE=query
+AI_PROXY_ENABLED=false
+AI_PROXY_BASE_URL=https://your-worker.workers.dev
+AI_PROXY_MODE=query
 EOF
 ```
 

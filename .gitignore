@@ -19,3 +19,5 @@ public/config.js
 # Git 远程同步专属配置及密钥对
 git_config.json
 .ssh_key/
+
+CF_Wokers

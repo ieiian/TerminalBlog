@@ -33,6 +33,9 @@
 ### 🔄 远程 Git 仓库同步控制台 (Git Sync Control Panel)
 极具科幻感的控制台界面，支持本地 Markdown 与远程 GitHub 仓库一键同步：
 - **自定义分支同步**：支持灵活配置您想要同步的分支名称（如 `markdown`），并在远程无对应分支时提供自动创建与绑定支持。
+- **公共仓库无凭据连接**：公开 GitHub 仓库可直接使用 HTTPS 或 SSH 地址，无需账号密码。
+- **私有仓库 PAT / SSH 支持**：HTTPS 私有仓库支持 Personal Access Token；SSH 私有仓库继续使用专属部署密钥。
+- **GitHub / AI 独立代理配置**：`config.js` 中分别提供 GitHub 仓库代理和 AI baseURL 代理开关，支持 Cloudflare Workers 的 Query / Path 两种模式，默认 Query；GitHub 仓库代理仅适用于 HTTPS 地址，SSH 不走 HTTP 代理。
 - **专属 SSH 密钥对隔离**：自动为私有仓库生成专属的 RSA/Ed25519 秘钥对，使用单独环境变量在免交互环境下工作，**绝不污染或冲突**宿主机及容器内的全局 `~/.ssh/config` 配置。
 - **GitHub 部署密钥一键绑定**：控制台提供一键复制 SSH 公钥功能，只需粘贴到 GitHub 的 **`Deploy Keys`** 并授权写入，即可直接打通私有/公开仓库的免密 Push 和 Pull。
 - **非破坏性连通性测试**：一键测试网络与秘钥，精准拦截并抛出因 HTTPS 验证挂起导致的后台卡死错误。
