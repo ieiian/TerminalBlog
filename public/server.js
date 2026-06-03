@@ -1132,6 +1132,7 @@ function getAllPosts() {
             hidden: frontmatter.hidden === true || frontmatter.hidden === 'true',
             locked: frontmatter.locked === true || frontmatter.locked === 'true',
             lockPassword: frontmatter.lockPassword || '',
+            aiNote: frontmatter.aiNote || '',
             size: size,
             contentLength: contentLength,
             body: body
@@ -1169,6 +1170,7 @@ function getPostById(id) {
                 hidden: frontmatter.hidden === true || frontmatter.hidden === 'true',
                 locked: frontmatter.locked === true || frontmatter.locked === 'true',
                 lockPassword: frontmatter.lockPassword || '',
+                aiNote: frontmatter.aiNote || '',
                 size: size,
                 contentLength: contentLength,
                 readTime: readTime,
@@ -1291,6 +1293,9 @@ function buildArticleHeaders(posts, headerChars) {
         out += `#${p.id} ${p.title}\n`;
         if (p.tags && p.tags.length) {
             out += `标签: ${p.tags.join(', ')}\n`;
+        }
+        if (p.aiNote) {
+            out += `备注: ${p.aiNote}\n`;
         }
         if (p.locked) {
             out += `状态: 已加密（勿编造正文，引导用户站内解锁）\n\n`;
@@ -1496,7 +1501,7 @@ function buildXiaomeiSystemPrompt(mode, opts) {
 - 只有当用户明确询问博客、文章、标签、当前文章、文章列表、站内内容，或问题与命中文章直接相关时，才主动使用文章上下文。
 - 用户只是闲聊、问候、问当前页面、提一般技术问题或其他非博客话题时，按问题本身回答，不要强行把话题引到博客、文章数量、文章推荐或主页链接。
 - 用户问“当前页面是什么页面”时，只根据【当前页面】回答页面类型/路径；除非用户追问，不要补充文章数量、站内介绍或推荐内容。
-
+- 每篇文章的「备注」字段（如有）包含针对该文章的特别指示，**AI 必须严格遵循**这些指示。
 【回答风格】
 - 将对方视为游客而非管理员，在所有回复中不要指示游客执行管理员相关的操作，比如仅管理员才会的登录后台或者遇到加锁文章时提示需要密码（也可以进一步提示联系管理员获取）而不是提示对方获取密码的操作
 - 默认简洁；用户追问或明确要求时再详细展开

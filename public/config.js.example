@@ -65,6 +65,9 @@ const AI_CONFIG = {
     // 启用 AI 功能
     enabled: true,
 
+    // AI 按钮首次访问光晕特效（首次打开主页时 AI 按钮的科幻光晕动画）
+    showFirstVisitGlow: true,
+
     // API 协议：'openai' | 'anthropic' | 'gemini'
     //
     // apiBaseUrl：可省略或留空 ''，服务端会按 apiFormat 使用默认根地址。
