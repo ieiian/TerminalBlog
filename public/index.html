@@ -5049,47 +5049,16 @@
         if (!report) return;
 
         var lines = [];
-        lines.push('════════ 文件对比报告 ' + (partial ? '(部分数据) ' : '') + '════════');
-        if (report.branch) {
-            lines.push('对比分支: origin/' + report.branch);
-        }
-        lines.push('本地文件总数: ' + (report.localCount ?? 0));
-        lines.push('远程文件总数: ' + (report.remoteCount ?? 0));
-        lines.push('路径重复（两边都有）: ' + (report.bothCount ?? 0));
-        if (report.identicalCount !== undefined) {
-            lines.push('  ├─ 内容相同: ' + report.identicalCount);
-            lines.push('  └─ 内容不同: ' + (report.contentDiffCount ?? 0));
-        }
-        lines.push('仅存在于本地: ' + (report.localOnlyCount ?? 0));
-        lines.push('仅存在于远程: ' + (report.remoteOnlyCount ?? 0));
-
-        function appendList(title, items, maxShow) {
-            if (!items || !items.length) return;
-            lines.push('');
-            lines.push(title + ' (' + items.length + '):');
-            var show = items.slice(0, maxShow || 30);
-            show.forEach(function(f) {
-                lines.push('  • ' + f);
-            });
-            if (items.length > show.length) {
-                lines.push('  ... 另有 ' + (items.length - show.length) + ' 个未列出');
-            }
-        }
-
-        appendList('仅本地文件', report.localOnly);
-        appendList('仅远程文件', report.remoteOnly);
-        if (report.contentDiff && report.contentDiff.length) {
-            lines.push('');
-            lines.push('路径重复但内容不同 (' + report.contentDiff.length + '):');
-            report.contentDiff.slice(0, 20).forEach(function(item) {
-                lines.push('  • ' + item.path + (item.reason ? ' — ' + item.reason : ''));
-            });
-            if (report.contentDiff.length > 20) {
-                lines.push('  ... 另有 ' + (report.contentDiff.length - 20) + ' 个未列出');
-            }
-        }
-        appendList('路径重复且内容相同', report.identical, 15);
-
+        lines.push('════════ 文件对比报告 ' + (partial ? '(部分) ' : '') + '════════');
+        var statParts = [];
+        statParts.push('本地 ' + (report.localCount ?? 0));
+        statParts.push('远程 ' + (report.remoteCount ?? 0));
+        if (report.bothCount > 0) statParts.push('重复 ' + report.bothCount);
+        if (report.identicalCount > 0) statParts.push('相同 ' + report.identicalCount);
+        if (report.contentDiffCount > 0) statParts.push('差异 ' + report.contentDiffCount);
+        if (report.localOnlyCount > 0) statParts.push('仅本地 ' + report.localOnlyCount);
+        if (report.remoteOnlyCount > 0) statParts.push('仅远程 ' + report.remoteOnlyCount);
+        lines.push('📊 ' + statParts.join(' │ '));
         lines.push('════════════════════════════════════');
         lines.forEach(function(line) {
             writeTerminalLog('info', line);

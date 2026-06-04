@@ -833,7 +833,6 @@ function runCommandAndLog(cmd, cwd, logs) {
 }
 
 function getRemoteFileList(remoteRef, logs) {
-    logs.push({ type: 'command', text: `> git ls-tree -r -z --name-only "${remoteRef}"` });
     const output = execFileSync('git', ['ls-tree', '-r', '-z', '--name-only', remoteRef], {
         cwd: MARKDOWN_DIR,
         env: getGitEnv(),
@@ -919,12 +918,12 @@ function buildFileCompareReport(localFiles, remoteFiles, remoteRef, logs) {
         }
     }
 
+    const summary = [];
+    if (identical.length > 0) summary.push(`✅ 相同 ${identical.length}`);
+    if (contentDiff.length > 0) summary.push(`📝 差异 ${contentDiff.length}`);
     logs.push({
         type: 'stdout',
-        text:
-            `对比完成：本地 ${localFiles.length} 个，远程 ${remoteFiles.length} 个，` +
-            `路径重复 ${both.length} 个（内容相同 ${identical.length}，内容不同 ${contentDiff.length}），` +
-            `仅本地 ${localOnly.length} 个，仅远程 ${remoteOnly.length} 个。`
+        text: '📊 ' + summary.join(' | ')
     });
 
     return {
@@ -3094,38 +3093,23 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
 
                 const effectiveRepositoryUrl = getEffectiveGitRemoteUrl(config);
                 const targetBranch = config.branch || 'markdown';
-                logs.push({ type: 'stdout', text: '开始对比检查（只读模式，不会推送、拉取或写入任何文章文件）...' });
+                logs.push({ type: 'stdout', text: '🔍 正在对比本地与远程文件（只读）...' });
 
                 if (!fs.existsSync(MARKDOWN_DIR)) {
                     fs.mkdirSync(MARKDOWN_DIR, { recursive: true });
                 }
 
-                const localFiles = getLocalFileList();
-                logs.push({ type: 'stdout', text: `已扫描本地 Markdown 目录，共 ${localFiles.length} 个文件。` });
-
+                // 自动初始化 Git 仓库（如果尚未初始化）
                 if (!fs.existsSync(path.join(MARKDOWN_DIR, '.git'))) {
-                    logs.push({
-                        type: 'stderr',
-                        text: '本地尚未初始化 Git 仓库，无法获取远程分支文件树。请先保存配置并执行一次连接测试或同步初始化。'
-                    });
-                    return jsonResponse(
-                        res,
-                        {
-                            success: false,
-                            error: '本地 Git 未初始化，无法对比远程文件列表',
-                            report: {
-                                localCount: localFiles.length,
-                                remoteCount: 0,
-                                bothCount: 0,
-                                localOnlyCount: localFiles.length,
-                                remoteOnlyCount: 0,
-                                localOnly: localFiles
-                            },
-                            logs
-                        },
-                        400
-                    );
+                    logs.push({ type: 'stdout', text: '⚡ 检测到 Markdown 目录未初始化 Git，正在自动初始化...' });
+                    runCommandAndLog('git init', MARKDOWN_DIR, logs);
+                    runCommandAndLog(`git checkout -b "${targetBranch}"`, MARKDOWN_DIR, logs);
+                    runCommandAndLog('git config user.name "TerminalBlog"', MARKDOWN_DIR, logs);
+                    runCommandAndLog('git config user.email "blog@terminal.local"', MARKDOWN_DIR, logs);
+                    logs.push({ type: 'stdout', text: `✅ 本地仓库已初始化并切换到 "${targetBranch}" 分支` });
                 }
+
+                const localFiles = getLocalFileList();
 
                 let currentRemote = '';
                 try {
