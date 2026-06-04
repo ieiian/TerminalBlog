@@ -5060,6 +5060,26 @@
         if (report.remoteOnlyCount > 0) statParts.push('仅远程 ' + report.remoteOnlyCount);
         lines.push('📊 ' + statParts.join(' │ '));
         lines.push('════════════════════════════════════');
+
+        // 只列出有问题的文件（内容不同/仅本地/仅远程），相同的不列
+        function appendSection(title, items, icon) {
+            if (!items || !items.length) return;
+            lines.push('');
+            lines.push(icon + ' ' + title + ' (' + items.length + '):');
+            items.slice(0, 30).forEach(function(f) {
+                var name = typeof f === 'string' ? f : f.path;
+                lines.push('  • ' + name);
+            });
+            if (items.length > 30) {
+                lines.push('  ... 另有 ' + (items.length - 30) + ' 个未列出');
+            }
+        }
+
+        appendSection('内容不同', report.contentDiff, '📝');
+        appendSection('仅本地', report.localOnly, '📤');
+        appendSection('仅远程', report.remoteOnly, '📥');
+
+        lines.push('════════════════════════════════════');
         lines.forEach(function(line) {
             writeTerminalLog('info', line);
         });
