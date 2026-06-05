@@ -100,6 +100,92 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
 
+        /* Safari 凝霜效果 - 仅边框凝霜，从无到有逐渐显现 */
+        .terminal.safari-frost::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10;
+            border-radius: 8px;
+            /* 边框凝霜 - 使用 inset box-shadow，更明显 */
+            opacity: 0;
+            box-shadow: 
+                inset 0 4px 12px -4px rgba(200, 220, 255, 0.3),
+                inset 0 -3px 10px -4px rgba(200, 220, 255, 0.25),
+                inset 3px 0 10px -4px rgba(200, 220, 255, 0.2),
+                inset -3px 0 10px -4px rgba(200, 220, 255, 0.2);
+            animation: frostAppear 300s ease-out forwards; /* 5分钟逐渐显现 */
+        }
+
+        @keyframes frostAppear {
+            0% { opacity: 0; }
+            20% { opacity: 0.15; }
+            40% { opacity: 0.35; }
+            60% { opacity: 0.55; }
+            80% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+
+        @keyframes snowAppear {
+            0% { opacity: 0; height: 0; }
+            15% { opacity: 0.15; height: 2px; }
+            30% { opacity: 0.3; height: 3px; }
+            45% { opacity: 0.5; height: 4px; }
+            60% { opacity: 0.65; height: 5px; }
+            75% { opacity: 0.8; height: 6px; }
+            90% { opacity: 0.9; height: 7px; }
+            100% { opacity: 0.9; height: 8px; }
+        }
+
+        /* 角落霜冻 - 轻微效果，逐渐显现 */
+        .frost-corner {
+            position: absolute;
+            pointer-events: none;
+            z-index: 12;
+            opacity: 0;
+            animation: frostAppear 3s ease-out forwards;
+        }
+
+        .frost-corner.top-left {
+            top: -1px;
+            left: -1px;
+            width: 5px;
+            height: 5px;
+            background: radial-gradient(ellipse at top left, rgba(220, 235, 255, 0.2) 0%, rgba(200, 220, 255, 0.06) 50%, transparent 80%);
+            border-radius: 4px 0 0 0;
+        }
+
+        .frost-corner.top-right {
+            top: -1px;
+            right: -1px;
+            width: 5px;
+            height: 5px;
+            background: radial-gradient(ellipse at top right, rgba(220, 235, 255, 0.2) 0%, rgba(200, 220, 255, 0.06) 50%, transparent 80%);
+            border-radius: 0 4px 0 0;
+        }
+
+        .frost-corner.bottom-left {
+            bottom: -1px;
+            left: -1px;
+            width: 4px;
+            height: 4px;
+            background: radial-gradient(ellipse at bottom left, rgba(220, 235, 255, 0.12) 0%, rgba(200, 220, 255, 0.04) 50%, transparent 80%);
+            border-radius: 0 0 0 4px;
+        }
+
+        .frost-corner.bottom-right {
+            bottom: -1px;
+            right: -1px;
+            width: 4px;
+            height: 4px;
+            background: radial-gradient(ellipse at bottom right, rgba(220, 235, 255, 0.12) 0%, rgba(200, 220, 255, 0.04) 50%, transparent 80%);
+            border-radius: 0 0 4px 0;
+        }
+
         /* Title bar */
         .title-bar {
             background: var(--bg-header);
@@ -3742,6 +3828,14 @@
 
         // 检测是否为移动端
         var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        // 更可靠的 Safari 检测
+        // 检测需要风雪效果的浏览器（Safari、Firefox 等存在代码雨渲染问题的浏览器）
+        var isSafari = /Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent);
+        var isFirefox = /Firefox/i.test(navigator.userAgent);
+        var isEdge = /Edg/i.test(navigator.userAgent);
+        // 需要风雪效果的浏览器：Safari、Firefox
+        // 其他浏览器（Chrome、Edge 等）使用代码雨效果
+        var needsSnowEffect = isSafari || isFirefox;
         var clearAlpha = isMobile ? 0.03 : 0.005;
 
         // 映射基础字符集
@@ -3851,52 +3945,180 @@
         resize();
         window.addEventListener('resize', resize);
 
+        // Safari 风雪效果 - 持久化雪花数组（在 draw 函数外部初始化）
+        var snowChars = ['❄', '❅', '❆', '•', '·'];
+        var snowflakes = [];
+        var maxSnowflakes = 0;
+
+        function initSnowflakes() {
+            maxSnowflakes = Math.max(60, Math.floor(canvas.width / 8)); // 增加雪花数量
+            snowflakes = [];
+            for (var si = 0; si < maxSnowflakes; si++) {
+                snowflakes[si] = {
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: 12 + Math.random() * 10, // 稍大的雪花
+                    speed: 1.0 + Math.random() * 1.5, // 稍快的速度
+                    wind: (Math.random() - 0.5) * 0.5,
+                    char: snowChars[Math.floor(Math.random() * snowChars.length)],
+                    opacity: 0.6 + Math.random() * 0.3, // 更明显的透明度
+                    wobble: Math.random() * Math.PI * 2
+                };
+            }
+        }
+        initSnowflakes();
+
         function draw() {
-            ctx.fillStyle = 'rgba(13, 17, 23, ' + clearAlpha + ')';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.font = fontSize + 'px "JetBrains Mono", monospace';
-            for (var i = 0; i < cols; i++) {
-                var drop = drops[i];
-                drop.y += drop.speed;
-                var row = Math.floor(drop.y);
-                if (row !== drop.lastRow) {
-                    drop.lastRow = row;
-                    drop.currentChar = cachedCharPool[Math.floor(Math.random() * cachedCharPool.length)];
+            
+            // Safari/Firefox 方案：风雪飘落 + 终端窗口凝霜效果
+            if (needsSnowEffect) {
+                // 每帧完全清除背景
+                ctx.fillStyle = '#0d1117';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // ============ 风雪飘落效果（有序下落，不闪烁）===========
+                var fadeStart = canvas.height * 0.75;
+                for (var si = 0; si < snowflakes.length; si++) {
+                    var sf = snowflakes[si];
+                    
+                    // 更新位置
+                    sf.wobble += 0.02;
+                    sf.y += sf.speed;
+                    sf.x += sf.wind + Math.sin(sf.wobble) * 0.3;
+                    
+                    // 边界处理
+                    if (sf.y > canvas.height + 20) {
+                        sf.y = -20;
+                        sf.x = Math.random() * canvas.width;
+                    }
+                    if (sf.x < -20) sf.x = canvas.width + 20;
+                    if (sf.x > canvas.width + 20) sf.x = -20;
+                    
+                    // 根据位置调整透明度（底部渐隐）
+                    var adjustedOpacity = sf.opacity;
+                    if (sf.y > fadeStart) {
+                        adjustedOpacity = sf.opacity * (1 - (sf.y - fadeStart) / (canvas.height - fadeStart + 50));
+                    }
+                    if (adjustedOpacity > 0.02) {
+                        ctx.font = sf.size + 'px serif';
+                        ctx.fillStyle = 'rgba(255, 255, 255, ' + adjustedOpacity + ')';
+                        ctx.fillText(sf.char, sf.x, sf.y);
+                    }
                 }
-                if (Math.random() > 0.90) {
-                    drop.brightness = 1.0; 
-                } else {
-                    drop.brightness += (0.35 - drop.brightness) * 0.08; 
-                }
+                
+                // ============ 边缘凝霜效果 ============
+                var frostThickness = 60; // 霜冻厚度
+                var frostOpacity = 0.15; // 基础透明度
+                
+                // 创建霜冻渐变 - 顶部
+                var topGrad = ctx.createLinearGradient(0, 0, 0, frostThickness);
+                topGrad.addColorStop(0, 'rgba(200, 220, 255, ' + frostOpacity + ')');
+                topGrad.addColorStop(0.5, 'rgba(180, 200, 240, ' + (frostOpacity * 0.5) + ')');
+                topGrad.addColorStop(1, 'rgba(150, 180, 220, 0)');
+                ctx.fillStyle = topGrad;
+                ctx.fillRect(0, 0, canvas.width, frostThickness);
+                
+                // 底部霜冻
+                var bottomGrad = ctx.createLinearGradient(0, canvas.height, 0, canvas.height - frostThickness);
+                bottomGrad.addColorStop(0, 'rgba(200, 220, 255, ' + frostOpacity + ')');
+                bottomGrad.addColorStop(0.5, 'rgba(180, 200, 240, ' + (frostOpacity * 0.5) + ')');
+                bottomGrad.addColorStop(1, 'rgba(150, 180, 220, 0)');
+                ctx.fillStyle = bottomGrad;
+                ctx.fillRect(0, canvas.height - frostThickness, canvas.width, frostThickness);
+                
+                // 左侧霜冻
+                var leftGrad = ctx.createLinearGradient(0, 0, frostThickness, 0);
+                leftGrad.addColorStop(0, 'rgba(200, 220, 255, ' + frostOpacity + ')');
+                leftGrad.addColorStop(0.5, 'rgba(180, 200, 240, ' + (frostOpacity * 0.5) + ')');
+                leftGrad.addColorStop(1, 'rgba(150, 180, 220, 0)');
+                ctx.fillStyle = leftGrad;
+                ctx.fillRect(0, 0, frostThickness, canvas.height);
+                
+                // 右侧霜冻
+                var rightGrad = ctx.createLinearGradient(canvas.width, 0, canvas.width - frostThickness, 0);
+                rightGrad.addColorStop(0, 'rgba(200, 220, 255, ' + frostOpacity + ')');
+                rightGrad.addColorStop(0.5, 'rgba(180, 200, 240, ' + (frostOpacity * 0.5) + ')');
+                rightGrad.addColorStop(1, 'rgba(150, 180, 220, 0)');
+                ctx.fillStyle = rightGrad;
+                ctx.fillRect(canvas.width - frostThickness, 0, frostThickness, canvas.height);
+                
+                // 角落霜冻叠加（增强角落效果）
+                var cornerSize = frostThickness * 0.7;
+                
+                // 左上角
+                var tlGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, cornerSize);
+                tlGrad.addColorStop(0, 'rgba(220, 235, 255, 0.2)');
+                tlGrad.addColorStop(1, 'rgba(200, 220, 255, 0)');
+                ctx.fillStyle = tlGrad;
+                ctx.fillRect(0, 0, cornerSize, cornerSize);
+                
+                // 右上角
+                var trGrad = ctx.createRadialGradient(canvas.width, 0, 0, canvas.width, 0, cornerSize);
+                trGrad.addColorStop(0, 'rgba(220, 235, 255, 0.2)');
+                trGrad.addColorStop(1, 'rgba(200, 220, 255, 0)');
+                ctx.fillStyle = trGrad;
+                ctx.fillRect(canvas.width - cornerSize, 0, cornerSize, cornerSize);
+                
+                // 左下角
+                var blGrad = ctx.createRadialGradient(0, canvas.height, 0, 0, canvas.height, cornerSize);
+                blGrad.addColorStop(0, 'rgba(220, 235, 255, 0.2)');
+                blGrad.addColorStop(1, 'rgba(200, 220, 255, 0)');
+                ctx.fillStyle = blGrad;
+                ctx.fillRect(0, canvas.height - cornerSize, cornerSize, cornerSize);
+                
+                // 右下角
+                var brGrad = ctx.createRadialGradient(canvas.width, canvas.height, 0, canvas.width, canvas.height, cornerSize);
+                brGrad.addColorStop(0, 'rgba(220, 235, 255, 0.2)');
+                brGrad.addColorStop(1, 'rgba(200, 220, 255, 0)');
+                ctx.fillStyle = brGrad;
+                ctx.fillRect(canvas.width - cornerSize, canvas.height - cornerSize, cornerSize, cornerSize);
+            } else {
+                // Chrome 使用 rgba 覆盖方案（原始效果）
+                ctx.fillStyle = 'rgba(13, 17, 23, ' + clearAlpha + ')';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                for (var i = 0; i < cols; i++) {
+                    var drop = drops[i];
+                    drop.y += drop.speed;
+                    var row = Math.floor(drop.y);
+                    if (row !== drop.lastRow) {
+                        drop.lastRow = row;
+                        drop.currentChar = cachedCharPool[Math.floor(Math.random() * cachedCharPool.length)];
+                    }
+                    if (Math.random() > 0.90) {
+                        drop.brightness = 1.0; 
+                    } else {
+                        drop.brightness += (0.35 - drop.brightness) * 0.08; 
+                    }
 
-                // var isSpell = '临兵斗者皆阵列在前'.indexOf(drop.currentChar) !== -1;
-                var isSpell = spellChars.indexOf(drop.currentChar) !== -1;
-                // var isBuddha = enableBuddhaEffect && drop.currentChar === '佛';
-                var isBuddha = enableBuddhaEffect && drop.currentChar === buddhaChar;
+                    var isSpell = spellChars.indexOf(drop.currentChar) !== -1;
+                    var isBuddha = enableBuddhaEffect && drop.currentChar === buddhaChar;
 
-                if (isBuddha) {
-                    ctx.save();
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.shadowColor = 'rgba(255, 215, 0, 1)';
-                    ctx.shadowBlur = 15;
-                    ctx.font = 'bold ' + (fontSize + 1) + 'px monospace';
-                    ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
-                    ctx.restore();
-                } else if (isSpell) {
-                    ctx.fillStyle = 'hsla(45, 100%, 70%, 1)';
-                    ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
-                } else {
-                    var lightness = 45 + drop.brightness * 55;
-                    var alpha = drop.brightness * 0.85;
-                    ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + lightness + '%, ' + alpha + ')';
-                    ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
-                }
+                    if (isBuddha) {
+                        ctx.save();
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.shadowColor = 'rgba(255, 215, 0, 1)';
+                        ctx.shadowBlur = 15;
+                        ctx.font = 'bold ' + (fontSize + 1) + 'px monospace';
+                        ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
+                        ctx.restore();
+                    } else if (isSpell) {
+                        ctx.fillStyle = 'hsla(45, 100%, 70%, 1)';
+                        ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
+                    } else {
+                        var lightness = 45 + drop.brightness * 55;
+                        var alpha = drop.brightness * 0.85;
+                        ctx.fillStyle = 'hsla(' + hue + ', 100%, ' + lightness + '%, ' + alpha + ')';
+                        ctx.fillText(drop.currentChar, i * fontSize, row * fontSize);
+                    }
 
-                if (drop.y * fontSize > canvas.height && Math.random() > 0.975) {
-                    drop.y = 0;
-                    drop.lastRow = -1;
-                    drop.speed = 0.12 + Math.random() * 0.22;
-                    drop.brightness = 0.35;
+                    if (drop.y * fontSize > canvas.height && Math.random() > 0.975) {
+                        drop.y = 0;
+                        drop.lastRow = -1;
+                        drop.speed = 0.12 + Math.random() * 0.22;
+                        drop.brightness = 0.35;
+                    }
                 }
             }
         }
@@ -3905,6 +4127,27 @@
             requestAnimationFrame(tick);
         }
         requestAnimationFrame(tick);
+        
+        // Safari/Firefox 浏览器：自动为终端窗口添加凝霜效果
+        if (needsSnowEffect) {
+            // 等待 DOM 加载完成后添加凝霜 class
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() {
+                    var terminal = document.querySelector('.terminal');
+                    if (terminal) {
+                        terminal.classList.add('safari-frost');
+                        
+                        // 添加角落霜冻元素（轻微效果）
+                        var corners = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+                        corners.forEach(function(pos) {
+                            var corner = document.createElement('div');
+                            corner.className = 'frost-corner ' + pos;
+                            terminal.appendChild(corner);
+                        });
+                    }
+                }, 100);
+            });
+        }
     })();
 
 
@@ -5049,7 +5292,7 @@
         if (!report) return;
 
         var lines = [];
-        lines.push('════════ 文件对比报告 ' + (partial ? '(部分) ' : '') + '════════');
+        lines.push('══════ 文件对比报告 ' + (partial ? '(部分) ' : '') + '══════');
         var statParts = [];
         statParts.push('本地 ' + (report.localCount ?? 0));
         statParts.push('远程 ' + (report.remoteCount ?? 0));
@@ -5059,7 +5302,7 @@
         if (report.localOnlyCount > 0) statParts.push('仅本地 ' + report.localOnlyCount);
         if (report.remoteOnlyCount > 0) statParts.push('仅远程 ' + report.remoteOnlyCount);
         lines.push('📊 ' + statParts.join(' │ '));
-        lines.push('════════════════════════════════════');
+        lines.push('═════════════════════');
 
         // 只列出有问题的文件（内容不同/仅本地/仅远程），相同的不列
         function appendSection(title, items, icon) {
@@ -5079,7 +5322,7 @@
         appendSection('仅本地', report.localOnly, '📤');
         appendSection('仅远程', report.remoteOnly, '📥');
 
-        lines.push('════════════════════════════════════');
+        lines.push('═════════════════════');
         lines.forEach(function(line) {
             writeTerminalLog('info', line);
         });
