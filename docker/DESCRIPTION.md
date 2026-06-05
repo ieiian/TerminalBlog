@@ -25,7 +25,7 @@ mkdir -p Markdown blogimgs blogfiles guestuploads .ssh_key config
 # docker-compose.yml
 services:
   blog:
-    image: ieiian/terminal-blog-fs:latest
+    image: ieiian/terminal-blog-main:latest
     container_name: terminal-blog-fs
     restart: unless-stopped
     ports:
@@ -75,7 +75,7 @@ services:
 # docker-compose.yml
 services:
   blog:
-    image: ieiian/terminal-blog-fs:latest
+    image: ieiian/terminal-blog-main:latest
     container_name: terminal-blog-fs
     restart: unless-stopped
     ports:
@@ -131,7 +131,7 @@ docker run -d \
   -e AI_MODEL="deepseek-chat" \
   -e AI_MAX_TOKENS=2048 \
   -e AI_TEMPERATURE=0.7 \
-  ieiian/terminal-blog-fs
+  ieiian/terminal-blog-main
 ```
 
 #### 简化版
@@ -147,7 +147,7 @@ docker run -d \
   -v $(pwd)/blogfiles:/app/blogfiles \
   -v $(pwd)/guestuploads:/app/guestuploads \
   -v $(pwd)/.ssh_key:/app/.ssh_key \
-  ieiian/terminal-blog-fs
+  ieiian/terminal-blog-main
 ```
 
 ---
