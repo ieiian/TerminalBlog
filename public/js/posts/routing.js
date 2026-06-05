@@ -563,10 +563,9 @@
             <div class="nav-links">
                 <a onclick="navigate('home')">[首页]</a>
                 <a onclick="navigate('tags')">[标签]</a>
-                <a onclick="navigate('admin')" class="active">[管理]</a>
-                <a onclick="doLogout()" style="color: var(--red);">[退出登录]</a>
-                <a onclick="openFileManager()" class="nav-break">[文件管理]</a>
+                <a onclick="openFileManager()">[文件管理]</a>
                 <a onclick="openGitSyncModal()">[远程仓库]</a>
+                <a onclick="doLogout()" style="color: var(--red);" class="nav-break">[退出登录]</a>
             </div>
 
             ${separator('博客管理面板')}
