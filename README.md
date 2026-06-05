@@ -49,18 +49,27 @@
 ## 🏗️ 目录结构
 
 ```
-TerminalBlog_fs/
+TerminalBlog_main/
 ├── Markdown/               # ⭐ 文章数据库 (.md Markdown 原生文件)
 ├── blogimgs/               # 📂 博客图片目录 (文件管理专属)
 ├── blogfiles/              # 📂 博客文件目录 (文件管理专属)
 ├── public/                 # 📂 极客终端 SPA 静态前端
-│   ├── index.html          # 📟 复古终端渲染主页面与控制台 UI
-│   └── server.js           # 🚀 Node.js 后端服务器 & 同步 API
+│   ├── index.html          # 📟 复古终端渲染主页面 (模块化入口)
+│   ├── server.js           # 🚀 Node.js 后端服务器 & 同步 API
+│   ├── config.js           # ⚙️ 运行时配置
+│   ├── js/                 # 📂 前端 JS 模块 (已模块化拆分)
+│   │   ├── core/           # 核心模块 (API、状态、工具)
+│   │   ├── posts/          # 文章模块 (路由、认证、导入导出)
+│   │   ├── files/          # 文件模块 (Git同步、游客上传、媒体管理)
+│   │   └── features/       # 特效模块 (AI聊天、代码雨、终端动画)
+│   └── styles/             # 📂 CSS 样式文件 (独立提取)
 ├── docker/                 # 📂 Docker 部署配置目录
 │   ├── Dockerfile          # 🐳 Alpine 极致轻量化构建文件
 │   ├── docker-compose.yml  # 🛠️ Docker 复合容器编排配置
 │   ├── DESCRIPTION.md      # 📄 容器挂载与部署说明
 │   └── entrypoint.sh       # ⚙️ 容器动态参数注入脚本
+├── scripts/                # 📂 工具脚本 (导入、导出、重置)
+├── nginx/                  # 📂 Nginx 配置
 ├── .ssh_key/               # 🔒 [安全过滤] 系统自动生成的专属 SSH 秘钥对
 └── git_config.json         # ⚙️ [安全过滤] 远程同步控制台配置参数
 ```
