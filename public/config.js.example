@@ -1,0 +1,159 @@
+// ============================================================
+// Terminal Blog - 站点配置（示例模板）
+// 复制为 public/config.js 后填写真实密钥；勿将含密钥的 config.js 提交到公开仓库
+// Docker 部署时也可由 entrypoint 根据环境变量生成 config.js
+// ============================================================
+
+const SITE_CONFIG = {
+    siteTitle: 'TerminalBlog',
+    welcomeMessage: '欢迎来到我的终端博客。',
+    siteUrl: 'https://example.com',
+    icpNumber: 'ICP粤B12345678号',
+    // 管理员文件管理上传上限（MB），未设置时默认：博客文件 100MB，博客图片 10MB
+    maxUploadSizeBlogfilesMB: 100,
+    maxUploadSizeBlogimgsMB: 10,
+    // 游客上传上限（MB），未设置时默认 50MB（与管理员上限独立）
+    maxUploadSizeGuestMB: 50,
+};
+
+window.SITE_CONFIG = {
+    // 终端雨配置项
+    // ============================================================
+    // 0. 终端雨模式说明：
+    //    '1' - 纯 Matrix 雨（绿色字符雨）: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン'
+    //    '2' - 英文雨（随机英文字符雨）: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    //    '3' - 数字雨（随机数字字符雨）: '01'
+    //    '4' - 混合雨（随机字母数字混合雨）: '一二三四五六七八九十零甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥临兵斗者皆阵列在前'
+
+    // 1. 是否开启启动随机切换模式: true (每次刷新必换个花样) / false (固定走下方配置)
+    matrixRainStartupRandom: true,
+
+    // 2. 随机选取算法模式 ('average' (等概率轮替) / 'decay' (断崖式梯度递减))
+    matrixRainRandomAlgorithm: 'decay',
+
+    // 3. 当 startup_random 为 true 时，参与随机抽签的候选池
+    // 刷新时会从中随机挑一个（且绝对不与上一次相同）
+    matrixRainRandomPool: ['1', '2', '3', '4', '2+3', '1+4', '1+2+3+4'],
+
+    // 4. 当 startup_random 为 false 时，生效的固定模式组合
+    // 填法示例: '1' (纯matrix), '1+2' (矩阵+英文), '1+2+3+4' (全家桶混合)
+    matrixRainFixedMode: '2+3',
+
+    // 5. 是否开启"佛"字特效（仅在包含"佛"字的模式下生效）
+    matrixRainEnableBuddhaEffect: true,
+};
+
+// ============================================================
+// GitHub 仓库代理配置（仅影响远程仓库 HTTPS 连接；SSH 不走 HTTP 代理）
+// 如果 GitHub 仓库需要通过代理访问，请在管理员页使用 HTTPS 仓库地址。
+// ============================================================
+const GITHUB_PROXY_CONFIG = {
+    // 是否启用 Cloudflare Workers 代理
+    enabled: false,
+    // 例如：https://your-worker.workers.dev
+    baseUrl: '',
+    // 代理 URL 模式：'query' -> ?url=https://...；'path' -> /https://...
+    mode: 'query',
+    // 仅 mode: 'query' 时有效；需要与 Workers 脚本保持一致
+    queryParam: 'url'
+};
+
+// ============================================================
+// AI 大模型配置
+// ============================================================
+const AI_CONFIG = {
+    // 启用 AI 功能
+    enabled: true,
+
+    // AI 按钮首次访问光晕特效（首次打开主页时 AI 按钮的科幻光晕动画）
+    showFirstVisitGlow: true,
+
+    // API 协议：'openai' | 'anthropic' | 'gemini'
+    //
+    // apiBaseUrl：可省略或留空 ''，服务端会按 apiFormat 使用默认根地址。
+    //   openai    → https://api.openai.com/v1/chat/completions
+    //   anthropic → https://api.anthropic.com/v1/messages
+    //   gemini    → https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+    // 使用 Gemini 时通常无需填写 apiBaseUrl，只需配置 apiKey 与 model。
+    // 仅在使用代理、私有网关或固定完整端点 URL 时才需要自定义 apiBaseUrl。
+    //
+    // OpenAI 兼容示例（NVIDIA / DeepSeek 等）：
+    // apiFormat: 'openai',
+    // apiBaseUrl: 'https://integrate.api.nvidia.com/v1',
+    // apiKey: 'your-api-key',
+    // model: 'minimaxai/minimax-m2.7',
+    //
+    // Gemini 示例：
+    // apiFormat: 'gemini',
+    // apiKey: 'your-gemini-api-key',
+    // model: 'gemini-2.5-flash',
+
+    apiFormat: 'openai',
+    apiBaseUrl: '',
+    apiKey: '',
+    model: '',
+
+    // 请求限制
+    maxTokens: 1500,
+    temperature: 0.7,
+
+    // 后端会按场景动态生成「小美」提示词；此处作备用说明
+    systemPrompt: `你是小美，Terminal Blog 的 AI 助手。默认简洁自然；只有用户明确询问博客、文章、标签、当前文章或站内内容时，才基于服务端注入的文章索引与正文片段回答并附链接。普通闲聊和非博客话题不要主动引导到博客。`,
+
+    // AI 对话文章检索与上下文（服务端 /api/ai/chat 使用）
+    search: {
+        // 检索模式：'keyword'（当前已实现）| 'bm25' | 'vector'（预留）
+        mode: 'keyword',
+        // L2 最多附带几篇相关文章正文
+        maxDocs: 5,
+        // 注入模型的上下文 token 上限（估算，用于截断正文）
+        maxContextTokens: 8000,
+        // L1 每篇文章开头摘要字符数
+        headerChars: 150
+    },
+
+    // 向量检索配置（预留）
+    vector: {
+        enabled: false,
+        // embedding 模型
+        embeddingModel: 'text-embedding-ada-002',
+        // 向量维度
+        dimension: 1536,
+        // 索引类型：'simple' | 'hnsw' | 'ivf'
+        indexType: 'simple',
+        // 向量存储路径
+        storagePath: './vector_store.json'
+    },
+
+    // UI 配置
+    ui: {
+        windowTitle: '小美',
+        showWelcome: true,
+        welcomeMessage: '你好，我是小美～有什么想聊的，直接告诉我就好。'
+    },
+
+    // 自动总结功能配置
+    autoSummarize: {
+        // 是否在打开 AI 窗口时自动对当前文章生成总结
+        enabled: true,
+        // 总结时生成的不同回复格式数量（用于随机选择回复开头）
+        replyFormats: 4
+    }
+};
+
+// ============================================================
+// AI baseURL 代理配置（仅影响服务端调用 AI API，不影响 GitHub 仓库代理）
+// ============================================================
+const AI_PROXY_CONFIG = {
+    // 是否启用 Cloudflare Workers 代理
+    enabled: false,
+    // 例如：https://your-worker.workers.dev
+    baseUrl: '',
+    // 代理 URL 模式：'query' -> ?url=https://...；'path' -> /https://...
+    mode: 'query',
+    // 仅 mode: 'query' 时有效；需要与 Workers 脚本保持一致
+    queryParam: 'url'
+};
+
+    // 挂载到 window 以便前端访问
+    window.AI_CONFIG = AI_CONFIG;

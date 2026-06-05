@@ -1,0 +1,17 @@
+{
+  "name": "terminal-blog",
+  "version": "1.0.0",
+  "description": "终端风格博客 - Node.js + 文件系统存储",
+  "private": true,
+  "scripts": {
+    "dev": "node public/server.js",
+    "start": "node public/server.js",
+    "seed": "node scripts/seed.js",
+    "reset": "node scripts/reset.js",
+    "import": "node scripts/import.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.17",
+    "archiver": "^8.0.0"
+  }
+}

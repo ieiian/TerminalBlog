@@ -1,0 +1,50 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# SSH keys
+.ssh_key/
+
+# Config with secrets
+git_config.json
+upload_code.json
+
+# Build output
+dist/
+build/
+
+# Temp files
+*.tmp
+*.temp
+
+# Data directories
+blogfiles/
+blogimgs/
+guestuploads/
+
+# Markdown content (keep directory but ignore files)
+Markdown/*
+!Markdown/.gitkeep
+
+# Config files
+public/config.js
+public/index.html.backup
