@@ -301,7 +301,903 @@
 
         requestAnimationFrame(draw);
     }, 1200); // 延迟 1.2 秒，让页面内容先渲染
-})();// ============ Matrix Rain Background ============
+})();/// ============ 时空虫特效 - 完整动画闭环 ============
+(function() {
+    var container = null;
+    var wormholeContainer = null;
+    var segments = [];
+    var segmentCount = 13;
+    var terminalTop = 0;
+    
+    // 位置参数
+    var headX = 0;
+    var direction = 1;
+    var boundLeft = 0;
+    var boundRight = 0;
+    var segmentSize = 3;
+    var groundY = 18;
+    
+    // 蠕动参数
+    var wavePhase = 0;
+    var waveSpeed = 0.055;
+    var archMax = 6;
+    var spacing = 1.6;
+    
+    // 边界缓冲区
+    var edgeBuffer = 25;
+    var turnCooldown = 0;
+    var minTurnInterval = 40;
+    
+    // 节段位置
+    var segX = [];
+    var segY = [];
+    var segOffset = [];
+    
+    // ========== 状态机 ==========
+    // 完整动画闭环：
+    // hidden → wormhole_appear → worm_emerge (直线) → waking (直线→蠕动) → active → sleeping (蠕动→直线) → worm_retract (直线收缩) → wormhole_close → hidden
+    var wormState = 'hidden';
+    
+    // 冻结状态（最小化时使用）
+    var isFrozen = false;
+    
+    // 显示/隐藏状态（最小化动画时使用）
+    var isHidden = false;
+    
+    // 提供给外部的接口
+    window.freezeWorm = function() { isFrozen = true; };
+    window.unfreezeWorm = function() { isFrozen = false; };
+    window.hideWorm = function() { 
+        isHidden = true;
+        container.style.display = 'none';
+    };
+    window.showWorm = function(delay) { 
+        isHidden = false;
+        container.style.opacity = '0';
+        container.style.display = '';
+        var fadeDelay = delay || 500;
+        setTimeout(function() {
+            container.style.transition = 'opacity 0.3s ease';
+            container.style.opacity = '1';
+            setTimeout(function() {
+                container.style.transition = '';
+            }, 300);
+        }, fadeDelay);
+    };
+    
+    // 虫洞参数
+    var wormholeX = 0;
+    var wormholeY = 0;
+    var wormholeRotation = 0;
+    var wormholeTimer = 0;
+    
+    // 动画参数（毫秒）
+    // ========== 时空虫时间参数（毫秒）==========
+    var appearDelayMin = 10000;   // 虫子出现前的最小延迟（10秒）
+    var appearDelayMax = 30000;   // 虫子出现前的最大延迟（30秒）
+    var wormholeAppearDur = 1000;   // 虫洞展开
+    var wormEmergeDur = 800;       // 虫子直线出现
+    var wakingDur = 400;           // 苏醒过渡（直线→蠕动）
+    var stayMin = 30000;         // 虫子停留的最小时间（30秒）
+    var stayMax = 300000;        // 虫子停留的最大时间（300秒 = 5分钟）
+    
+    var stayDuration = 0;
+    var stayTimer = 0;
+    var sleepingDur = 300;         // 沉睡过渡（蠕动→直线）- 加长使过渡更平滑
+    var wormRetractDur = 1000;      // 虫子直线收缩
+    var wormholeCloseDur = 1200;    // 虫洞关闭
+    
+    // 静态/动态状态参数
+    var isAwake = false; // 是否已苏醒（用于插值计算）
+    var wakeProgress = 0; // 0=完全直线, 1=完全蠕动
+    
+    // 虫洞样式参数
+    var isAppearing = true;
+    
+    // SVG 命名空间
+    var SVG_NS = 'http://www.w3.org/2000/svg';
+    
+    // 头部光波参数
+    var pulseWave = null;
+    var pulseX = 0;
+    var pulseY = 0;
+    var pulseTimer = 0;
+    var pulseInterval = 1200; // 光波触发间隔（毫秒）- 更频繁
+    var pulseActive = false;
+    var pulseProgress = 0;
+    
+    // 鼠标悬停状态
+    var isHovering = false;
+    var savedDirection = 1;
+    var savedHeadX = 0;
+    var mousePos = { x: -1000, y: -1000 }; // 初始位置远离虫子
+    
+    // 阻止消失的条件计数（悬停或调头时）
+    var preventDisappear = 0;
+    
+    // 边界检测计时器（每 1200ms 检测一次）
+    var boundaryCheckTimer = 0;
+    var boundaryCheckInterval = 1200; // 与蠕动状态频率一致
+    
+    // 跟踪鼠标位置
+    document.addEventListener('mousemove', function(e) {
+        mousePos.x = e.clientX;
+        mousePos.y = e.clientY;
+    });
+    
+    // 鼠标离开窗口时重置位置
+    document.addEventListener('mouseleave', function() {
+        mousePos.x = -1000;
+        mousePos.y = -1000;
+    });
+    
+    // 创建终端风格弹窗
+    function showWormModal(message) {
+        var existingModal = document.getElementById('wormModal');
+        if (existingModal) existingModal.remove();
+        
+        var modal = document.createElement('div');
+        modal.id = 'wormModal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;display:flex;align-items:flex-start;justify-content:center;padding-top:120px;z-index:100000;background:rgba(0,0,0,0.7);';
+        
+        var box = document.createElement('div');
+        box.style.cssText = 'background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:20px 30px;max-width:320px;text-align:center;box-shadow:0 0 30px rgba(100,200,255,0.2);';
+        
+        var btn = document.createElement('button');
+        btn.textContent = '关闭';
+        btn.style.cssText = 'background:#238636;border:none;color:#fff;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;';
+        btn.onclick = function() { modal.remove(); };
+        
+        box.innerHTML = '<div style="color:#58a6ff;font-size:24px;margin-bottom:15px;">🔮</div>' +
+            '<div style="color:#c9d1d9;font-size:14px;line-height:1.6;margin-bottom:20px;">' + message + '</div>';
+        box.appendChild(btn);
+        
+        modal.appendChild(box);
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) modal.remove();
+        });
+        document.body.appendChild(modal);
+    }
+    
+    function init() {
+        container = document.createElement('div');
+        container.style.cssText = 'position:fixed;pointer-events:auto;z-index:9999;left:0;top:0;cursor:pointer;width:100%;height:30px;';
+        
+        // 点击事件 - 弹出秘密空间提示
+        container.onclick = function(e) {
+            e.stopPropagation();
+            showWormModal('神秘空间开发中...');
+        };
+        
+        wormholeContainer = document.createElement('div');
+        wormholeContainer.style.cssText = 'position:absolute;pointer-events:none;opacity:0;transition:none;';
+        
+        // 创建头部光波元素
+        pulseWave = document.createElement('div');
+        pulseWave.style.cssText = 'position:absolute;pointer-events:none;border-radius:50%;opacity:0;transform:scale(0);';
+        container.appendChild(pulseWave);
+        
+        for (var i = 0; i < segmentCount; i++) {
+            var isHead = (i === 0);
+            var dot = document.createElement('div');
+            dot.style.cssText = 'position:absolute;width:' + segmentSize + 'px;height:' + segmentSize + 'px;background:radial-gradient(circle,' + (isHead ? '#5a7a8a,#3a5a6a' : '#3a5a6a,#2a4a5a') + ');border-radius:50%;box-shadow:0 0 ' + (isHead ? '2px' : '1px') + ' rgba(' + (isHead ? '60,100,120' : '40,80,100') + ',0.4);opacity:0;transform:scale(0);';
+            container.appendChild(dot);
+            segments.push({ el: dot });
+        }
+        
+        container.appendChild(wormholeContainer);
+        document.body.appendChild(container);
+        
+        setTimeout(function() {
+            positionContainer();
+            console.log('[时空虫] 已启动（完整动画闭环）');
+            scheduleNextAppearance();
+            animate();
+        }, 800);
+    }
+    
+    function scheduleNextAppearance() {
+        var delay = appearDelayMin + Math.random() * (appearDelayMax - appearDelayMin);
+        setTimeout(startAppear, delay);
+    }
+    
+    function startAppear() {
+        if (wormState !== 'hidden') return;
+        
+        var safeMargin = 50;
+        wormholeX = boundLeft + safeMargin + Math.random() * (boundRight - boundLeft - safeMargin * 2);
+        wormholeY = groundY;
+        
+        headX = wormholeX;
+        for (var i = 0; i < segmentCount; i++) {
+            segX[i] = wormholeX;
+            segY[i] = groundY; // 初始直线状态
+        }
+        direction = Math.random() > 0.5 ? 1 : -1;
+        
+        wormState = 'wormhole_appear';
+        wormholeTimer = 0;
+        wormholeRotation = 0;
+        isAppearing = true;
+        isAwake = false;
+        wakeProgress = 0;
+        
+        for (var j = 0; j < segmentCount; j++) {
+            segOffset[j] = j * 0.55;
+        }
+    }
+    
+    function startDisappear() {
+        if (wormState !== 'active') return;
+        wormState = 'wormhole_appear'; // 虫洞先出现在虫子头部位置
+        wormholeTimer = 0;
+        wormholeRotation = 0;
+        wormholeX = headX; // 虫洞定位在虫子头部
+        wormholeY = groundY;
+        isAppearing = false; // 切换为消失色调
+        isAwake = true;
+        // 保存当前移动方向，以便继续移动
+        disappearDirection = direction;
+    }
+    
+    // 计算虫子位置（直线模式）
+    function getStaticY(i) {
+        return groundY; // 完全直线
+    }
+    
+    // 计算虫子位置（蠕动模式）
+    function getWormY(i, phase) {
+        var localPhase = phase - segOffset[i];
+        while (localPhase < 0) localPhase += Math.PI * 2;
+        while (localPhase > Math.PI * 2) localPhase -= Math.PI * 2;
+        
+        var sinVal = Math.sin(localPhase);
+        var arch = 0;
+        if (sinVal > 0) arch = archMax * sinVal;
+        
+        var waveDim = 1 - (i / segmentCount) * 0.45;
+        arch *= Math.max(0.35, waveDim);
+        
+        if (i < segmentCount / 2) {
+            var frontBoost = 1 + (segmentCount / 2 - i) / (segmentCount / 2) * 0.25;
+            arch *= frontBoost;
+        }
+        
+        return groundY - arch;
+    }
+    
+    // 通用位置更新函数
+    function updateWormPositions() {
+        for (var i = 0; i < segmentCount; i++) {
+            var targetX = headX - i * spacing * direction;
+            var followSpeed = 0.12 - i * 0.007;
+            followSpeed = Math.max(0.05, followSpeed);
+            segX[i] += (targetX - segX[i]) * followSpeed;
+            
+            // 根据唤醒进度插值
+            var staticY = getStaticY(i);
+            var wormY = getWormY(i, wavePhase);
+            segY[i] = staticY + (wormY - staticY) * wakeProgress;
+        }
+    }
+    
+    // 渲染虫子
+    function renderWorm(opacity) {
+        for (var i = 0; i < segmentCount; i++) {
+            var wobble = isAwake ? Math.sin(wavePhase * 1.8 + i * 0.5) * 0.3 * wakeProgress : 0;
+            segments[i].el.style.left = segX[i] + 'px';
+            segments[i].el.style.top = (segY[i] + wobble) + 'px';
+            segments[i].el.style.transform = 'scale(1)';
+            segments[i].el.style.opacity = ((i === 0 ? 0.7 : 0.55) * opacity).toString();
+        }
+    }
+    
+    // 绘制漩涡虫洞效果 🌀 - 更神秘、更像圆形的虫洞
+    function drawWormhole(intensity, rotation) {
+        wormholeContainer.innerHTML = '';
+        
+        var size = 50;
+        var cx = size / 2;
+        var cy = size / 2;
+        
+        // 更神秘的深紫色/靛蓝色调
+        var ringColor = isAppearing ? 'rgba(100,80,200,' : 'rgba(80,60,140,';
+        var coreColor = isAppearing ? 'rgba(180,140,255,' : 'rgba(120,100,180,';
+        var glowColor = isAppearing ? 'rgba(60,40,120,' : 'rgba(40,30,100,';
+        var auraColor = isAppearing ? 'rgba(140,100,255,' : 'rgba(100,70,180,';
+        
+        var svg = document.createElementNS(SVG_NS, 'svg');
+        svg.setAttribute('width', size);
+        svg.setAttribute('height', size);
+        svg.setAttribute('viewBox', '0 0 ' + size + ' ' + size);
+        svg.style.position = 'absolute';
+        svg.style.left = '0';
+        svg.style.top = '0';
+        svg.style.transform = 'rotate(' + rotation + 'deg)';
+        svg.style.transition = 'none';
+        
+        // === 外层神秘光环 - 多层圆环 ===
+        // 最外层淡光环
+        var outerAura = document.createElementNS(SVG_NS, 'circle');
+        outerAura.setAttribute('cx', cx);
+        outerAura.setAttribute('cy', cy);
+        outerAura.setAttribute('r', '24');
+        outerAura.setAttribute('fill', 'none');
+        outerAura.setAttribute('stroke', glowColor + (intensity * 0.15) + ')');
+        outerAura.setAttribute('stroke-width', '4');
+        svg.appendChild(outerAura);
+        
+        // 外层神秘圆环 - 虚线效果
+        var outerRing = document.createElementNS(SVG_NS, 'circle');
+        outerRing.setAttribute('cx', cx);
+        outerRing.setAttribute('cy', cy);
+        outerRing.setAttribute('r', '21');
+        outerRing.setAttribute('fill', 'none');
+        outerRing.setAttribute('stroke', ringColor + (intensity * 0.6) + ')');
+        outerRing.setAttribute('stroke-width', '1.5');
+        outerRing.setAttribute('stroke-dasharray', '3 2');
+        svg.appendChild(outerRing);
+        
+        // 中层实线圆环
+        var midRing = document.createElementNS(SVG_NS, 'circle');
+        midRing.setAttribute('cx', cx);
+        midRing.setAttribute('cy', cy);
+        midRing.setAttribute('r', '17');
+        midRing.setAttribute('fill', 'none');
+        midRing.setAttribute('stroke', ringColor + (intensity * 0.8) + ')');
+        midRing.setAttribute('stroke-width', '1');
+        svg.appendChild(midRing);
+        
+        // 内层细圆环
+        var innerRing = document.createElementNS(SVG_NS, 'circle');
+        innerRing.setAttribute('cx', cx);
+        innerRing.setAttribute('cy', cy);
+        innerRing.setAttribute('r', '13');
+        innerRing.setAttribute('fill', 'none');
+        innerRing.setAttribute('stroke', coreColor + (intensity * 0.7) + ')');
+        innerRing.setAttribute('stroke-width', '0.8');
+        svg.appendChild(innerRing);
+        
+        // === 漩涡螺旋线 - 两臂向中心收敛 ===
+        var spiralPath = document.createElementNS(SVG_NS, 'path');
+        var spiralData = '';
+        var spiralArms = 2;
+        for (var arm = 0; arm < spiralArms; arm++) {
+            var startAngle = (Math.PI * 2 / spiralArms) * arm;
+            for (var angle = 0; angle < Math.PI * 1.5; angle += 0.08) {
+                var r = 18 - (angle / (Math.PI * 1.5)) * 14; // 从外圈向内圈
+                var x = cx + Math.cos(startAngle + angle) * r;
+                var y = cy + Math.sin(startAngle + angle) * r;
+                if (angle === 0 && arm === 0) {
+                    spiralData = 'M ' + x.toFixed(1) + ' ' + y.toFixed(1);
+                } else {
+                    spiralData += ' L ' + x.toFixed(1) + ' ' + y.toFixed(1);
+                }
+            }
+        }
+        spiralPath.setAttribute('d', spiralData);
+        spiralPath.setAttribute('fill', 'none');
+        spiralPath.setAttribute('stroke', auraColor + (intensity * 0.5) + ')');
+        spiralPath.setAttribute('stroke-width', '1.2');
+        spiralPath.setAttribute('stroke-linecap', 'round');
+        svg.appendChild(spiralPath);
+        
+        // === 中心深渊效果 ===
+        // 深渊外层光晕
+        var abyssOuter = document.createElementNS(SVG_NS, 'circle');
+        abyssOuter.setAttribute('cx', cx);
+        abyssOuter.setAttribute('cy', cy);
+        abyssOuter.setAttribute('r', '10');
+        abyssOuter.setAttribute('fill', coreColor + (intensity * 0.25) + ')');
+        svg.appendChild(abyssOuter);
+        
+        // 深渊中层光晕
+        var abyssMid = document.createElementNS(SVG_NS, 'circle');
+        abyssMid.setAttribute('cx', cx);
+        abyssMid.setAttribute('cy', cy);
+        abyssMid.setAttribute('r', '6');
+        abyssMid.setAttribute('fill', auraColor + (intensity * 0.4) + ')');
+        svg.appendChild(abyssMid);
+        
+        // 深渊核心 - 最亮
+        var abyssCore = document.createElementNS(SVG_NS, 'circle');
+        abyssCore.setAttribute('cx', cx);
+        abyssCore.setAttribute('cy', cy);
+        abyssCore.setAttribute('r', '3');
+        abyssCore.setAttribute('fill', 'rgba(220,200,255,' + (intensity * 0.95) + ')');
+        svg.appendChild(abyssCore);
+        
+        // === 神秘符文/刻度标记 - 8个等距点 ===
+        for (var i = 0; i < 8; i++) {
+            var angle = (Math.PI * 2 / 8) * i + rotation * 0.02;
+            var markerR = 20;
+            var x1 = cx + Math.cos(angle) * (markerR - 2);
+            var y1 = cy + Math.sin(angle) * (markerR - 2);
+            var x2 = cx + Math.cos(angle) * markerR;
+            var y2 = cy + Math.sin(angle) * markerR;
+            
+            var marker = document.createElementNS(SVG_NS, 'line');
+            marker.setAttribute('x1', x1.toFixed(1));
+            marker.setAttribute('y1', y1.toFixed(1));
+            marker.setAttribute('x2', x2.toFixed(1));
+            marker.setAttribute('y2', y2.toFixed(1));
+            marker.setAttribute('stroke', ringColor + (intensity * 0.7) + ')');
+            marker.setAttribute('stroke-width', '1.5');
+            marker.setAttribute('stroke-linecap', 'round');
+            svg.appendChild(marker);
+        }
+        
+        // === 能量射线 - 从中心向外辐射 ===
+        for (var ray = 0; ray < 4; ray++) {
+            var rayAngle = (Math.PI * 2 / 4) * ray - rotation * 0.015;
+            var rayX = cx + Math.cos(rayAngle) * 14;
+            var rayY = cy + Math.sin(rayAngle) * 14;
+            var rayEndX = cx + Math.cos(rayAngle) * 18;
+            var rayEndY = cy + Math.sin(rayAngle) * 18;
+            
+            var energyRay = document.createElementNS(SVG_NS, 'line');
+            energyRay.setAttribute('x1', rayX.toFixed(1));
+            energyRay.setAttribute('y1', rayY.toFixed(1));
+            energyRay.setAttribute('x2', rayEndX.toFixed(1));
+            energyRay.setAttribute('y2', rayEndY.toFixed(1));
+            energyRay.setAttribute('stroke', auraColor + (intensity * 0.5) + ')');
+            energyRay.setAttribute('stroke-width', '1');
+            energyRay.setAttribute('stroke-linecap', 'round');
+            svg.appendChild(energyRay);
+        }
+        
+        wormholeContainer.appendChild(svg);
+    }
+    
+    function positionContainer() {
+        var terminal = document.querySelector('.terminal');
+        if (!terminal) return;
+        
+        var rect = terminal.getBoundingClientRect();
+        terminalTop = rect.top;
+        
+        container.style.left = rect.left + 'px';
+        container.style.top = (terminalTop - 20) + 'px';
+        container.style.width = rect.width + 'px';
+        
+        boundLeft = 15 + edgeBuffer;
+        boundRight = rect.width - 15 - edgeBuffer;
+        
+        headX = boundLeft + Math.random() * (boundRight - boundLeft);
+        direction = Math.random() > 0.5 ? 1 : -1;
+        
+        for (var i = 0; i < segmentCount; i++) {
+            segX[i] = headX - i * spacing * direction;
+            segY[i] = groundY;
+            segOffset[i] = i * 0.55;
+        }
+    }
+    
+    // 缓动函数
+    function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+    }
+    function easeInOutCubic(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+    function easeOutQuad(t) {
+        return 1 - Math.pow(1 - t, 2);
+    }
+    
+    function animate() {
+        var dt = 16;
+        
+        // 冻结时不执行任何动画，保持当前状态
+        if (isFrozen) {
+            requestAnimationFrame(animate);
+            return;
+        }
+        
+        if (wormState === 'hidden') {
+            wormholeContainer.style.opacity = '0';
+            for (var i = 0; i < segmentCount; i++) {
+                segments[i].el.style.opacity = '0';
+            }
+        }
+        else if (wormState === 'wormhole_appear') {
+            // ========== 1/5. 虫洞展开（出现和消失共用）==========
+            wormholeTimer += dt;
+            var progress = Math.min(1, wormholeTimer / wormholeAppearDur);
+            var ease = easeOutCubic(progress);
+            
+            // 虫洞旋转：出现时顺时针，消失时逆时针
+            if (isAppearing) {
+                wormholeRotation += 2 + (1 - progress) * 3; // 顺时针
+            } else {
+                wormholeRotation -= 2 + (1 - progress) * 3; // 逆时针
+            }
+            drawWormhole(0.4 + ease * 0.5, wormholeRotation);
+            wormholeContainer.style.opacity = ease.toString();
+            wormholeContainer.style.left = (wormholeX - 25) + 'px';
+            wormholeContainer.style.top = (wormholeY - 25) + 'px';
+            
+            if (progress >= 1) {
+                if (isAppearing) {
+                    // 出现流程：虫洞展开后，虫子出现
+                    wormState = 'worm_emerge';
+                } else {
+                    // 消失流程：虫洞展开后，虫子开始沉睡过渡
+                    wormState = 'sleeping';
+                }
+                wormholeTimer = 0;
+            }
+        }
+        else if (wormState === 'worm_emerge') {
+            // ========== 2. 虫子直线出现 ==========
+            wormholeTimer += dt;
+            var progress = Math.min(1, wormholeTimer / wormEmergeDur);
+            
+            // 虫洞持续旋转（匀速）
+            wormholeRotation += 2;
+            
+            // 绘制虫洞（持续旋转）
+            var wormholeIntensity = 0.9 - progress * 0.3;
+            drawWormhole(wormholeIntensity, wormholeRotation);
+            wormholeContainer.style.opacity = (1 - progress * 0.3).toString();
+            wormholeContainer.style.left = (wormholeX - 25) + 'px';
+            wormholeContainer.style.top = (wormholeY - 25) + 'px';
+            
+            // 虫子从头部向尾部延伸
+            for (var i = 0; i < segmentCount; i++) {
+                var segProgress = Math.min(1, progress * segmentCount - i * 0.8);
+                if (segProgress > 0) {
+                    var segEase = easeOutCubic(segProgress);
+                    var targetX = wormholeX - i * spacing * direction;
+                    segX[i] = targetX;
+                    segY[i] = groundY; // 直线状态
+                    
+                    segments[i].el.style.left = segX[i] + 'px';
+                    segments[i].el.style.top = groundY + 'px';
+                    segments[i].el.style.transform = 'scale(' + (0.3 + segEase * 0.7) + ')';
+                    segments[i].el.style.opacity = (segEase * (i === 0 ? 0.7 : 0.55)).toString();
+                } else {
+                    segments[i].el.style.opacity = '0';
+                    segments[i].el.style.transform = 'scale(0)';
+                }
+            }
+            
+            headX = wormholeX;
+            
+            if (progress >= 1) {
+                wormState = 'waking';
+                wormholeTimer = 0;
+                wakeProgress = 0;
+                isAwake = false;
+                wavePhase = 0;
+                console.log('[时空虫] 直线形态完成，开始苏醒...');
+            }
+        }
+        else if (wormState === 'waking') {
+            // ========== 3. 苏醒过渡（直线 → 蠕动）==========
+            wormholeTimer += dt;
+            var progress = Math.min(1, wormholeTimer / wakingDur);
+            
+            wakeProgress = progress;
+            isAwake = true;
+            
+            // 波的相位推进（慢速启动）
+            wavePhase += waveSpeed * (0.3 + progress * 0.7);
+            if (wavePhase > Math.PI * 2) wavePhase -= Math.PI * 2;
+            
+            // 边界处理和移动
+            if (turnCooldown > 0) turnCooldown--;
+            headX += direction * 0.015; // 慢速移动
+            
+            var lookAhead = 15;
+            var predictedX = headX + direction * lookAhead;
+            if (turnCooldown <= 0) {
+                if (direction > 0 && predictedX >= boundRight) {
+                    direction *= -1;
+                    turnCooldown = minTurnInterval;
+                } else if (direction < 0 && predictedX <= boundLeft) {
+                    direction *= -1;
+                    turnCooldown = minTurnInterval;
+                }
+            }
+            
+            if (headX > boundRight) headX = boundRight;
+            else if (headX < boundLeft) headX = boundLeft;
+            
+            updateWormPositions();
+            renderWorm(1);
+            
+            // 虫洞持续旋转并平滑淡出（从 0.7 开始降到 0）
+            var wormholeFade = 0.7 * (1 - progress);
+            if (wormholeFade > 0.01) {
+                wormholeRotation += 2;
+                drawWormhole(0.3 + wormholeFade * 0.5, wormholeRotation);
+                wormholeContainer.style.opacity = wormholeFade.toString();
+            } else {
+                wormholeContainer.style.opacity = '0';
+            }
+            
+            if (progress >= 1) {
+                wormState = 'active';
+                stayDuration = stayMin + Math.random() * (stayMax - stayMin);
+                stayTimer = 0;
+                wakeProgress = 1;
+                console.log('[时空虫] 苏醒完成，开始蠕动！');
+            }
+        }
+        else if (wormState === 'active') {
+            // ========== 4. 正常蠕动 ==========
+            stayTimer += dt;
+            
+            // 检测鼠标是否悬停在虫子上
+            var containerRect = container.getBoundingClientRect();
+            var mouseX = mousePos.x - containerRect.left;
+            var mouseY = mousePos.y - containerRect.top;
+            
+            var headCenterX = segX[0];
+            var headCenterY = segY[0];
+            var detectRadius = 25;
+            var distToHead = Math.sqrt(Math.pow(mouseX - headCenterX, 2) + Math.pow(mouseY - headCenterY, 2));
+            isHovering = distToHead < detectRadius;
+            
+            if (isHovering) {
+                if (savedHeadX === 0) {
+                    savedDirection = direction;
+                    savedHeadX = headX;
+                }
+            } else if (savedHeadX !== 0) {
+                headX = savedHeadX;
+                savedHeadX = 0;
+            }
+            
+            // 检测是否在调头（刚调头后短暂阻止消失）
+            var isTurning = turnCooldown > minTurnInterval - 10;
+            
+            // 设置阻止消失条件
+            preventDisappear = (isHovering || isTurning) ? 1 : 0;
+            
+            // 悬停时虫子完全静止
+            if (!isHovering) {
+                wavePhase += waveSpeed;
+                if (wavePhase > Math.PI * 2) wavePhase -= Math.PI * 2;
+                
+                if (turnCooldown > 0) turnCooldown--;
+                headX += direction * 0.028;
+                
+                var lookAhead = 15;
+                var predictedX = headX + direction * lookAhead;
+                var shouldTurn = false;
+                
+                if (turnCooldown <= 0) {
+                    if (direction > 0 && predictedX >= boundRight) shouldTurn = true;
+                    else if (direction < 0 && predictedX <= boundLeft) shouldTurn = true;
+                }
+                
+                if (shouldTurn) {
+                    direction *= -1;
+                    turnCooldown = minTurnInterval;
+                }
+                
+                if (headX > boundRight) {
+                    headX = boundRight;
+                    direction = -1;
+                    turnCooldown = minTurnInterval;
+                } else if (headX < boundLeft) {
+                    headX = boundLeft;
+                    direction = 1;
+                    turnCooldown = minTurnInterval;
+                }
+            }
+            
+            // 悬停时虫子变成直线静止
+            wakeProgress = isHovering ? 0 : 1;
+            
+            updateWormPositions();
+            renderWorm(1);
+            
+            wormholeContainer.style.opacity = '0';
+            
+            // 头部光波动画（悬停时频率提高一倍）
+            if (!pulseActive) {
+                pulseTimer += dt;
+                pulseX = segX[0];
+                pulseY = segY[0];
+                
+                // 悬停时光波频率提高到 4 倍（间隔 300ms）
+                var currentPulseInterval = isHovering ? 300 : pulseInterval;
+                
+                if (pulseTimer >= currentPulseInterval) {
+                    pulseActive = true;
+                    pulseProgress = 0;
+                    pulseTimer = 0;
+                }
+            }
+            
+            if (pulseActive) {
+                pulseProgress += dt;
+                var pulseDur = 500;
+                var progress = Math.min(1, pulseProgress / pulseDur);
+                var ease = easeOutQuad(progress);
+                
+                var waveRadius = 6 + ease * 20;
+                var waveOpacity = 0.6 * (1 - ease);
+                var waveSize = waveRadius * 2;
+                
+                pulseWave.style.left = (pulseX - waveRadius) + 'px';
+                pulseWave.style.top = (pulseY - waveRadius) + 'px';
+                pulseWave.style.width = waveSize + 'px';
+                pulseWave.style.height = waveSize + 'px';
+                pulseWave.style.border = '2px solid rgba(120,180,200,' + waveOpacity + ')';
+                pulseWave.style.boxShadow = '0 0 ' + (waveRadius * 0.8) + 'px rgba(120,180,200,' + (waveOpacity * 0.7) + '), inset 0 0 ' + (waveRadius * 0.4) + 'px rgba(120,180,200,' + (waveOpacity * 0.3) + ')';
+                pulseWave.style.opacity = waveOpacity.toString();
+                pulseWave.style.transform = 'scale(1)';
+                
+                if (progress >= 1) {
+                    pulseActive = false;
+                    pulseWave.style.opacity = '0';
+                    pulseWave.style.transform = 'scale(0)';
+                }
+            }
+            
+            // 边界检测（每 1200ms 检测一次，悬浮时不检测）
+            if (!isHovering) {
+                boundaryCheckTimer += dt;
+                if (boundaryCheckTimer >= boundaryCheckInterval) {
+                    boundaryCheckTimer = 0;
+                    // segX[0] 是相对于 container 的坐标，boundLeft/boundRight 也是
+                    var headRelativeX = segX[0];
+                    // 检查头部是否超出有效区域（留 10px 缓冲）
+                    if (headRelativeX < boundLeft - 10 || headRelativeX > boundRight + 10) {
+                        console.log('[时空虫] 超出边界，触发消失...', { headX: headRelativeX, boundLeft: boundLeft, boundRight: boundRight });
+                        startDisappear();
+                    }
+                }
+            } else {
+                boundaryCheckTimer = 0; // 悬浮时重置计时器
+            }
+            
+            // 只有在不阻止消失时才检查消失
+            if (stayTimer >= stayDuration && preventDisappear === 0) {
+                startDisappear();
+            }
+        }
+        else if (wormState === 'sleeping') {
+            // ========== 5. 沉睡过渡（蠕动 → 直线）==========
+            wormholeTimer += dt;
+            var progress = Math.min(1, wormholeTimer / sleepingDur);
+            var ease = easeInOutCubic(progress);
+            
+            // 重置光波动画（防止光波残留）
+            pulseActive = false;
+            pulseWave.style.opacity = '0';
+            pulseWave.style.transform = 'scale(0)';
+            
+            wakeProgress = 1 - ease;
+            isAwake = wakeProgress > 0;
+            
+            // 虫洞持续旋转（逆时针）
+            wormholeRotation -= 2;
+            // 平滑过渡：从 1（wormhole_appear 结束时）降到 0.85
+            var wormholeOpacity = 1 - ease * 0.15;
+            var wormholeIntensity = 0.4 + wormholeOpacity * 0.5;
+            drawWormhole(wormholeIntensity, wormholeRotation);
+            wormholeContainer.style.opacity = wormholeOpacity.toString();
+            
+            // 虫子继续蠕动，但波幅逐渐减小直到变成直线
+            wavePhase += waveSpeed;
+            if (wavePhase > Math.PI * 2) wavePhase -= Math.PI * 2;
+            
+            // 虫子持续移动（不受边界限制）
+            headX += direction * 0.025;
+            
+            // 更新位置
+            updateWormPositions();
+            renderWorm(1);
+            
+            if (progress >= 1) {
+                wormState = 'worm_retract';
+                wormholeTimer = 0;
+                for (var i = 0; i < segmentCount; i++) {
+                    segY[i] = groundY; // 虫子完全停在地面
+                }
+                console.log('[时空虫] 进入沉睡状态，准备收缩...');
+            }
+        }
+        else if (wormState === 'worm_retract') {
+            // ========== 6. 虫子直线收缩进虫洞 ==========
+            wormholeTimer += dt;
+            var progress = Math.min(1, wormholeTimer / wormRetractDur);
+            var ease = easeOutCubic(progress);
+            
+            // 虫洞持续旋转并平滑渐隐
+            wormholeRotation -= 2;
+            var wormholeOpacity = 0.85 * (1 - ease * 0.4); // 从 0.85 线性降到约 0.51
+            var wormholeIntensity = 0.5 + wormholeOpacity * 0.4;
+            drawWormhole(wormholeIntensity, wormholeRotation);
+            wormholeContainer.style.opacity = wormholeOpacity.toString();
+            
+            // 虫子从尾部到头部依次收缩
+            for (var i = segmentCount - 1; i >= 0; i--) {
+                var segDelay = i * 0.04;
+                var segProgress = Math.max(0, Math.min(1, (progress - segDelay) / 0.6));
+                if (segProgress > 0) {
+                    var segEase = easeInOutCubic(segProgress);
+                    var collapseFactor = segEase;
+                    var targetX = wormholeX - i * spacing * direction * (1 - collapseFactor);
+                    
+                    segX[i] = targetX;
+                    segY[i] = groundY; // 保持直线
+                    
+                    segments[i].el.style.left = segX[i] + 'px';
+                    segments[i].el.style.top = groundY + 'px';
+                    segments[i].el.style.transform = 'scale(' + (1 - segEase) + ')';
+                    segments[i].el.style.opacity = ((1 - segEase) * (i === 0 ? 0.7 : 0.55)).toString();
+                } else {
+                    segments[i].el.style.left = segX[i] + 'px';
+                    segments[i].el.style.top = groundY + 'px';
+                    segments[i].el.style.transform = 'scale(1)';
+                    segments[i].el.style.opacity = (i === 0 ? 0.7 : 0.55).toString();
+                }
+            }
+            
+            if (progress >= 1) {
+                wormState = 'wormhole_close';
+                wormholeTimer = 0;
+            }
+        }
+        else if (wormState === 'wormhole_close') {
+            // ========== 7. 虫洞关闭 ==========
+            wormholeTimer += dt;
+            var progress = Math.min(1, wormholeTimer / wormholeCloseDur);
+            var ease = easeOutCubic(progress);
+            
+            wormholeRotation -= 1;
+            drawWormhole(0.5 * (1 - ease), wormholeRotation);
+            wormholeContainer.style.opacity = (0.5 * (1 - ease)).toString();
+            
+            for (var i = 0; i < segmentCount; i++) {
+                segments[i].el.style.opacity = '0';
+                segments[i].el.style.transform = 'scale(0)';
+            }
+            
+            if (progress >= 1) {
+                wormState = 'hidden';
+                console.log('[时空虫] 已消失，休息中...');
+                scheduleNextAppearance();
+            }
+        }
+        
+        // 跟随 terminal 位置变化（移动或缩放）
+        var terminal = document.querySelector('.terminal');
+        if (terminal) {
+            var rect = terminal.getBoundingClientRect();
+            var newTop = rect.top;
+            var newLeft = rect.left;
+            var newWidth = rect.width;
+            
+            // 如果位置或大小发生变化，更新所有相关值
+            if (Math.abs(newTop - terminalTop) > 1 || 
+                Math.abs(newLeft - parseFloat(container.style.left || '0')) > 1 ||
+                Math.abs(newWidth - parseFloat(container.style.width || '0')) > 1) {
+                
+                terminalTop = newTop;
+                container.style.left = newLeft + 'px';
+                container.style.top = (terminalTop - 20) + 'px';
+                container.style.width = newWidth + 'px';
+                
+                // 更新边界值
+                var safeMargin = 50;
+                boundLeft = 15 + edgeBuffer;
+                boundRight = newWidth - 15 - edgeBuffer;
+            }
+        }
+        
+        requestAnimationFrame(animate);
+    }
+    
+    init();
+})();
+
+// ============ Matrix Rain Background ============
 (function() {
     var canvas = document.getElementById('matrix-bg');
     if (!canvas) return;

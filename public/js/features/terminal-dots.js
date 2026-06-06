@@ -29,6 +29,9 @@ function minimizeTerminal() {
     
     if (termFooter) termFooter.style.visibility = 'hidden';
     
+    // 立即隐藏时空虫（不等动画完成）
+    if (window.hideWorm) window.hideWorm();
+    
     if (!isMinimized) {
         // 保存原始状态
         terminalOriginalState = {
@@ -149,6 +152,9 @@ function minimizeTerminal() {
                 // 动画完成
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 canvas.remove();
+                
+                // 隐藏时空虫
+                if (window.hideWorm) window.hideWorm();
                 
                 terminal.style.display = 'none';
                 terminal.style.transform = '';
@@ -311,6 +317,9 @@ function restoreTerminal() {
             terminal.style.margin = '';
             termFooter.style.display = '';
             termFooter.style.visibility = '';
+            
+            // 显示时空虫（延迟 500ms 后渐显）
+            if (window.showWorm) window.showWorm(500);
             
             // 淡入效果
             terminal.style.opacity = '0';
