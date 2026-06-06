@@ -463,10 +463,10 @@
         container = document.createElement('div');
         container.style.cssText = 'position:fixed;pointer-events:auto;z-index:9999;left:0;top:0;cursor:pointer;width:100%;height:30px;';
         
-        // 点击事件 - 弹出秘密空间提示
+        // 点击事件 - 弹出神秘空间提示
         container.onclick = function(e) {
             e.stopPropagation();
-            showWormModal('神秘空间开发中...');
+            showWormModal('神秘空间未开放');
         };
         
         wormholeContainer = document.createElement('div');
