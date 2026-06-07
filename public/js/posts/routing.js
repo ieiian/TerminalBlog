@@ -58,6 +58,28 @@
         }, 100);
     });
 
+    // ============ 全局代码复制按钮事件监听 ============
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('copy-btn')) {
+            var btn = e.target;
+            var code = decodeURIComponent(escape(atob(btn.getAttribute('data-code'))));
+
+            copyTextToClipboard(code).then(function() {
+                btn.textContent = '已复制';
+                btn.classList.add('copied');
+                setTimeout(function() {
+                    btn.textContent = '复制';
+                    btn.classList.remove('copied');
+                }, 1500);
+            }).catch(function() {
+                btn.textContent = '复制失败';
+                setTimeout(function() {
+                    btn.textContent = '复制';
+                }, 1500);
+            });
+        }
+    });
+
     // ============ Renderers ============
     function setTitle(text) {
         document.getElementById('titleBar').textContent = text;
