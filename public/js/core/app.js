@@ -5,6 +5,12 @@
     let currentPage = 1;
     let adminPage = 1;
     const POSTS_PER_PAGE = 10;
+    
+    // ============ 返回状态管理 ============
+    // 用于记录进入文章详情页之前的页面状态，实现"返回上一页"功能
+    let previousView = 'home';  // 之前的视图 (home, tag)
+    let previousTag = null;     // 之前的标签
+    let previousPage = 1;       // 之前的页码
 
     // ============ URL 管理 ============
     function updateUrl() {
@@ -188,6 +194,13 @@
     let unlockedPosts = JSON.parse(sessionStorage.getItem('unlocked_posts') || '{}');
 
     function navigate(view, param) {
+        // 进入文章详情页之前，保存当前页面状态
+        if (view === 'post') {
+            previousView = currentView;
+            previousTag = currentTag;
+            previousPage = currentPage;
+        }
+        
         if (view === 'home') {
             currentView = 'home';
             currentSlug = null;
@@ -204,6 +217,25 @@
             currentView = 'tags';
         } else if (view === 'admin') {
             currentView = 'admin';
+        }
+        updateUrl();
+        window.scrollTo(0, 0);
+        render();
+    }
+    
+    // ============ 返回上一页功能 ============
+    function goBack() {
+        if (previousView === 'tag' && previousTag) {
+            // 返回到标签筛选页
+            currentView = 'tag';
+            currentTag = previousTag;
+            currentPage = previousPage;
+        } else {
+            // 默认返回首页
+            currentView = 'home';
+            currentTag = null;
+            currentSlug = null;
+            currentPage = previousPage > 1 ? previousPage : 1;
         }
         updateUrl();
         window.scrollTo(0, 0);

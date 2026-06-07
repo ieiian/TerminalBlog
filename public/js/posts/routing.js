@@ -398,7 +398,7 @@
             body.innerHTML = `
                 ${prompt('hacker', 'blog', `cat ./posts/${currentSlug}.md`)}
                 <div class="nav-links">
-                    <a onclick="navigate('home')">[← 返回首页]</a>
+                    <a onclick="goBack()">[← 返回]</a>
                 </div>
                 <div class="post-detail" style="padding: 32px; text-align: center;">
                     <p style="color: var(--orange); font-size: 1.1em;">🔒 此文已上锁</p>
@@ -424,7 +424,7 @@
             ${prompt('hacker', 'blog', `cat ./posts/${postId}.md`)}
 
             <div class="nav-links">
-                <a onclick="navigate('home')">[← 返回首页]</a>
+                <a onclick="goBack()">[← 返回]</a>
                 <a onclick="navigate('tags')">[标签]</a>
                 ${shareUrl ? `<a onclick="var self=this; copyTextToClipboard('${shareUrl}').then(function(){ self.textContent='[✓ 已复制链接]'; setTimeout(function(){ self.textContent='[📋 复制分享链接]' }, 1500); }).catch(function(){ showToast('复制失败', 'error'); });" style="color: var(--yellow);">[📋 复制分享链接]</a>` : ''}
             </div>
