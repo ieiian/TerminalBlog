@@ -25,7 +25,7 @@ function previewPost() {
             '<div class="term-body">' +
                 prompt('hacker', 'blog', 'cat ./posts/' + displayId + '.md') +
                 '<div class="nav-links">' +
-                    '<a onclick="closePreview()" style="color: var(--cyan);">[← 返回编辑]</a>' +
+                    '<a onclick="closePreview()" style="color: var(--cyan);">[◀ 返回编辑]</a>' +
                     '<span style="color: var(--yellow); font-size: 0.85em;">⬆ 这是预览模式，文章尚未发布</span>' +
                 '</div>' +
                 '<div class="post-detail">' +

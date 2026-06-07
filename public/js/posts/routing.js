@@ -305,11 +305,11 @@
 
     function renderPagination(page, totalPages) {
         let html = '<div class="pagination">';
-        html += `<a onclick="goPage(${page - 1})" class="${page <= 1 ? 'disabled' : ''}">← 上一页</a>`;
+        html += `<a onclick="goPage(${page - 1})" class="${page <= 1 ? 'disabled' : ''}">◀ 上一页</a>`;
         for (let i = 1; i <= totalPages; i++) {
             html += `<a onclick="goPage(${i})" class="${i === page ? 'active' : ''}">${i}</a>`;
         }
-        html += `<a onclick="goPage(${page + 1})" class="${page >= totalPages ? 'disabled' : ''}">下一页 →</a>`;
+        html += `<a onclick="goPage(${page + 1})" class="${page >= totalPages ? 'disabled' : ''}">下一页 ▶</a>`;
         html += '</div>';
         return html;
     }
@@ -398,7 +398,7 @@
             body.innerHTML = `
                 ${prompt('hacker', 'blog', `cat ./posts/${currentSlug}.md`)}
                 <div class="nav-links">
-                    <a onclick="goBack()">[← 返回]</a>
+                    <a onclick="goBack()">[◀ 返回]</a>
                 </div>
                 <div class="post-detail" style="padding: 32px; text-align: center;">
                     <p style="color: var(--orange); font-size: 1.1em;">🔒 此文已上锁</p>
@@ -424,7 +424,7 @@
             ${prompt('hacker', 'blog', `cat ./posts/${postId}.md`)}
 
             <div class="nav-links">
-                <a onclick="goBack()">[← 返回]</a>
+                <a onclick="goBack()">[◀ 返回]</a>
                 <a onclick="navigate('tags')">[标签]</a>
                 ${shareUrl ? `<a onclick="var self=this; copyTextToClipboard('${shareUrl}').then(function(){ self.textContent='[✓ 已复制链接]'; setTimeout(function(){ self.textContent='[📋 复制分享链接]' }, 1500); }).catch(function(){ showToast('复制失败', 'error'); });" style="color: var(--yellow);">[📋 复制分享链接]</a>` : ''}
             </div>
@@ -920,7 +920,7 @@
                 '<div class="term-body">' +
                     prompt('hacker', 'blog', 'cat ./posts/' + displayId + '.md') +
                     '<div class="nav-links">' +
-                        '<a onclick="closePreview()" style="color: var(--cyan);">[← 返回编辑]</a>' +
+                        '<a onclick="closePreview()" style="color: var(--cyan);">[◀ 返回编辑]</a>' +
                         '<span style="color: var(--yellow); font-size: 0.85em;">⬆ 这是预览模式，文章尚未发布</span>' +
                     '</div>' +
                     '<div class="post-detail">' +
