@@ -8,9 +8,10 @@
     
     // ============ 返回状态管理 ============
     // 用于记录进入文章详情页之前的页面状态，实现"返回上一页"功能
-    let previousView = 'home';  // 之前的视图 (home, tag)
+    let previousView = 'home';  // 之前的视图 (home, tag, admin)
     let previousTag = null;     // 之前的标签
     let previousPage = 1;       // 之前的页码
+    let previousAdminPage = 1;  // 之前的管理页页码
 
     // ============ URL 管理 ============
     function updateUrl() {
@@ -199,6 +200,10 @@
             previousView = currentView;
             previousTag = currentTag;
             previousPage = currentPage;
+            // 保存管理页的页码
+            if (currentView === 'admin') {
+                previousAdminPage = adminPage;
+            }
         }
         
         if (view === 'home') {
@@ -230,6 +235,12 @@
             currentView = 'tag';
             currentTag = previousTag;
             currentPage = previousPage;
+        } else if (previousView === 'admin') {
+            // 返回到管理页，保持之前的页码
+            currentView = 'admin';
+            currentTag = null;
+            currentSlug = null;
+            adminPage = previousAdminPage;
         } else {
             // 默认返回首页
             currentView = 'home';

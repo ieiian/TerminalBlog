@@ -3,7 +3,7 @@
 // 绿色按钮：刷新页面 + 触发 AI 光晕效果（保持当前页面状态）
 function refreshWithEffect() {
     // 清除 AI 光晕标记，这样刷新后会重新触发
-    sessionStorage.removeItem('ai_corona_shown');
+    localStorage.removeItem('ai_corona_shown');
     
     // 保存当前页面状态，用于刷新后恢复
     var refreshState = {

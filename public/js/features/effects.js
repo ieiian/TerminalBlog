@@ -3,10 +3,10 @@
     // 检查配置开关：是否启用首次访问光晕特效
     if (AI_CONFIG && AI_CONFIG.showFirstVisitGlow === false) return;
 
-    // 每次浏览器会话（标签页）只触发一次
+    // 使用 localStorage 存储标记，只要缓存不被清理则之后不会再次触发
     var STORAGE_KEY = 'ai_corona_shown';
-    if (sessionStorage.getItem(STORAGE_KEY)) return;
-    sessionStorage.setItem(STORAGE_KEY, '1');
+    if (localStorage.getItem(STORAGE_KEY)) return;
+    localStorage.setItem(STORAGE_KEY, '1');
 
     // 延迟执行，等待 DOM 布局完成
     setTimeout(function() {

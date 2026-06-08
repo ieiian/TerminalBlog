@@ -306,7 +306,7 @@
             color: var(--green);
             text-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
         }
-        .ls-row .date-col { color: var(--gray); }
+        .ls-row .date-col { color: var(--gray); text-align: right; }
 
         /* Post detail card */
         .post-detail {
@@ -589,13 +589,15 @@
             font-size: 0.85em;
         }
 
-        /* Pagination */
+        /* Pagination - 滑动式分页 */
         .pagination {
             margin: 16px 0;
             display: flex;
+            align-items: center;
+            justify-content: center;
             gap: 8px;
         }
-        .pagination a {
+        .pagination-arrow {
             color: var(--cyan);
             text-decoration: none;
             padding: 4px 12px;
@@ -604,20 +606,97 @@
             font-size: 0.8em;
             cursor: pointer;
             transition: all 0.2s;
+            user-select: none;
+            flex-shrink: 0;
         }
-        .pagination a:hover {
+        .pagination-arrow:hover {
             border-color: var(--green);
             color: var(--green);
         }
-        .pagination a.active {
-            background: var(--green);
-            color: var(--bg);
-            border-color: var(--green);
-        }
-        .pagination a.disabled {
+        .pagination-arrow.disabled {
             opacity: 0.3;
             pointer-events: none;
         }
+        .pagination-scroll-container {
+            overflow: hidden;
+            max-width: 100%;
+            position: relative;
+        }
+        .pagination-track {
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+            scroll-behavior: smooth;
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE/Edge */
+            padding: 4px 0;
+            /* 隐藏滚动条但保持功能 */
+        }
+        .pagination-track::-webkit-scrollbar {
+            display: none; /* Chrome/Safari */
+        }
+        .pagination-page {
+            color: var(--cyan);
+            text-decoration: none;
+            padding: 4px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .pagination-page:hover {
+            border-color: var(--green);
+            color: var(--green);
+            transform: translateY(-2px);
+        }
+        .pagination-page.active {
+            background: var(--green);
+            color: var(--bg);
+            border-color: var(--green);
+            box-shadow: 0 0 12px rgba(0, 255, 65, 0.4);
+        }
+
+        /* 滚动式文章列表 - 透明容器，与终端融合 */
+        .posts-scroll-container {
+            position: relative;
+            overflow: hidden;
+            margin: 4px 0 16px 0;
+            /* 透明化，与终端窗口融合 */
+            background: transparent;
+            border: none;
+            border-radius: 0;
+        }
+        .posts-scroll-track {
+            display: flex;
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            will-change: transform;
+            min-height: 200px;
+        }
+        .posts-scroll-page {
+            flex-shrink: 0;
+            width: 100%;
+            min-height: 300px;
+            padding: 12px;
+        }
+
+        .posts-scroll-progress {
+            height: 3px;
+            background: var(--border);
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green);
+            transition: width 0.3s ease;
+        }
+
 
         /* Admin panel */
         .admin-section {

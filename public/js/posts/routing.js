@@ -128,7 +128,6 @@
 
     async function renderHome(body) {
         // 去除 ~ zsh 后缀
-        // setTitle(SITE_CONFIG ? SITE_CONFIG.siteTitle + ' ~ zsh' : 'TerminalBlog ~ zsh');
         setTitle(SITE_CONFIG ? SITE_CONFIG.siteTitle : 'TerminalBlog');
         document.getElementById('statusMode').textContent = 'NORMAL';
 
@@ -169,7 +168,18 @@
             ${separator('文章列表')}
 
             ${prompt('hacker', 'blog', 'ls -la ./posts/')}
-            ${renderPostList(posts.posts)}
+            
+            <!-- 滚动式文章列表容器 -->
+            <div class="posts-scroll-container" id="postsScrollContainer">
+                <div class="posts-scroll-track" id="postsScrollTrack">
+                    <div class="posts-scroll-page" data-page="${posts.page}">
+                        ${renderPostList(posts.posts)}
+                    </div>
+                </div>
+                <div class="posts-scroll-progress" id="postsScrollProgress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+            </div>
 
             ${posts.totalPages > 1 ? renderPagination(posts.page, posts.totalPages) : ''}
 
@@ -205,6 +215,12 @@
             </div>
         `;
 
+        // 保存总页数信息
+        window.totalPages = posts.totalPages;
+        
+        // 初始化滚动式分页
+        initScrollPagination(posts.page, posts.totalPages);
+
         // Load tags asynchronously
         try {
             const tagsData = await apiGet('/tags');
@@ -231,7 +247,6 @@
 
             if (userEl) userEl.textContent = clientInfo.username || 'guest';
 
-            // IP: only show if available
             if (ipEl && ipRow) {
                 if (clientInfo.ip) {
                     ipEl.textContent = clientInfo.ip;
@@ -243,11 +258,9 @@
 
             if (timeEl) timeEl.textContent = clientInfo.time || 'N/A';
 
-            // Browser: get from client-side navigator
             if (browserEl && browserRow) {
                 const ua = navigator.userAgent;
                 if (ua) {
-                    // Parse browser info
                     let browser = 'Unknown';
                     if (ua.includes('Firefox')) {
                         browser = 'Firefox ' + (ua.match(/Firefox\/(\d+)/) || ['', ''])[1];
@@ -305,19 +318,205 @@
 
     function renderPagination(page, totalPages) {
         let html = '<div class="pagination">';
-        html += `<a onclick="goPage(${page - 1})" class="${page <= 1 ? 'disabled' : ''}">◀ 上一页</a>`;
+        html += `<div class="pagination-arrow ${page <= 1 ? 'disabled' : ''}" onclick="goPage(${page - 1})">◀</div>`;
+        html += '<div class="pagination-scroll-container">';
+        html += '<div class="pagination-track">';
+        
         for (let i = 1; i <= totalPages; i++) {
-            html += `<a onclick="goPage(${i})" class="${i === page ? 'active' : ''}">${i}</a>`;
+            html += `<div class="pagination-page ${i === page ? 'active' : ''}" onclick="goPage(${i})">${i}</div>`;
         }
-        html += `<a onclick="goPage(${page + 1})" class="${page >= totalPages ? 'disabled' : ''}">下一页 ▶</a>`;
+        
+        html += '</div></div>';
+        html += `<div class="pagination-arrow ${page >= totalPages ? 'disabled' : ''}" onclick="goPage(${page + 1})">▶</div>`;
         html += '</div>';
+        
+        // 页码渲染完成后，滚动到当前页
+        setTimeout(() => scrollToActivePage(page), 50);
+        
         return html;
     }
+    
+    function scrollToActivePage(page) {
+        const track = document.querySelector('.pagination-track');
+        const activePage = track?.querySelector('.pagination-page.active');
+        if (track && activePage) {
+            const trackWidth = track.offsetWidth;
+            const pageLeft = activePage.offsetLeft;
+            const pageWidth = activePage.offsetWidth;
+            const scrollLeft = pageLeft - (trackWidth / 2) + (pageWidth / 2);
+            track.style.scrollBehavior = 'smooth';
+            track.scrollLeft = scrollLeft;
+        }
+    }
+    
+    // 初始化分页滑动功能（鼠标拖拽 + 滚轮支持）
+    // 在 render 和 loadPostsPage 后调用
+    function initPaginationScroll() {
+        const track = document.querySelector('.pagination-track');
+        if (!track) return;
+        
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+        
+        // 鼠标拖拽支持
+        track.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('pagination-page')) return; // 点击页码时不拖拽
+            isDown = true;
+            track.style.cursor = 'grabbing';
+            startX = e.pageX - track.offsetLeft;
+            scrollLeft = track.scrollLeft;
+        });
+        
+        track.addEventListener('mouseleave', () => {
+            isDown = false;
+            track.style.cursor = 'grab';
+        });
+        
+        track.addEventListener('mouseup', () => {
+            isDown = false;
+            track.style.cursor = 'grab';
+        });
+        
+        track.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - track.offsetLeft;
+            const walk = (x - startX) * 2; // 拖拽速度
+            track.scrollLeft = scrollLeft - walk;
+        });
+        
+        // 滚轮支持（将垂直滚轮转换为水平滚动）
+        track.addEventListener('wheel', (e) => {
+            if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
+                e.preventDefault();
+                track.scrollLeft += e.deltaY;
+            }
+        }, { passive: false });
+        
+        // 设置默认光标
+        track.style.cursor = 'grab';
+    }
 
+    // 滚动式分页相关变量
+    window.postsListHeight = 0; // 记录文章列表高度
+    
+    // 初始化滚动式分页
+    function initScrollPagination(currentPage, totalPages) {
+        updateProgressBar(currentPage, totalPages);
+        initPaginationScroll();
+        
+        // 记录初始高度
+        setTimeout(() => {
+            const scrollTrack = document.getElementById('postsScrollTrack');
+            if (scrollTrack && !window.postsListHeight) {
+                window.postsListHeight = scrollTrack.offsetHeight;
+            }
+        }, 100);
+    }
+    
+    // 更新进度条
+    function updateProgressBar(page, total) {
+        const progressBar = document.getElementById('progressBar');
+        if (progressBar) {
+            const percent = (page / total) * 100;
+            progressBar.style.width = percent + '%';
+        }
+    }
+    
+    // 滚动式切换到指定页
+    function scrollToPage(targetPage) {
+        var scrollTrack = document.getElementById('postsScrollTrack');
+        if (!scrollTrack) return;
+        
+        // 边界校验：防止超出有效页码范围
+        var total = window.totalPages || 1;
+        if (targetPage < 1 || targetPage > total || targetPage === currentPage) return;
+        
+        // 记录方向
+        var prevPage = currentPage;
+        var isForward = targetPage > prevPage;
+        
+        // 先滑出
+        scrollTrack.style.transition = 'transform 0.25s ease, opacity 0.2s ease';
+        scrollTrack.style.transform = 'translateY(' + (isForward ? '-20px' : '20px') + ')';
+        scrollTrack.style.opacity = '0';
+        
+        setTimeout(function() {
+            // 更新 URL
+            var url = new URL(window.location);
+            url.searchParams.delete('view');
+            url.searchParams.delete('tag');
+            url.searchParams.set('page', targetPage);
+            window.history.pushState({}, '', url);
+            
+            // 获取新内容
+            fetch('/api/posts?page=' + targetPage + '&limit=' + POSTS_PER_PAGE)
+                .then(function(res) { return res.json(); })
+                .then(function(posts) {
+                    // 更新状态
+                    currentPage = targetPage;
+                    window.totalPages = posts.totalPages;
+                    
+                    // 更新内容 — 保持 .posts-scroll-page 包裹层，确保样式与初始渲染一致
+                    scrollTrack.innerHTML = '<div class="posts-scroll-page" data-page="' + currentPage + '">' + renderPostList(posts.posts) + '</div>';
+                    
+                    // 重置位置
+                    scrollTrack.style.transition = 'none';
+                    scrollTrack.style.transform = 'translateY(' + (isForward ? '20px' : '-20px') + ')';
+                    scrollTrack.style.opacity = '0';
+                    if (window.postsListHeight > 0) {
+                        scrollTrack.style.minHeight = window.postsListHeight + 'px';
+                    }
+                    
+                    // 触发重排
+                    void scrollTrack.offsetHeight;
+                    
+                    // 滑入
+                    scrollTrack.style.transition = 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease';
+                    scrollTrack.style.transform = 'translateY(0)';
+                    scrollTrack.style.opacity = '1';
+                    
+                    // 更新进度条
+                    updateProgressBar(currentPage, window.totalPages);
+                    
+                    // 更新分页高亮
+                    var pageEls = document.querySelectorAll('.pagination-page');
+                    pageEls.forEach(function(el) { el.classList.remove('active'); });
+                    if (pageEls[currentPage - 1]) {
+                        pageEls[currentPage - 1].classList.add('active');
+                    }
+                    
+                    // 更新箭头状态
+                    updatePaginationArrows(currentPage, window.totalPages);
+                    
+                    // 滚动分页条到当前页
+                    scrollToActivePage(currentPage);
+                })
+                .catch(function(err) {
+                    console.error('[分页] 加载失败:', err);
+                    scrollTrack.style.transition = 'none';
+                    scrollTrack.style.transform = 'translateY(0)';
+                    scrollTrack.style.opacity = '1';
+                });
+        }, 280);
+    }
+    
+    // 更新分页箭头的禁用状态
+    function updatePaginationArrows(page, totalPages) {
+        var arrows = document.querySelectorAll('.pagination-arrow');
+        if (arrows.length >= 2) {
+            // 第一个箭头是上一页（◀），第二个是下一页（▶）
+            arrows[0].classList.toggle('disabled', page <= 1);
+            arrows[0].setAttribute('onclick', 'goPage(' + (page - 1) + ')');
+            arrows[1].classList.toggle('disabled', page >= totalPages);
+            arrows[1].setAttribute('onclick', 'goPage(' + (page + 1) + ')');
+        }
+    }
+    
+    // 跳转到指定页码（带边界校验）
     function goPage(page) {
-        currentPage = page;
-        render();
-        window.scrollTo(0, 0);
+        scrollToPage(page);
     }
 
     function goAdminPage(page) {
@@ -638,7 +837,6 @@
         `;
 
         // Load posts for admin (paginated)
-        adminPage = 1;
         loadAdminPosts();
     }
 
