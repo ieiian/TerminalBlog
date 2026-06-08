@@ -591,7 +591,7 @@
 
         /* Pagination - 滑动式分页 */
         .pagination {
-            margin: 16px 0;
+            margin: 10px 0 12px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -659,36 +659,115 @@
             box-shadow: 0 0 12px rgba(0, 255, 65, 0.4);
         }
 
-        /* 滚动式文章列表 - 透明容器，与终端融合 */
+        /* 连续滚动文章列表 - 透明容器，与终端融合 */
         .posts-scroll-container {
             position: relative;
-            overflow: hidden;
-            margin: -8px 0 16px 0;
-            /* 透明化，与终端窗口融合 */
+            overflow: visible;
+            margin: 8px 0 10px;
             background: transparent;
             border: none;
             border-radius: 0;
         }
-        .posts-scroll-track {
-            display: flex;
-            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            will-change: transform;
-            min-height: 200px;
+        .posts-scroll-container > .ls-output {
+            margin: 0 0 6px;
+            padding: 0 12px;
         }
-        .posts-scroll-page {
+        .posts-scroll-container .ls-row.header {
+            margin-bottom: 0;
+            padding-bottom: 8px;
+        }
+        .posts-scroll-viewport {
+            overflow: hidden;
+            padding: 0 12px;
+            box-sizing: content-box;
+        }
+        .admin-posts-scroll-viewport {
+            padding: 8px 0;
+            transition: height 0.3s ease;
+        }
+        .posts-scroll-track {
+            will-change: transform;
+        }
+        /* 首页/管理页滚动列表行：统一行高与垂直居中 */
+        .posts-scroll-list-row {
+            padding: 7px 0;
+            box-sizing: border-box;
+            font-size: 0.9em;
+            line-height: 1.4;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+        }
+        .posts-scroll-viewport .ls-row.posts-scroll-list-row {
+            display: grid;
+            grid-template-columns: 100px 80px 1fr 80px;
+            gap: 12px;
+            align-items: center;
+        }
+        @media (max-width: 600px) {
+            .posts-scroll-viewport .ls-row.posts-scroll-list-row {
+                grid-template-columns: 1fr 80px;
+            }
+            .posts-scroll-viewport .ls-row.posts-scroll-list-row .perm,
+            .posts-scroll-viewport .ls-row.posts-scroll-list-row .size { display: none; }
+        }
+        .posts-scroll-viewport .ls-row .name {
+            word-break: break-word;
+            white-space: normal;
+            overflow: visible;
+        }
+        .posts-scroll-viewport .ls-row .name a {
+            word-break: break-word;
+        }
+        .admin-post-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .admin-post-info {
+            min-width: 0;
+            flex: 1;
+            word-break: break-word;
+            white-space: normal;
+        }
+        .admin-post-id {
+            color: var(--purple);
+            font-size: 0.75em;
+        }
+        .admin-post-lock {
+            color: var(--orange);
+            font-size: 0.75em;
+        }
+        .admin-post-title {
+            color: var(--cyan);
+            cursor: pointer;
+            text-decoration: none;
+            margin-left: 8px;
+            word-break: break-word;
+        }
+        .admin-post-date {
+            color: var(--gray);
+            font-size: 0.8em;
+            margin-left: 8px;
+        }
+        .admin-post-actions {
+            display: flex;
+            gap: 4px;
             flex-shrink: 0;
-            width: 100%;
-            min-height: 300px;
-            padding: 0 12px 12px 12px;
+            align-items: center;
+        }
+        .admin-post-btn {
+            padding: 1px 5px;
+            font-size: 0.7em;
+            line-height: 1.2;
         }
 
         .posts-scroll-progress {
             height: 1px;
             background: var(--border);
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            margin: 8px 12px 0;
+        }
+        #adminPostsScrollContainer .posts-scroll-progress {
+            margin-top: 12px;
         }
         .progress-bar {
             height: 100%;
@@ -740,7 +819,7 @@
             background: var(--bg-header);
             color: var(--green);
             border: 1px solid var(--green);
-            padding: 8px 20px;
+            padding: 4px 7px;
             border-radius: 4px;
             font-family: inherit;
             font-size: 0.85em;

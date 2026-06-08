@@ -131,10 +131,11 @@
         setTitle(SITE_CONFIG ? SITE_CONFIG.siteTitle : 'TerminalBlog');
         document.getElementById('statusMode').textContent = 'NORMAL';
 
-        const [stats, posts] = await Promise.all([
-            apiGet('/stats'),
-            apiGet(`/posts?page=${currentPage}&limit=${POSTS_PER_PAGE}`)
-        ]);
+        const stats = await apiGet('/stats');
+        const posts = await apiGet(`/posts?page=1&limit=${Math.max(stats.totalPosts, 1)}`);
+        const homeTotalPages = Math.max(1, Math.ceil(posts.totalPosts / POSTS_PER_PAGE));
+        if (currentPage > homeTotalPages) currentPage = homeTotalPages;
+        if (currentPage < 1) currentPage = 1;
 
         body.innerHTML = `
             <div class="ascii-art glow">
@@ -169,29 +170,16 @@
 
             ${prompt('hacker', 'blog', 'ls -la ./posts/')}
             
-            <!-- 滚动式文章列表容器 -->
-            <div class="posts-scroll-container" id="postsScrollContainer">
-                <!-- 标题行（固定，不参与滚动动画） -->
-                <div class="ls-output">
-                    <div class="ls-row header">
-                        <span>权限</span>
-                        <span>大小</span>
-                        <span>文件名</span>
-                        <span>日期</span>
-                    </div>
-                </div>
-                <!-- 文章列表（参与滚动动画） -->
-                <div class="posts-scroll-track" id="postsScrollTrack">
-                    <div class="posts-scroll-page" data-page="${posts.page}">
-                        ${renderPostList(posts.posts)}
-                    </div>
-                </div>
-                <div class="posts-scroll-progress" id="postsScrollProgress">
-                    <div class="progress-bar" id="progressBar"></div>
-                </div>
-            </div>
-
-            ${posts.totalPages > 1 ? renderPagination(posts.page, posts.totalPages) : ''}
+            ${renderPostsScrollContainer({
+                containerId: 'postsScrollContainer',
+                viewportId: 'postsScrollViewport',
+                viewportClass: 'home-posts-scroll-viewport',
+                trackId: 'postsScrollTrack',
+                progressBarId: 'progressBar',
+                headerHtml: renderHomePostsHeader(),
+                rowsHtml: renderPostList(posts.posts),
+                paginationHtml: homeTotalPages > 1 ? renderPagination(currentPage, homeTotalPages) : ''
+            })}
 
             ${separator('标签云')}
 
@@ -225,11 +213,12 @@
             </div>
         `;
 
-        // 保存总页数信息
-        window.totalPages = posts.totalPages;
-        
-        // 初始化滚动式分页
-        initScrollPagination(posts.page, posts.totalPages);
+        window.totalPosts = posts.totalPosts;
+        window.totalPages = homeTotalPages;
+        window.homeStableViewportHeight = 0;
+
+        // 初始化连续滚动分页
+        initPostsScroll('home', currentPage, homeTotalPages);
 
         // Load tags asynchronously
         try {
@@ -307,7 +296,7 @@
         let html = '';
         posts.forEach(post => {
             const lockIcon = post.locked ? '🔒 ' : '';
-            html += `<div class="ls-row">
+            html += `<div class="ls-row posts-scroll-list-row">
                 <span class="perm">${post.locked ? '🔒' : '-rw-r--r--'}</span>
                 <span class="size">${post.size || '---'}</span>
                 <span class="name"><a onclick="viewPost('${post.id}')">${lockIcon}${escapeHtml(post.title)}.md</a></span>
@@ -316,6 +305,39 @@
         });
 
         return html;
+    }
+
+    // 首页/管理页共用的连续滚动列表外壳
+    function renderPostsScrollContainer(config) {
+        const headerBlock = config.headerHtml || '';
+        const paginationBlock = config.paginationHtml || '';
+        return `
+            <div class="posts-scroll-container" id="${config.containerId}">
+                ${headerBlock}
+                <div class="posts-scroll-viewport ${config.viewportClass || ''}" id="${config.viewportId}">
+                    <div class="posts-scroll-track" id="${config.trackId}">
+                        ${config.rowsHtml}
+                    </div>
+                </div>
+                <div class="posts-scroll-progress">
+                    <div class="progress-bar" id="${config.progressBarId}"></div>
+                </div>
+            </div>
+            ${paginationBlock}
+        `;
+    }
+
+    function renderHomePostsHeader() {
+        return `
+            <div class="ls-output">
+                <div class="ls-row header">
+                    <span>权限</span>
+                    <span>大小</span>
+                    <span>文件名</span>
+                    <span>日期</span>
+                </div>
+            </div>
+        `;
     }
 
     function renderPagination(page, totalPages) {
@@ -400,120 +422,333 @@
         track.style.cursor = 'grab';
     }
 
-    // 滚动式分页相关变量
-    window.postsListHeight = 0; // 记录文章列表高度
-    
-    // 初始化滚动式分页
-    function initScrollPagination(currentPage, totalPages) {
-        updateProgressBar(currentPage, totalPages);
-        initPaginationScroll();
-        
-        // 记录初始高度
-        setTimeout(() => {
-            const scrollTrack = document.getElementById('postsScrollTrack');
-            if (scrollTrack && !window.postsListHeight) {
-                window.postsListHeight = scrollTrack.offsetHeight;
-            }
-        }, 100);
+    // 连续滚动分页相关变量
+    window.postRowHeight = 0;
+    window.postsScrollAnimating = false;
+    window.adminRowHeight = 0;
+    window.adminScrollAnimating = false;
+    window.homeStableViewportHeight = 0;
+
+    // 末行 border-bottom 预留缓冲，避免亚像素裁切导致分割线闪烁
+    const SCROLL_VIEWPORT_BORDER_BUFFER = 1;
+
+    // 获取首页/管理页连续滚动上下文
+    function getScrollContext(type) {
+        if (type === 'admin') {
+            return {
+                viewportId: 'adminPostsScrollViewport',
+                trackId: 'adminPostsScrollTrack',
+                progressBarId: 'adminProgressBar',
+                rowSelector: '.admin-post-row',
+                useStableViewport: false,
+                getPage: function() { return adminPage; },
+                setPage: function(p) { adminPage = p; },
+                getTotalPages: function() { return window.adminTotalPages || 1; },
+                getTotalPosts: function() { return window.adminTotalPosts || 0; },
+                getRowHeight: function() { return window.adminRowHeight || 0; },
+                setRowHeight: function(h) { window.adminRowHeight = h; },
+                isAnimating: function() { return window.adminScrollAnimating; },
+                setAnimating: function(v) { window.adminScrollAnimating = v; },
+                getStableViewportHeight: function() { return 0; },
+                setStableViewportHeight: function() {},
+                invalidateStableViewport: function() {},
+                pageHandler: 'goAdminPage',
+                updateUrl: false
+            };
+        }
+        return {
+            viewportId: 'postsScrollViewport',
+            trackId: 'postsScrollTrack',
+            progressBarId: 'progressBar',
+            rowSelector: '.ls-row',
+            useStableViewport: true,
+            getPage: function() { return currentPage; },
+            setPage: function(p) { currentPage = p; },
+            getTotalPages: function() { return window.totalPages || 1; },
+            getTotalPosts: function() { return window.totalPosts || 0; },
+            getRowHeight: function() { return window.postRowHeight || 0; },
+            setRowHeight: function(h) { window.postRowHeight = h; },
+            isAnimating: function() { return window.postsScrollAnimating; },
+            setAnimating: function(v) { window.postsScrollAnimating = v; },
+            getStableViewportHeight: function() { return window.homeStableViewportHeight || 0; },
+            setStableViewportHeight: function(h) { window.homeStableViewportHeight = h; },
+            invalidateStableViewport: function() { window.homeStableViewportHeight = 0; },
+            pageHandler: 'goPage',
+            updateUrl: true
+        };
     }
-    
+
+    // 获取每行在轨道内的布局度量（top + height，支持换行后的可变行高）
+    function getRowLayoutMetrics(ctx) {
+        const scrollTrack = document.getElementById(ctx.trackId);
+        if (!scrollTrack) return [];
+
+        return Array.from(scrollTrack.querySelectorAll(ctx.rowSelector)).map(function(row) {
+            return {
+                top: row.offsetTop,
+                height: row.offsetHeight
+            };
+        });
+    }
+
+    // 计算指定页在视窗中应显示的行数
+    function getPageRowCount(page, totalPosts) {
+        if (totalPosts <= 0) return 1;
+        const start = (page - 1) * POSTS_PER_PAGE;
+        return Math.min(POSTS_PER_PAGE, Math.max(0, totalPosts - start));
+    }
+
+    // 计算指定页起始偏移量（向下取整，与视窗高度取整策略一致）
+    function getPageRowOffset(page, metrics) {
+        const start = (page - 1) * POSTS_PER_PAGE;
+        if (!metrics.length || start >= metrics.length) return 0;
+        return Math.floor(metrics[start].top);
+    }
+
+    // 计算指定页视窗内容高度（首尾行 DOM 位置差 + 末行边框缓冲）
+    function getPageViewportHeight(page, metrics, totalPosts) {
+        const start = (page - 1) * POSTS_PER_PAGE;
+        const count = getPageRowCount(page, totalPosts);
+        if (!metrics.length || count === 0) return 36;
+
+        const end = Math.min(start + count, metrics.length) - 1;
+        if (start > end) return 36;
+
+        const first = metrics[start];
+        const last = metrics[end];
+        return Math.round(last.top + last.height - first.top) + SCROLL_VIEWPORT_BORDER_BUFFER;
+    }
+
+    // 判断是否为满页（10 篇）
+    function isFullPage(page, totalPosts) {
+        return getPageRowCount(page, totalPosts) === POSTS_PER_PAGE;
+    }
+
+    // 仅对满页取最大视窗高度（消除满页之间 1-2px 跳动，末页另行压缩）
+    function computeFullPageStableHeight(ctx, metrics) {
+        const totalPosts = ctx.getTotalPosts();
+        const totalPages = ctx.getTotalPages();
+        let maxHeight = 0;
+        for (let page = 1; page <= totalPages; page++) {
+            if (!isFullPage(page, totalPosts)) continue;
+            const h = getPageViewportHeight(page, metrics, totalPosts);
+            if (h > maxHeight) maxHeight = h;
+        }
+        return maxHeight;
+    }
+
+    // 按页码解析视窗高度：满页用统一高度，不足十篇的页按实际行数压缩
+    function resolveViewportHeight(ctx, page, metrics) {
+        const totalPosts = ctx.getTotalPosts();
+        if (ctx.useStableViewport && isFullPage(page, totalPosts)) {
+            if (!ctx.getStableViewportHeight()) {
+                const stable = computeFullPageStableHeight(ctx, metrics);
+                if (stable > 0) ctx.setStableViewportHeight(stable);
+            }
+            if (ctx.getStableViewportHeight()) {
+                return ctx.getStableViewportHeight();
+            }
+        }
+        return getPageViewportHeight(page, metrics, totalPosts);
+    }
+
+    // 测量行高并设置视窗高度
+    function measureScrollLayout(ctx, page, options) {
+        options = options || {};
+        const viewport = document.getElementById(ctx.viewportId);
+        const metrics = getRowLayoutMetrics(ctx);
+        if (!viewport || metrics.length === 0) return metrics;
+
+        const targetPage = page !== undefined ? page : ctx.getPage();
+        const avgHeight = metrics.reduce(function(sum, m) { return sum + m.height; }, 0) / metrics.length;
+        ctx.setRowHeight(avgHeight);
+
+        const height = resolveViewportHeight(ctx, targetPage, metrics);
+        if (options.animateHeight) {
+            viewport.style.transition = 'height ' + (options.duration || 0.3) + 's ease';
+        } else {
+            viewport.style.transition = 'none';
+        }
+        viewport.style.height = height + 'px';
+        return metrics;
+    }
+
+    // 将文章轨道滚动到指定页（可选动画）
+    function applyScrollPosition(ctx, page, animate, metrics) {
+        const scrollTrack = document.getElementById(ctx.trackId);
+        if (!scrollTrack) return;
+
+        const layoutMetrics = metrics || getRowLayoutMetrics(ctx);
+        if (layoutMetrics.length === 0) return;
+
+        const offset = getPageRowOffset(page, layoutMetrics);
+        scrollTrack.style.transition = animate
+            ? 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+            : 'none';
+        scrollTrack.style.transform = 'translateY(-' + offset + 'px)';
+    }
+
+    // 统一布局：测量视窗并定位到指定页
+    function layoutScrollViewport(ctx, page, animate) {
+        const metrics = measureScrollLayout(ctx, page);
+        if (!metrics.length) return metrics;
+        applyScrollPosition(ctx, page, animate, metrics);
+        return metrics;
+    }
+
+    // 监听轨道尺寸变化（换行、缩放等），自动重新校准视窗
+    function bindScrollResizeObserver(ctx) {
+        const track = document.getElementById(ctx.trackId);
+        if (!track || track._scrollResizeObserver) return;
+
+        let observerTimer;
+        const observer = new ResizeObserver(function() {
+            if (ctx.isAnimating()) return;
+            clearTimeout(observerTimer);
+            observerTimer = setTimeout(function() {
+                ctx.invalidateStableViewport();
+                layoutScrollViewport(ctx, ctx.getPage(), false);
+            }, 16);
+        });
+        observer.observe(track);
+        track._scrollResizeObserver = observer;
+    }
+
     // 更新进度条
-    function updateProgressBar(page, total) {
-        const progressBar = document.getElementById('progressBar');
+    function updateProgressBar(page, total, progressBarId) {
+        const progressBar = document.getElementById(progressBarId || 'progressBar');
         if (progressBar) {
-            const percent = (page / total) * 100;
-            progressBar.style.width = percent + '%';
+            progressBar.style.width = ((page / total) * 100) + '%';
         }
     }
-    
-    // 滚动式切换到指定页
-    function scrollToPage(targetPage) {
-        var scrollTrack = document.getElementById('postsScrollTrack');
+
+    // 更新分页箭头的禁用状态
+    function updatePaginationArrows(page, totalPages, pageHandler) {
+        const handler = pageHandler || 'goPage';
+        const arrows = document.querySelectorAll('.pagination-arrow');
+        if (arrows.length >= 2) {
+            arrows[0].classList.toggle('disabled', page <= 1);
+            arrows[0].setAttribute('onclick', handler + '(' + (page - 1) + ')');
+            arrows[1].classList.toggle('disabled', page >= totalPages);
+            arrows[1].setAttribute('onclick', handler + '(' + (page + 1) + ')');
+        }
+    }
+
+    // 初始化连续滚动分页
+    function initContinuousScroll(ctx, page, totalPages) {
+        updateProgressBar(page, totalPages, ctx.progressBarId);
+        initPaginationScroll();
+
+        function doLayout() {
+            layoutScrollViewport(ctx, page, false);
+            bindScrollResizeObserver(ctx);
+        }
+        requestAnimationFrame(function() {
+            requestAnimationFrame(doLayout);
+        });
+        // 字体与换行布局稳定后再次校准，消除部分页码半行裁切
+        setTimeout(doLayout, 100);
+    }
+
+    function initPostsScroll(type, page, totalPages) {
+        initContinuousScroll(getScrollContext(type), page, totalPages);
+    }
+
+    // 连续滚动切换到指定页（全量 DOM，仅移动视窗）
+    function scrollToContinuousPage(ctx, targetPage) {
+        const scrollTrack = document.getElementById(ctx.trackId);
         if (!scrollTrack) return;
-        
-        // 边界校验：防止超出有效页码范围
-        var total = window.totalPages || 1;
-        if (targetPage < 1 || targetPage > total || targetPage === currentPage) return;
-        
-        // 记录方向
-        var prevPage = currentPage;
-        var isForward = targetPage > prevPage;
-        
-        // 先滑出
-        scrollTrack.style.transition = 'transform 0.25s ease, opacity 0.2s ease';
-        scrollTrack.style.transform = 'translateY(' + (isForward ? '-20px' : '20px') + ')';
-        scrollTrack.style.opacity = '0';
-        
-        setTimeout(function() {
-            // 更新 URL
-            var url = new URL(window.location);
+
+        const total = ctx.getTotalPages();
+        const current = ctx.getPage();
+        if (targetPage < 1 || targetPage > total || targetPage === current) return;
+        if (ctx.isAnimating()) return;
+
+        const metrics = getRowLayoutMetrics(ctx);
+        if (!metrics.length) return;
+
+        const pageDiff = Math.abs(targetPage - current);
+        const duration = Math.min(0.4 + pageDiff * 0.12, 1.0);
+        const totalPosts = ctx.getTotalPosts();
+        const viewport = document.getElementById(ctx.viewportId);
+        const fromFull = isFullPage(current, totalPosts);
+        const toFull = isFullPage(targetPage, totalPosts);
+
+        ctx.setAnimating(true);
+
+        if (ctx.updateUrl) {
+            const url = new URL(window.location);
             url.searchParams.delete('view');
             url.searchParams.delete('tag');
             url.searchParams.set('page', targetPage);
             window.history.pushState({}, '', url);
-            
-            // 获取新内容
-            fetch('/api/posts?page=' + targetPage + '&limit=' + POSTS_PER_PAGE)
-                .then(function(res) { return res.json(); })
-                .then(function(posts) {
-                    // 更新状态
-                    currentPage = targetPage;
-                    window.totalPages = posts.totalPages;
-                    
-                    // 更新内容 — 保持 .posts-scroll-page 包裹层，确保样式与初始渲染一致
-                    scrollTrack.innerHTML = '<div class="posts-scroll-page" data-page="' + currentPage + '">' + renderPostList(posts.posts) + '</div>';
-                    
-                    // 重置位置
-                    scrollTrack.style.transition = 'none';
-                    scrollTrack.style.transform = 'translateY(' + (isForward ? '20px' : '-20px') + ')';
-                    scrollTrack.style.opacity = '0';
-                    if (window.postsListHeight > 0) {
-                        scrollTrack.style.minHeight = window.postsListHeight + 'px';
-                    }
-                    
-                    // 触发重排
-                    void scrollTrack.offsetHeight;
-                    
-                    // 滑入
-                    scrollTrack.style.transition = 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease';
-                    scrollTrack.style.transform = 'translateY(0)';
-                    scrollTrack.style.opacity = '1';
-                    
-                    // 更新进度条
-                    updateProgressBar(currentPage, window.totalPages);
-                    
-                    // 更新分页高亮
-                    var pageEls = document.querySelectorAll('.pagination-page');
-                    pageEls.forEach(function(el) { el.classList.remove('active'); });
-                    if (pageEls[currentPage - 1]) {
-                        pageEls[currentPage - 1].classList.add('active');
-                    }
-                    
-                    // 更新箭头状态
-                    updatePaginationArrows(currentPage, window.totalPages);
-                    
-                    // 滚动分页条到当前页
-                    scrollToActivePage(currentPage);
-                })
-                .catch(function(err) {
-                    console.error('[分页] 加载失败:', err);
-                    scrollTrack.style.transition = 'none';
-                    scrollTrack.style.transform = 'translateY(0)';
-                    scrollTrack.style.opacity = '1';
-                });
-        }, 280);
-    }
-    
-    // 更新分页箭头的禁用状态
-    function updatePaginationArrows(page, totalPages) {
-        var arrows = document.querySelectorAll('.pagination-arrow');
-        if (arrows.length >= 2) {
-            // 第一个箭头是上一页（◀），第二个是下一页（▶）
-            arrows[0].classList.toggle('disabled', page <= 1);
-            arrows[0].setAttribute('onclick', 'goPage(' + (page - 1) + ')');
-            arrows[1].classList.toggle('disabled', page >= totalPages);
-            arrows[1].setAttribute('onclick', 'goPage(' + (page + 1) + ')');
         }
+
+        // 满页 ↔ 满页：高度不变；涉及末页时平滑压缩/展开
+        if (viewport && (!ctx.useStableViewport || !fromFull || !toFull)) {
+            const toHeight = resolveViewportHeight(ctx, targetPage, metrics);
+            viewport.style.transition = 'height ' + duration + 's cubic-bezier(0.4, 0, 0.2, 1)';
+            viewport.style.height = toHeight + 'px';
+        }
+
+        const offset = getPageRowOffset(targetPage, metrics);
+        scrollTrack.style.transition = 'transform ' + duration + 's cubic-bezier(0.4, 0, 0.2, 1)';
+        scrollTrack.style.transform = 'translateY(-' + offset + 'px)';
+
+        ctx.setPage(targetPage);
+
+        updateProgressBar(targetPage, total, ctx.progressBarId);
+
+        const pageEls = document.querySelectorAll('.pagination-page');
+        pageEls.forEach(function(el) { el.classList.remove('active'); });
+        if (pageEls[targetPage - 1]) {
+            pageEls[targetPage - 1].classList.add('active');
+        }
+
+        updatePaginationArrows(targetPage, total, ctx.pageHandler);
+        scrollToActivePage(targetPage);
+
+        let scrollFinished = false;
+        function finishScroll() {
+            if (scrollFinished) return;
+            scrollFinished = true;
+            scrollTrack.removeEventListener('transitionend', onTransitionEnd);
+            layoutScrollViewport(ctx, targetPage, false);
+            ctx.setAnimating(false);
+        }
+        function onTransitionEnd(e) {
+            if (e.target !== scrollTrack || e.propertyName !== 'transform') return;
+            finishScroll();
+        }
+        scrollTrack.addEventListener('transitionend', onTransitionEnd);
+        setTimeout(finishScroll, duration * 1000 + 50);
+    }
+
+    // 窗口尺寸变化时重新测量行高与视窗
+    if (!window._postsScrollResizeBound) {
+        window._postsScrollResizeBound = true;
+        let resizeTimer;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function() {
+                if (document.getElementById('postsScrollTrack')) {
+                    const homeCtx = getScrollContext('home');
+                    homeCtx.invalidateStableViewport();
+                    layoutScrollViewport(homeCtx, homeCtx.getPage(), false);
+                }
+                if (document.getElementById('adminPostsScrollTrack')) {
+                    layoutScrollViewport(getScrollContext('admin'), getScrollContext('admin').getPage(), false);
+                }
+            }, 150);
+        });
+    }
+
+    function scrollToPage(targetPage) {
+        scrollToContinuousPage(getScrollContext('home'), targetPage);
+    }
+
+    function scrollToAdminPage(targetPage) {
+        scrollToContinuousPage(getScrollContext('admin'), targetPage);
     }
     
     // 跳转到指定页码（带边界校验）
@@ -522,8 +757,36 @@
     }
 
     function goAdminPage(page) {
-        adminPage = page;
-        loadAdminPosts();
+        scrollToAdminPage(page);
+    }
+
+    function renderAdminPostRow(p) {
+        const btnLabel = p.hidden ? '显示' : '隐藏';
+        const btnColor = p.hidden ? 'var(--red)' : 'var(--green)';
+        const lockBtnColor = p.locked ? 'var(--orange)' : 'var(--gray)';
+        const lockLabel = p.locked ? '🔓' : '🔒';
+        const hiddenTag = p.hidden ? '<span style="color: var(--yellow); font-size: 0.75em;">[隐藏]</span> ' : '';
+        return `<div class="admin-post-row posts-scroll-list-row">
+            <div class="admin-post-info">
+                ${hiddenTag}
+                <span class="admin-post-id">#${p.id}</span>
+                ${p.locked ? '<span class="admin-post-lock"> 🔒</span>' : ''}
+                <a class="admin-post-title" onclick="viewPost('${p.id}')">${escapeHtml(p.title)}</a>
+                <span class="admin-post-date">${p.date || ''}</span>
+            </div>
+            <div class="admin-post-actions">
+                <button class="admin-btn admin-post-btn" onclick="editPost('${p.id}')" title="编辑">✏️</button>
+                <button class="admin-btn admin-post-btn" style="color: ${btnColor}; border-color: ${btnColor};" onclick="toggleVisibility('${p.id}')" title="${btnLabel}">${p.hidden ? '👁' : '👁️'}</button>
+                <button class="admin-btn admin-post-btn" style="color: ${lockBtnColor}; border-color: ${lockBtnColor};" onclick="showLockDialog('${p.id}', ${p.locked})" title="${p.locked ? '解锁' : '上锁'}">${lockLabel}</button>
+            </div>
+        </div>`;
+    }
+
+    function renderAdminPostList(posts) {
+        if (!posts || posts.length === 0) {
+            return '<p style="color: var(--gray);">暂无文章</p>';
+        }
+        return posts.map(renderAdminPostRow).join('');
     }
 
     async function loadAdminPosts() {
@@ -531,36 +794,34 @@
         if (!listEl) return;
         listEl.innerHTML = '<span class="loading"></span>';
         try {
-            const posts = await apiGet(`/posts?page=${adminPage}&limit=${POSTS_PER_PAGE}&admin=true`);
+            const meta = await apiGet('/posts?page=1&limit=1&admin=true');
+            const posts = await apiGet(`/posts?page=1&limit=${Math.max(meta.totalPosts, 1)}&admin=true`);
+            const adminTotalPages = Math.max(1, Math.ceil(posts.totalPosts / POSTS_PER_PAGE));
+            if (adminPage > adminTotalPages) adminPage = adminTotalPages;
+            if (adminPage < 1) adminPage = 1;
+
+            window.adminTotalPosts = posts.totalPosts;
+            window.adminTotalPages = adminTotalPages;
+            window.adminRowHeight = 0;
+
             if (posts.posts.length === 0) {
                 listEl.innerHTML = '<p style="color: var(--gray);">暂无文章</p>';
-            } else {
-                let html = posts.posts.map(p => {
-                    const btnLabel = p.hidden ? '显示' : '隐藏';
-                    const btnColor = p.hidden ? 'var(--red)' : 'var(--green)';
-                    const lockBtnColor = p.locked ? 'var(--orange)' : 'var(--gray)';
-                    const lockLabel = p.locked ? '🔓' : '🔒';
-                    const hiddenTag = p.hidden ? '<span style="color: var(--yellow); font-size: 0.75em;">[隐藏]</span> ' : '';
-                    return `<div style="padding: 6px 0; border-bottom: 1px solid rgba(48,54,61,0.5); display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            ${hiddenTag}
-                            <span style="color: var(--purple); font-size: 0.75em;">#${p.id}</span>
-                            ${p.locked ? '<span style="color: var(--orange); font-size: 0.75em;"> 🔒</span>' : ''}
-                            <a style="color: var(--cyan); cursor: pointer; text-decoration: none; margin-left: 8px;" onclick="viewPost('${p.id}')">${escapeHtml(p.title)}</a>
-                            <span style="color: var(--gray); font-size: 0.8em; margin-left: 8px;">${p.date || ''}</span>
-                        </div>
-                        <div style="display: flex; gap: 6px;">
-                            <button class="admin-btn" style="padding: 4px 8px; font-size: 0.75em;" onclick="editPost('${p.id}')" title="编辑">✏️</button>
-                            <button class="admin-btn" style="padding: 4px 8px; font-size: 0.75em; color: ${btnColor}; border-color: ${btnColor};" onclick="toggleVisibility('${p.id}')" title="${btnLabel}">${p.hidden ? '👁' : '👁️'}</button>
-                            <button class="admin-btn" style="padding: 4px 8px; font-size: 0.75em; color: ${lockBtnColor}; border-color: ${lockBtnColor};" onclick="showLockDialog('${p.id}', ${p.locked})" title="${p.locked ? '解锁' : '上锁'}">${lockLabel}</button>
-                        </div>
-                    </div>`;
-                }).join('');
-                if (posts.totalPages > 1) {
-                    html += renderPagination(posts.page, posts.totalPages).replace(/goPage/g, 'goAdminPage');
-                }
-                listEl.innerHTML = html;
+                return;
             }
+
+            listEl.innerHTML = renderPostsScrollContainer({
+                containerId: 'adminPostsScrollContainer',
+                viewportId: 'adminPostsScrollViewport',
+                viewportClass: 'admin-posts-scroll-viewport',
+                trackId: 'adminPostsScrollTrack',
+                progressBarId: 'adminProgressBar',
+                rowsHtml: renderAdminPostList(posts.posts),
+                paginationHtml: adminTotalPages > 1
+                    ? renderPagination(adminPage, adminTotalPages).replace(/goPage/g, 'goAdminPage')
+                    : ''
+            });
+
+            initPostsScroll('admin', adminPage, adminTotalPages);
         } catch (e) {
             listEl.innerHTML = `<p class="error-text">加载失败: ${escapeHtml(e.message)}</p>`;
         }
