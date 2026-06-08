@@ -663,7 +663,7 @@
         .posts-scroll-container {
             position: relative;
             overflow: hidden;
-            margin: 4px 0 16px 0;
+            margin: -8px 0 16px 0;
             /* 透明化，与终端窗口融合 */
             background: transparent;
             border: none;
@@ -679,7 +679,7 @@
             flex-shrink: 0;
             width: 100%;
             min-height: 300px;
-            padding: 12px;
+            padding: 0 12px 12px 12px;
         }
 
         .posts-scroll-progress {
