@@ -171,6 +171,16 @@
             
             <!-- 滚动式文章列表容器 -->
             <div class="posts-scroll-container" id="postsScrollContainer">
+                <!-- 标题行（固定，不参与滚动动画） -->
+                <div class="ls-output">
+                    <div class="ls-row header">
+                        <span>权限</span>
+                        <span>大小</span>
+                        <span>文件名</span>
+                        <span>日期</span>
+                    </div>
+                </div>
+                <!-- 文章列表（参与滚动动画） -->
                 <div class="posts-scroll-track" id="postsScrollTrack">
                     <div class="posts-scroll-page" data-page="${posts.page}">
                         ${renderPostList(posts.posts)}
@@ -294,14 +304,7 @@
             return '<div class="output"><p style="color: var(--gray);">暂无文章</p></div>';
         }
 
-        let html = `<div class="ls-output">
-            <div class="ls-row header">
-                <span>权限</span>
-                <span>大小</span>
-                <span>文件名</span>
-                <span>日期</span>
-            </div>`;
-
+        let html = '';
         posts.forEach(post => {
             const lockIcon = post.locked ? '🔒 ' : '';
             html += `<div class="ls-row">
@@ -312,7 +315,6 @@
             </div>`;
         });
 
-        html += '</div>';
         return html;
     }
 

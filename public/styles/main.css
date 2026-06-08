@@ -683,7 +683,7 @@
         }
 
         .posts-scroll-progress {
-            height: 3px;
+            height: 1px;
             background: var(--border);
             position: absolute;
             bottom: 0;
