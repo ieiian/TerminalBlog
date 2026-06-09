@@ -430,6 +430,8 @@
     window.homeStableViewportHeight = 0;
 
     // 末行 border-bottom 预留缓冲，避免亚像素裁切导致分割线闪烁
+    // 使用 Math.ceil 确保内容完全可见，不向下截断
+    // 1px 缓冲可补偿亚像素渲染中 border-bottom 的潜在裁切
     const SCROLL_VIEWPORT_BORDER_BUFFER = 1;
 
     // 获取首页/管理页连续滚动上下文
@@ -440,7 +442,7 @@
                 trackId: 'adminPostsScrollTrack',
                 progressBarId: 'adminProgressBar',
                 rowSelector: '.admin-post-row',
-                useStableViewport: false,
+                useStableViewport: true,
                 getPage: function() { return adminPage; },
                 setPage: function(p) { adminPage = p; },
                 getTotalPages: function() { return window.adminTotalPages || 1; },
@@ -449,9 +451,9 @@
                 setRowHeight: function(h) { window.adminRowHeight = h; },
                 isAnimating: function() { return window.adminScrollAnimating; },
                 setAnimating: function(v) { window.adminScrollAnimating = v; },
-                getStableViewportHeight: function() { return 0; },
-                setStableViewportHeight: function() {},
-                invalidateStableViewport: function() {},
+                getStableViewportHeight: function() { return window.adminStableViewportHeight || 0; },
+                setStableViewportHeight: function(h) { window.adminStableViewportHeight = h; },
+                invalidateStableViewport: function() { window.adminStableViewportHeight = 0; },
                 pageHandler: 'goAdminPage',
                 updateUrl: false
             };
@@ -516,7 +518,9 @@
 
         const first = metrics[start];
         const last = metrics[end];
-        return Math.round(last.top + last.height - first.top) + SCROLL_VIEWPORT_BORDER_BUFFER;
+        // 使用 Math.ceil 确保视窗高度足够容纳所有内容
+        // 避免因亚像素向下取整（Math.round）导致底部被裁切
+        return Math.ceil(last.top + last.height - first.top) + SCROLL_VIEWPORT_BORDER_BUFFER;
     }
 
     // 判断是否为满页（10 篇）
@@ -524,26 +528,15 @@
         return getPageRowCount(page, totalPosts) === POSTS_PER_PAGE;
     }
 
-    // 仅对满页取最大视窗高度（消除满页之间 1-2px 跳动，末页另行压缩）
-    function computeFullPageStableHeight(ctx, metrics) {
-        const totalPosts = ctx.getTotalPosts();
-        const totalPages = ctx.getTotalPages();
-        let maxHeight = 0;
-        for (let page = 1; page <= totalPages; page++) {
-            if (!isFullPage(page, totalPosts)) continue;
-            const h = getPageViewportHeight(page, metrics, totalPosts);
-            if (h > maxHeight) maxHeight = h;
-        }
-        return maxHeight;
-    }
-
-    // 按页码解析视窗高度：满页用统一高度，不足十篇的页按实际行数压缩
+    // 按页码解析视窗高度：精确计算当前页所需高度
+    // 不跨页取最大值，避免窗口压缩后行高差异导致显示超出设定行数
     function resolveViewportHeight(ctx, page, metrics) {
         const totalPosts = ctx.getTotalPosts();
+        // 满页使用缓存高度（当前页精确值），消除满页之间切换时的高度跳动
         if (ctx.useStableViewport && isFullPage(page, totalPosts)) {
             if (!ctx.getStableViewportHeight()) {
-                const stable = computeFullPageStableHeight(ctx, metrics);
-                if (stable > 0) ctx.setStableViewportHeight(stable);
+                const h = getPageViewportHeight(page, metrics, totalPosts);
+                if (h > 0) ctx.setStableViewportHeight(h);
             }
             if (ctx.getStableViewportHeight()) {
                 return ctx.getStableViewportHeight();
@@ -684,10 +677,18 @@
             window.history.pushState({}, '', url);
         }
 
-        // 满页 ↔ 满页：高度不变；涉及末页时平滑压缩/展开
-        if (viewport && (!ctx.useStableViewport || !fromFull || !toFull)) {
+        // 满页 ↔ 满页：精确重新计算高度但禁用动画，避免跳动的同时保证内容正确
+        // 涉及末页时平滑压缩/展开（带过渡动画）
+        if (viewport) {
+            ctx.invalidateStableViewport();
             const toHeight = resolveViewportHeight(ctx, targetPage, metrics);
-            viewport.style.transition = 'height ' + duration + 's cubic-bezier(0.4, 0, 0.2, 1)';
+            if (fromFull && toFull) {
+                // 满页之间：无动画，高度瞬切（差异极小，肉眼不可见）
+                viewport.style.transition = 'none';
+            } else {
+                // 涉及末页：平滑过渡
+                viewport.style.transition = 'height ' + duration + 's cubic-bezier(0.4, 0, 0.2, 1)';
+            }
             viewport.style.height = toHeight + 'px';
         }
 
@@ -803,6 +804,7 @@
             window.adminTotalPosts = posts.totalPosts;
             window.adminTotalPages = adminTotalPages;
             window.adminRowHeight = 0;
+            window.adminStableViewportHeight = 0;
 
             if (posts.posts.length === 0) {
                 listEl.innerHTML = '<p style="color: var(--gray);">暂无文章</p>';

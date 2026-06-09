@@ -1,10 +1,14 @@
-    // ============ State & Routing ============
+// ============ State & Routing ============
     let currentView = 'home';
     let currentSlug = null;
     let currentTag = null;
     let currentPage = 1;
     let adminPage = 1;
-    const POSTS_PER_PAGE = 10;
+    
+    // ============ 文章列表分页配置 ============
+    // 可以通过修改此值来调整每页显示的文章数
+    // 主页文章列表和管理页文章列表共用此值
+    const POSTS_PER_PAGE = 13;
     
     // ============ 返回状态管理 ============
     // 用于记录进入文章详情页之前的页面状态，实现"返回上一页"功能
@@ -252,4 +256,3 @@
         window.scrollTo(0, 0);
         render();
     }
-
