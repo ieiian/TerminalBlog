@@ -308,6 +308,45 @@
     var segments = [];
     var segmentCount = 13;
     var terminalTop = 0;
+
+    // ========== 时空虫星期颜色配置 ==========
+    // 周日银灰蓝添加 1px 发光效果
+    var WEEKLY_COLORS = {
+        0: { body: '#BFC7D5', head: '#D4D9E3', glow: true  }, // 周日 - 银灰蓝
+        1: { body: '#E89A9A', head: '#F0B5B5', glow: false }, // 周一 - 淡珊瑚红
+        2: { body: '#E8B58A', head: '#F0CBAD', glow: false }, // 周二 - 淡杏橙
+        3: { body: '#E8D38A', head: '#F0E0A8', glow: false }, // 周三 - 柔和金黄
+        4: { body: '#A8D5A2', head: '#C2E4BF', glow: false }, // 周四 - 鼠尾草绿
+        5: { body: '#8FC3E8', head: '#ABD3F5', glow: false }, // 周五 - 天空蓝
+        6: { body: '#B8A4E3', head: '#CCBDEF', glow: false }  // 周六 - 薰衣草紫
+    };
+
+    // 获取当前星期几的颜色配置（使用与主页面一致的 Asia/Shanghai 时区）
+    function getWormColors() {
+        // 使用 Asia/Shanghai 时区获取当前星期几（0=周日, 1=周一, ..., 6=周六）
+        var now = new Date();
+        var dayStr = now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai', weekday: 'short' });
+        var dayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
+        var day = dayMap[dayStr] !== undefined ? dayMap[dayStr] : 0;
+        return WEEKLY_COLORS[day] || WEEKLY_COLORS[0];
+    }
+
+    // HEX 转 RGB
+    function hexToRgb(hex) {
+        var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : { r: 0, g: 0, b: 0 };
+    }
+
+    // 获取头部光波的 RGB 值（比身体颜色稍亮）
+    function getPulseColor() {
+        var colors = getWormColors();
+        var rgb = hexToRgb(colors.head);
+        return rgb.r + ',' + rgb.g + ',' + rgb.b;
+    }
     
     // 位置参数
     var headX = 0;
@@ -479,8 +518,18 @@
         
         for (var i = 0; i < segmentCount; i++) {
             var isHead = (i === 0);
+            var colors = getWormColors();
+            var headRgb = hexToRgb(colors.head);
+            var bodyRgb = hexToRgb(colors.body);
+            // 身体的颜色比头部稍暗一点
+            var bodyBrightness = 0.75;
+            var bodyR = Math.round(bodyRgb.r * bodyBrightness);
+            var bodyG = Math.round(bodyRgb.g * bodyBrightness);
+            var bodyB = Math.round(bodyRgb.b * bodyBrightness);
+            // 周日头部添加 1px 发光效果
+            var glowStyle = colors.glow && isHead ? ';box-shadow:0 0 1px ' + colors.body + ', 0 0 3px ' + colors.head : '';
             var dot = document.createElement('div');
-            dot.style.cssText = 'position:absolute;width:' + segmentSize + 'px;height:' + segmentSize + 'px;background:radial-gradient(circle,' + (isHead ? '#5a7a8a,#3a5a6a' : '#3a5a6a,#2a4a5a') + ');border-radius:50%;box-shadow:0 0 ' + (isHead ? '2px' : '1px') + ' rgba(' + (isHead ? '60,100,120' : '40,80,100') + ',0.4);opacity:0;transform:scale(0);';
+            dot.style.cssText = 'position:absolute;width:' + segmentSize + 'px;height:' + segmentSize + 'px;background:radial-gradient(circle,' + (isHead ? colors.head + ',' + colors.body : 'rgb(' + bodyR + ',' + bodyG + ',' + bodyB + '),rgb(' + Math.round(bodyR * 0.85) + ',' + Math.round(bodyG * 0.85) + ',' + Math.round(bodyB * 0.85) + ')') + ');border-radius:50%;box-shadow:0 0 ' + (isHead ? '2px' : '1px') + ' rgba(' + (isHead ? (headRgb.r + ',' + headRgb.g + ',' + headRgb.b) : (bodyR + ',' + bodyG + ',' + bodyB)) + ',0.4)' + glowStyle + ';opacity:0;transform:scale(0);';
             container.appendChild(dot);
             segments.push({ el: dot });
         }
@@ -583,12 +632,29 @@
     
     // 渲染虫子
     function renderWorm(opacity) {
+        var colors = getWormColors();
+        var headRgb = hexToRgb(colors.head);
+        var bodyRgb = hexToRgb(colors.body);
+        var bodyBrightness = 0.75;
+        var bodyR = Math.round(bodyRgb.r * bodyBrightness);
+        var bodyG = Math.round(bodyRgb.g * bodyBrightness);
+        var bodyB = Math.round(bodyRgb.b * bodyBrightness);
+
         for (var i = 0; i < segmentCount; i++) {
             var wobble = isAwake ? Math.sin(wavePhase * 1.8 + i * 0.5) * 0.3 * wakeProgress : 0;
             segments[i].el.style.left = segX[i] + 'px';
             segments[i].el.style.top = (segY[i] + wobble) + 'px';
             segments[i].el.style.transform = 'scale(1)';
             segments[i].el.style.opacity = ((i === 0 ? 0.7 : 0.55) * opacity).toString();
+
+            // 周日头部添加 1px 发光效果
+            if (i === 0 && colors.glow) {
+                segments[i].el.style.boxShadow = '0 0 2px rgba(' + headRgb.r + ',' + headRgb.g + ',' + headRgb.b + ',0.4), 0 0 1px ' + colors.body + ', 0 0 3px ' + colors.head;
+            } else if (i === 0) {
+                segments[i].el.style.boxShadow = '0 0 2px rgba(' + headRgb.r + ',' + headRgb.g + ',' + headRgb.b + ',0.4)';
+            } else {
+                segments[i].el.style.boxShadow = '0 0 1px rgba(' + bodyR + ',' + bodyG + ',' + bodyB + ',0.4)';
+            }
         }
     }
     
@@ -1021,13 +1087,14 @@
                 var waveRadius = 6 + ease * 20;
                 var waveOpacity = 0.6 * (1 - ease);
                 var waveSize = waveRadius * 2;
-                
+                var pulseColor = getPulseColor();
+
                 pulseWave.style.left = (pulseX - waveRadius) + 'px';
                 pulseWave.style.top = (pulseY - waveRadius) + 'px';
                 pulseWave.style.width = waveSize + 'px';
                 pulseWave.style.height = waveSize + 'px';
-                pulseWave.style.border = '2px solid rgba(120,180,200,' + waveOpacity + ')';
-                pulseWave.style.boxShadow = '0 0 ' + (waveRadius * 0.8) + 'px rgba(120,180,200,' + (waveOpacity * 0.7) + '), inset 0 0 ' + (waveRadius * 0.4) + 'px rgba(120,180,200,' + (waveOpacity * 0.3) + ')';
+                pulseWave.style.border = '2px solid rgba(' + pulseColor + ',' + waveOpacity + ')';
+                pulseWave.style.boxShadow = '0 0 ' + (waveRadius * 0.8) + 'px rgba(' + pulseColor + ',' + (waveOpacity * 0.7) + '), inset 0 0 ' + (waveRadius * 0.4) + 'px rgba(' + pulseColor + ',' + (waveOpacity * 0.3) + ')';
                 pulseWave.style.opacity = waveOpacity.toString();
                 pulseWave.style.transform = 'scale(1)';
                 
