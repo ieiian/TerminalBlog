@@ -306,7 +306,7 @@
     var container = null;
     var wormholeContainer = null;
     var segments = [];
-    var segmentCount = 13;
+    var segmentCount = 11;
     var terminalTop = 0;
 
     // ========== 时空虫星期颜色配置 ==========

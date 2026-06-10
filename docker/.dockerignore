@@ -35,3 +35,15 @@ upload_code.json
 # Temp
 *.tmp
 *.temp
+# Markdown content (keep directory but ignore files)
+Markdown/*
+!Markdown/1000.md
+!Markdown/1001.md
+!Markdown/1002.md
+!Markdown/1003.md
+!Markdown/1004.md
+!Markdown/1005.md
+!Markdown/1006.md
+!Markdown/1007.md
+!Markdown/1008.md
+!Markdown/1009.md
