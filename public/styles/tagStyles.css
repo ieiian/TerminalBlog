@@ -1,0 +1,368 @@
+/**
+ * TerminalBlog 标签特效样式
+ * 使用 :: 作为特效分隔符
+ * 例如: tags: ['SSL::red::bold', 'Docker::blue::flash']
+ */
+
+/* ==================== 基础标签样式 ==================== */
+
+/* 标签统一基础样式（防止特效改变盒模型尺寸） */
+.tag-item,
+.tag-item[class*="tag-fx-"] {
+    display: inline-block;
+    padding: 4px 12px;
+    margin: 4px;
+    /* 边框用 box-shadow 替代，防止 1px 跳动 */
+    border-radius: 4px;
+    font-size: 0.8em;
+    color: var(--text);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    /* 用 box-shadow 模拟边框，不改变尺寸 */
+    box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* 文章详情页标签 */
+.post-detail .file-body .meta-line .tag,
+.post-detail .file-body .meta-line .tag[class*="tag-fx-"] {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+/* 预览页标签（不可点击） */
+.post-detail .file-body .meta-line .tag-preview,
+.post-detail .file-body .meta-line .tag-preview[class*="tag-fx-"] {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    cursor: default;
+    transition: color 0.2s ease;
+}
+
+/* 标签项 hover 效果 - 统一终端经典绿 */
+.tag-item:hover,
+.tag-item[class*="tag-fx-"]:hover {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(0, 255, 65, 0.05);
+    box-shadow: inset 0 0 0 1px var(--green), 0 0 8px rgba(0, 255, 65, 0.2);
+}
+
+.tag-item:hover .count,
+.tag-item[class*="tag-fx-"]:hover .count {
+    color: var(--green);
+}
+
+/* ==================== 颜色特效 ==================== */
+
+/* 红色 */
+.tag-item.tag-fx-red,
+.tag.tag-fx-red,
+.tag-preview.tag-fx-red {
+    color: #ff3333 !important;
+}
+.tag-item.tag-fx-red:hover,
+.tag.tag-fx-red:hover {
+    color: #ff3333;
+    box-shadow: inset 0 0 0 1px #ff3333, 0 0 8px rgba(255, 51, 51, 0.3);
+}
+
+/* 蓝色 */
+.tag-item.tag-fx-blue,
+.tag.tag-fx-blue,
+.tag-preview.tag-fx-blue {
+    color: #3399ff !important;
+}
+.tag-item.tag-fx-blue:hover,
+.tag.tag-fx-blue:hover {
+    color: #3399ff;
+    box-shadow: inset 0 0 0 1px #3399ff, 0 0 8px rgba(51, 153, 255, 0.3);
+}
+
+/* 绿色 */
+.tag-item.tag-fx-green,
+.tag.tag-fx-green,
+.tag-preview.tag-fx-green {
+    color: #33ff66 !important;
+}
+.tag-item.tag-fx-green:hover,
+.tag.tag-fx-green:hover {
+    color: #33ff66;
+    box-shadow: inset 0 0 0 1px #33ff66, 0 0 8px rgba(51, 255, 102, 0.3);
+}
+
+/* 黄色 */
+.tag-item.tag-fx-yellow,
+.tag.tag-fx-yellow,
+.tag-preview.tag-fx-yellow {
+    color: #ffcc00 !important;
+}
+.tag-item.tag-fx-yellow:hover,
+.tag.tag-fx-yellow:hover {
+    color: #ffcc00;
+    box-shadow: inset 0 0 0 1px #ffcc00, 0 0 8px rgba(255, 204, 0, 0.3);
+}
+
+/* 紫色 */
+.tag-item.tag-fx-purple,
+.tag.tag-fx-purple,
+.tag-preview.tag-fx-purple {
+    color: #cc66ff !important;
+}
+.tag-item.tag-fx-purple:hover,
+.tag.tag-fx-purple:hover {
+    color: #cc66ff;
+    box-shadow: inset 0 0 0 1px #cc66ff, 0 0 8px rgba(204, 102, 255, 0.3);
+}
+
+/* 橙色 */
+.tag-item.tag-fx-orange,
+.tag.tag-fx-orange,
+.tag-preview.tag-fx-orange {
+    color: #ff9933 !important;
+}
+.tag-item.tag-fx-orange:hover,
+.tag.tag-fx-orange:hover {
+    color: #ff9933;
+    box-shadow: inset 0 0 0 1px #ff9933, 0 0 8px rgba(255, 153, 51, 0.3);
+}
+
+/* 粉色 */
+.tag-item.tag-fx-pink,
+.tag.tag-fx-pink,
+.tag-preview.tag-fx-pink {
+    color: #ff66b2 !important;
+}
+.tag-item.tag-fx-pink:hover,
+.tag.tag-fx-pink:hover {
+    color: #ff66b2;
+    box-shadow: inset 0 0 0 1px #ff66b2, 0 0 8px rgba(255, 102, 178, 0.3);
+}
+
+/* 青色 */
+.tag-item.tag-fx-cyan,
+.tag.tag-fx-cyan,
+.tag-preview.tag-fx-cyan {
+    color: #00cccc !important;
+}
+.tag-item.tag-fx-cyan:hover,
+.tag.tag-fx-cyan:hover {
+    color: #00cccc;
+    box-shadow: inset 0 0 0 1px #00cccc, 0 0 8px rgba(0, 204, 204, 0.3);
+}
+
+/* 灰色 */
+.tag-item.tag-fx-gray,
+.tag.tag-fx-gray,
+.tag-preview.tag-fx-gray {
+    color: #888888 !important;
+}
+.tag-item.tag-fx-gray:hover,
+.tag.tag-fx-gray:hover {
+    color: #888888;
+    box-shadow: inset 0 0 0 1px #888888, 0 0 8px rgba(136, 136, 136, 0.3);
+}
+
+/* 白色 */
+.tag-item.tag-fx-white,
+.tag.tag-fx-white,
+.tag-preview.tag-fx-white {
+    color: #ffffff !important;
+}
+.tag-item.tag-fx-white:hover,
+.tag.tag-fx-white:hover {
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px #ffffff, 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* ==================== 彩虹特效 ==================== */
+
+.tag-item.tag-fx-rainbow,
+.tag.tag-fx-rainbow,
+.tag-preview.tag-fx-rainbow {
+    color: #ff3333 !important;
+    background: linear-gradient(90deg, #ff3333, #ff9933, #ffcc00, #33ff66, #3399ff, #cc66ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    /* 边框也使用彩虹渐变 */
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+                0 0 10px rgba(255, 153, 51, 0.4);
+    animation: rainbow-glow 3s ease-in-out infinite;
+}
+
+@keyframes rainbow-glow {
+    0%, 100% {
+        box-shadow: inset 0 0 0 1px rgba(255, 51, 51, 0.5),
+                    0 0 10px rgba(255, 51, 51, 0.4);
+    }
+    20% {
+        box-shadow: inset 0 0 0 1px rgba(255, 153, 51, 0.5),
+                    0 0 10px rgba(255, 153, 51, 0.4);
+    }
+    40% {
+        box-shadow: inset 0 0 0 1px rgba(255, 204, 0, 0.5),
+                    0 0 10px rgba(255, 204, 0, 0.4);
+    }
+    60% {
+        box-shadow: inset 0 0 0 1px rgba(51, 255, 102, 0.5),
+                    0 0 10px rgba(51, 255, 102, 0.4);
+    }
+    80% {
+        box-shadow: inset 0 0 0 1px rgba(51, 153, 255, 0.5),
+                    0 0 10px rgba(51, 153, 255, 0.4);
+    }
+}
+
+.tag-item.tag-fx-rainbow:hover {
+    background: linear-gradient(90deg, #ff3333, #ff9933, #ffcc00, #33ff66, #3399ff, #cc66ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    box-shadow: inset 0 0 0 1px var(--green),
+                0 0 15px rgba(0, 255, 65, 0.4);
+}
+
+/* ==================== 字体特效 ==================== */
+
+/* 粗体 */
+.tag-item.tag-fx-bold,
+.tag.tag-fx-bold,
+.tag-preview.tag-fx-bold {
+    font-weight: bold !important;
+}
+
+/* 斜体 */
+.tag-item.tag-fx-italic,
+.tag.tag-fx-italic,
+.tag-preview.tag-fx-italic {
+    font-style: italic !important;
+}
+
+/* 下划线 */
+.tag-item.tag-fx-underline,
+.tag.tag-fx-underline,
+.tag-preview.tag-fx-underline {
+    text-decoration: underline !important;
+}
+
+/* ==================== 动态特效 ==================== */
+
+/* 闪烁特效 */
+.tag-item.tag-fx-flash,
+.tag.tag-fx-flash,
+.tag-preview.tag-fx-flash {
+    animation: tag-flash 1.5s ease-in-out infinite;
+}
+
+@keyframes tag-flash {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+
+/* 跑马灯/流光特效 - 使用 box-shadow 动画实现边框流光 */
+.tag-item.tag-fx-marquee,
+.tag.tag-fx-marquee,
+.tag-preview.tag-fx-marquee {
+    position: relative;
+    overflow: visible;
+    animation: marquee-border 2s linear infinite;
+}
+
+.tag-item.tag-fx-marquee::before,
+.tag.tag-fx-marquee::before,
+.tag-preview.tag-fx-marquee::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border-radius: 6px;
+    background: linear-gradient(90deg,
+        #ff3333, #ff9933, #ffcc00, #33ff66,
+        #3399ff, #cc66ff, #ff3333);
+    background-size: 200% 100%;
+    z-index: -1;
+    opacity: 0.6;
+    animation: marquee-gradient 2s linear infinite;
+}
+
+@keyframes marquee-gradient {
+    0% {
+        background-position: 0% 50%;
+    }
+    100% {
+        background-position: 200% 50%;
+    }
+}
+
+@keyframes marquee-border {
+    0% {
+        box-shadow: 0 0 4px rgba(255, 51, 51, 0.5);
+    }
+    16% {
+        box-shadow: 0 0 4px rgba(255, 153, 51, 0.5);
+    }
+    33% {
+        box-shadow: 0 0 4px rgba(255, 204, 0, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 4px rgba(51, 255, 102, 0.5);
+    }
+    66% {
+        box-shadow: 0 0 4px rgba(51, 153, 255, 0.5);
+    }
+    83% {
+        box-shadow: 0 0 4px rgba(204, 102, 255, 0.5);
+    }
+    100% {
+        box-shadow: 0 0 4px rgba(255, 51, 51, 0.5);
+    }
+}
+
+.tag-item.tag-fx-marquee:hover::before {
+    opacity: 0.8;
+    animation-duration: 1s;
+}
+
+/* ==================== 特效组合示例 ==================== */
+
+/* 组合特效：红色 + 粗体 + 闪烁 */
+.tag-item.tag-fx-red.tag-fx-bold.tag-fx-flash,
+.tag.tag-fx-red.tag-fx-bold.tag-fx-flash,
+.tag-preview.tag-fx-red.tag-fx-bold.tag-fx-flash {
+    color: #ff3333 !important;
+    font-weight: bold;
+    animation: tag-flash 1.5s ease-in-out infinite;
+}
+
+/* 组合特效：蓝色 + 跑马灯 */
+.tag-item.tag-fx-blue.tag-fx-marquee,
+.tag.tag-fx-blue.tag-fx-marquee,
+.tag-preview.tag-fx-blue.tag-fx-marquee {
+    color: #3399ff !important;
+}
+
+/* 组合特效：紫色 + 斜体 */
+.tag-item.tag-fx-purple.tag-fx-italic,
+.tag.tag-fx-purple.tag-fx-italic,
+.tag-preview.tag-fx-purple.tag-fx-italic {
+    color: #cc66ff !important;
+    font-style: italic;
+}

@@ -7,6 +7,7 @@
     <script src="/config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@3.0.8/marked.min.js"></script>
     <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="/styles/tagStyles.css">
 </head>
 <body>
     <canvas id="matrix-bg"></canvas>
@@ -46,21 +47,22 @@
     <script src="/js/core/utils.js"></script>
     <script src="/js/core/app.js"></script>
     <script src="/js/core/api.js"></script>
-    
+
+    <!-- Features Modules (依赖 Core) -->
+    <script src="/js/features/tagEffects.js"></script>
+    <script src="/js/features/terminal-dots.js"></script>
+    <script src="/js/features/ai-chat.js"></script>
+    <script src="/js/features/effects.js"></script>
+
     <!-- Posts Modules -->
     <script src="/js/posts/auth.js"></script>
     <script src="/js/posts/preview.js"></script>
     <script src="/js/posts/export.js"></script>
-    
+
     <!-- Files Modules -->
     <script src="/js/files/guest-upload.js"></script>
     <script src="/js/files/file-manager.js"></script>
     <script src="/js/files/git-sync.js"></script>
-    
-    <!-- Features Modules -->
-    <script src="/js/features/terminal-dots.js"></script>
-    <script src="/js/features/ai-chat.js"></script>
-    <script src="/js/features/effects.js"></script>
     
     <!-- Main Entry - Routing -->
     <script src="/js/posts/routing.js"></script>

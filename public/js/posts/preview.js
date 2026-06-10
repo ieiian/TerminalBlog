@@ -1,14 +1,21 @@
-// ============ Preview Post ============
-function previewPost() {
-    var id = document.getElementById('adminId').value.trim();
-    var title = document.getElementById('adminTitle').value.trim() || '未命名文章';
-    var tagsStr = document.getElementById('adminTags').value.trim();
-    var content = document.getElementById('adminContent').value || '';
+// ============ Preview Post (独立模块，可在需要时调用) ============
+// 注意：实际的 previewPost 函数在 routing.js 中定义并被调用
+
+/**
+ * 独立的预览函数，可用于其他场景
+ * @deprecated 使用 routing.js 中的 previewPost 替代
+ */
+function standalonePreview() {
+    var id = document.getElementById('adminId') ? document.getElementById('adminId').value.trim() : '';
+    var title = document.getElementById('adminTitle') ? document.getElementById('adminTitle').value.trim() : '未命名文章';
+    var tagsStr = document.getElementById('adminTags') ? document.getElementById('adminTags').value.trim() : '';
+    var content = document.getElementById('adminContent') ? document.getElementById('adminContent').value : '';
+
     var tags = tagsStr ? tagsStr.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [];
     var htmlContent = parseMarkdown(content);
     var today = new Date().toISOString().split('T')[0];
     var readTime = Math.max(1, Math.ceil(content.length / 500));
-    var tagsHtml = tags.map(function(t) { return '<span class="tag">[' + escapeHtml(t) + ']</span>'; }).join(' · ');
+    var tagsHtml = tags.map(function(t) { return TagEffects.createPostTagDOM(t); }).join(' · ');
     var displayId = id || 'new';
 
     var overlay = document.createElement('div');
@@ -60,6 +67,9 @@ function previewPost() {
     overlay.scrollTop = 0;
 }
 
+/**
+ * 关闭预览覆盖层
+ */
 function closePreview() {
     var overlay = document.getElementById('previewOverlay');
     if (overlay && overlay.parentNode) {

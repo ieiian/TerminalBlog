@@ -226,7 +226,7 @@
             const tagsEl = document.getElementById('homeTags');
             if (tagsEl) {
                 tagsEl.innerHTML = tagsData.tags.map(t =>
-                    `<a class="tag-item" onclick="navigate('tag', '${escapeHtml(t.name)}')">${escapeHtml(t.name)}<span class="count">(${t.count})</span></a>`
+                    TagEffects.createTagDOM(t.fullTag || t.name, t.count)
                 ).join('');
             }
         } catch (e) {
@@ -877,7 +877,8 @@
         setTitle(post.title);
         document.getElementById('statusMode').textContent = 'INSERT';
 
-        const tags = (post.tags || []).map(t => `<span class="tag">[${escapeHtml(t)}]</span>`).join(' · ');
+        // 使用标签特效模块渲染标签
+        const tags = (post.tags || []).map(t => TagEffects.createPostTagDOM(t)).join(' · ');
         const postId = post.id || '';
         const shareUrl = postId ? `${window.location.origin}/${postId}` : '';
 
@@ -959,7 +960,7 @@
         const tagsData = await apiGet('/tags');
 
         let tagsHtml = tagsData.tags.map(t =>
-            `<a class="tag-item" onclick="navigate('tag', '${escapeHtml(t.name)}')">${escapeHtml(t.name)}<span class="count">(${t.count})</span></a>`
+            TagEffects.createTagDOM(t.fullTag || t.name, t.count)
         ).join('');
 
         body.innerHTML = `
@@ -1366,7 +1367,8 @@
         var htmlContent = parseMarkdown(content);
         var today = new Date().toISOString().split('T')[0];
         var readTime = Math.max(1, Math.ceil(content.length / 500));
-        var tagsHtml = tags.map(function(t) { return '<span class="tag">[' + escapeHtml(t) + ']</span>'; }).join(' · ');
+        // 预览页使用无点击的标签渲染
+        var tagsHtml = tags.map(function(t) { return TagEffects.createPostTagDOMPreview(t); }).join(' · ');
         var displayId = id || 'new';
 
         var overlay = document.createElement('div');

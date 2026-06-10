@@ -256,7 +256,38 @@ function getGitAuthErrorMessage() {
     return '❌ [HTTPS AUTH ERROR] GitHub 已不支持 HTTPS 账号密码认证。\n\n当前支持方式：\n1. 公共仓库：可直接使用 HTTPS 或 SSH 地址，不需要密码。\n2. 私有仓库 HTTPS：请在仓库配置中填写 Personal Access Token (PAT)，系统会在运行时注入凭据且不会回显。\n3. 私有仓库 SSH：继续使用本页面生成的专属 SSH 公钥，将其添加到 GitHub Deploy Keys 并勾选写入权限。';
 }
 
+// ==================== 标签特效辅助函数 ====================
+// 用于后端剥离标签特效，保持业务逻辑纯净
+const TAG_EFFECT_SEPARATOR = '::';
+
+/**
+ * 从原始标签提取纯净的标签名（剥离 :: 后的特效词）
+ * @param {string} fullTag - 原始标签，可能包含特效
+ * @returns {string} - 纯净的标签名
+ */
+function getCleanTagName(fullTag) {
+    if (!fullTag || typeof fullTag !== 'string') return '';
+    const idx = fullTag.indexOf(TAG_EFFECT_SEPARATOR);
+    return idx !== -1 ? fullTag.substring(0, idx).trim() : fullTag.trim();
+}
+
+/**
+ * 清洗标签数组，返回纯净标签名列表
+ */
+function getCleanTags(fullTags) {
+    if (!Array.isArray(fullTags)) return [];
+    return fullTags.map(getCleanTagName).filter(Boolean);
+}
+
+/**
+ * 检查带特效的标签是否匹配目标纯净标签
+ */
+function tagMatches(fullTag, targetTag) {
+    return getCleanTagName(fullTag) === targetTag;
+}
+
 function loadAIConfig() {
+
     const defaultConfig = {
         enabled: true,
         apiKey: '',
@@ -1917,8 +1948,9 @@ async function handleRequest(req, res) {
 
             let posts = getAllPosts();
 
+            // 标签过滤（支持带特效的标签匹配）
             if (tag) {
-                posts = posts.filter(p => p.tags && p.tags.indexOf(tag) !== -1);
+                posts = posts.filter(p => p.tags && p.tags.some(t => tagMatches(t, tag)));
             }
 
             if (!admin) {
@@ -1935,7 +1967,8 @@ async function handleRequest(req, res) {
                 title: p.title,
                 date: p.date,
                 size: p.size,
-                tags: p.tags || [],
+                // 返回清洗后的纯净标签（剥离特效）
+                tags: getCleanTags(p.tags),
                 hidden: !!p.hidden,
                 locked: !!p.locked
             }));
@@ -1956,17 +1989,41 @@ async function handleRequest(req, res) {
         // Tags
         if (pathname === '/api/tags' && method === 'GET') {
             const posts = getAllPosts();
-            const tagMap = {};
+            const tagMap = {};  // name -> { name, count, fullTag, postId }
             posts.forEach(post => {
                 if (!post.hidden) {
-                    (post.tags || []).forEach(tag => {
-                        tagMap[tag] = (tagMap[tag] || 0) + 1;
+                    (post.tags || []).forEach(fullTag => {
+                        const cleanTag = getCleanTagName(fullTag);
+                        if (cleanTag) {
+                            const existing = tagMap[cleanTag];
+                            if (existing) {
+                                // 标签已存在，只增加计数
+                                existing.count++;
+                                // 如果当前文章 ID 更大，更新 fullTag（最大 ID 覆盖规则）
+                                if (post.id && post.id > existing.postId) {
+                                    existing.fullTag = fullTag;
+                                    existing.postId = post.id;
+                                }
+                            } else {
+                                // 新标签
+                                tagMap[cleanTag] = {
+                                    name: cleanTag,
+                                    count: 1,
+                                    fullTag: fullTag,
+                                    postId: post.id || 0
+                                };
+                            }
+                        }
                     });
                 }
             });
             const tags = Object.entries(tagMap)
-                .map(([name, count]) => ({ name, count }))
-                .sort((a, b) => b.count - a.count);
+                .map(([name, data]) => ({
+                    name: data.name,
+                    count: data.count,
+                    fullTag: data.fullTag  // 包含特效的完整标签
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN', { sensitivity: 'base' }));  // 按标签名字母/拼音顺序排列
             return jsonResponse(res, { tags });
         }
 
@@ -3317,14 +3374,14 @@ ${posts.map(p => `- ${p.id}. ${p.title} (${p.date})`).join('\n')}
                     return (
                         p.title.toLowerCase().includes(queryLower) ||
                         bodyLower.includes(queryLower) ||
-                        (p.tags && p.tags.some((t) => t.toLowerCase().includes(queryLower)))
+                        (p.tags && p.tags.some((t) => getCleanTagName(t).toLowerCase().includes(queryLower)))
                     );
                 })
                 .map((p) => ({
                     id: p.id,
                     title: p.title,
                     date: p.date,
-                    tags: p.tags || [],
+                    tags: getCleanTags(p.tags),
                     locked: !!p.locked,
                     excerpt: p.locked && !admin ? '' : (p.body || '').substring(0, 200)
                 }))

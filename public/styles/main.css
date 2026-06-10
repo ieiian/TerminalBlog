@@ -346,6 +346,18 @@
         }
         .post-detail .file-body .meta-line .tag {
             color: var(--yellow);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .post-detail .file-body .meta-line .tag:hover {
+            color: var(--green);
+        }
+        .post-detail .file-body .meta-line .tag-preview {
+            color: var(--yellow);
+            cursor: default;
+        }
+        .post-detail .file-body .meta-line .tag-preview:hover {
+            color: var(--yellow);
         }
         .post-detail .file-body .meta-line .date-highlight {
             color: var(--orange);
