@@ -1,7 +1,15 @@
 /**
  * TerminalBlog 标签特效样式
  * 使用 :: 作为特效分隔符
- * 例如: tags: ['SSL::red::bold', 'Docker::blue::flash']
+ * 例如: tags: ['SSL::red::bold', 'Docker::blue::glow']
+ *
+ * 特效分类：
+ * 1. 文字静态颜色：red, blue, green, yellow, purple, orange, pink, cyan, gray, white
+ * 2. 文字特殊效果：rainbow, flow, bounce, pulse
+ * 3. 边框静态颜色：border-red, border-blue, border-green 等
+ * 4. 边框特殊效果：glow, border-rainbow, border-flow, border-pulse
+ * 5. 整体特效（透明）：glass
+ * 6. 整体特效（覆盖型）：neon
  */
 
 /* ==================== 基础标签样式 ==================== */
@@ -12,15 +20,21 @@
     display: inline-block;
     padding: 4px 12px;
     margin: 4px;
-    /* 边框用 box-shadow 替代，防止 1px 跳动 */
     border-radius: 4px;
     font-size: 0.8em;
     color: var(--text);
     text-decoration: none;
     transition: all 0.2s ease;
     cursor: pointer;
-    /* 用 box-shadow 模拟边框，不改变尺寸 */
+    /* 用 box-shadow 模拟边框，不改变尺寸，限制在 1px 范围内 */
     box-shadow: inset 0 0 0 1px var(--border);
+    /* 防止上浮：固定 baseline */
+    vertical-align: baseline;
+    position: relative;
+    /* 防止高度变化 */
+    line-height: 1.4;
+    /* 限制最大 z-index */
+    z-index: 1;
 }
 
 /* 文章详情页标签 */
@@ -34,6 +48,8 @@
     box-shadow: none;
     cursor: pointer;
     transition: color 0.2s ease;
+    vertical-align: baseline;
+    position: static;
 }
 
 /* 预览页标签（不可点击） */
@@ -47,6 +63,19 @@
     box-shadow: none;
     cursor: default;
     transition: color 0.2s ease;
+    vertical-align: baseline;
+    position: static;
+}
+
+/* 标签文字包裹（用于下划线等效果） */
+.tag-item .tag-text,
+.tag-item .count {
+    display: inline;
+}
+
+/* 标签文字独占下划线效果 */
+.tag-item.tag-fx-underline .tag-text {
+    text-decoration: underline;
 }
 
 /* 标签项 hover 效果 - 统一终端经典绿 */
@@ -55,7 +84,8 @@
     border-color: var(--green);
     color: var(--green);
     background: rgba(0, 255, 65, 0.05);
-    box-shadow: inset 0 0 0 1px var(--green), 0 0 8px rgba(0, 255, 65, 0.2);
+    box-shadow: inset 0 0 0 1px var(--green), 0 0 6px rgba(0, 255, 65, 0.2);
+    z-index: 2;
 }
 
 .tag-item:hover .count,
@@ -63,7 +93,7 @@
     color: var(--green);
 }
 
-/* ==================== 颜色特效 ==================== */
+/* ==================== 文字静态颜色特效 ==================== */
 
 /* 红色 */
 .tag-item.tag-fx-red,
@@ -74,7 +104,7 @@
 .tag-item.tag-fx-red:hover,
 .tag.tag-fx-red:hover {
     color: #ff3333;
-    box-shadow: inset 0 0 0 1px #ff3333, 0 0 8px rgba(255, 51, 51, 0.3);
+    box-shadow: inset 0 0 0 1px #ff3333, 0 0 6px rgba(255, 51, 51, 0.25);
 }
 
 /* 蓝色 */
@@ -86,7 +116,7 @@
 .tag-item.tag-fx-blue:hover,
 .tag.tag-fx-blue:hover {
     color: #3399ff;
-    box-shadow: inset 0 0 0 1px #3399ff, 0 0 8px rgba(51, 153, 255, 0.3);
+    box-shadow: inset 0 0 0 1px #3399ff, 0 0 6px rgba(51, 153, 255, 0.25);
 }
 
 /* 绿色 */
@@ -98,7 +128,7 @@
 .tag-item.tag-fx-green:hover,
 .tag.tag-fx-green:hover {
     color: #33ff66;
-    box-shadow: inset 0 0 0 1px #33ff66, 0 0 8px rgba(51, 255, 102, 0.3);
+    box-shadow: inset 0 0 0 1px #33ff66, 0 0 6px rgba(51, 255, 102, 0.25);
 }
 
 /* 黄色 */
@@ -110,7 +140,7 @@
 .tag-item.tag-fx-yellow:hover,
 .tag.tag-fx-yellow:hover {
     color: #ffcc00;
-    box-shadow: inset 0 0 0 1px #ffcc00, 0 0 8px rgba(255, 204, 0, 0.3);
+    box-shadow: inset 0 0 0 1px #ffcc00, 0 0 6px rgba(255, 204, 0, 0.25);
 }
 
 /* 紫色 */
@@ -122,7 +152,7 @@
 .tag-item.tag-fx-purple:hover,
 .tag.tag-fx-purple:hover {
     color: #cc66ff;
-    box-shadow: inset 0 0 0 1px #cc66ff, 0 0 8px rgba(204, 102, 255, 0.3);
+    box-shadow: inset 0 0 0 1px #cc66ff, 0 0 6px rgba(204, 102, 255, 0.25);
 }
 
 /* 橙色 */
@@ -134,7 +164,7 @@
 .tag-item.tag-fx-orange:hover,
 .tag.tag-fx-orange:hover {
     color: #ff9933;
-    box-shadow: inset 0 0 0 1px #ff9933, 0 0 8px rgba(255, 153, 51, 0.3);
+    box-shadow: inset 0 0 0 1px #ff9933, 0 0 6px rgba(255, 153, 51, 0.25);
 }
 
 /* 粉色 */
@@ -146,7 +176,7 @@
 .tag-item.tag-fx-pink:hover,
 .tag.tag-fx-pink:hover {
     color: #ff66b2;
-    box-shadow: inset 0 0 0 1px #ff66b2, 0 0 8px rgba(255, 102, 178, 0.3);
+    box-shadow: inset 0 0 0 1px #ff66b2, 0 0 6px rgba(255, 102, 178, 0.25);
 }
 
 /* 青色 */
@@ -158,7 +188,7 @@
 .tag-item.tag-fx-cyan:hover,
 .tag.tag-fx-cyan:hover {
     color: #00cccc;
-    box-shadow: inset 0 0 0 1px #00cccc, 0 0 8px rgba(0, 204, 204, 0.3);
+    box-shadow: inset 0 0 0 1px #00cccc, 0 0 6px rgba(0, 204, 204, 0.25);
 }
 
 /* 灰色 */
@@ -170,7 +200,7 @@
 .tag-item.tag-fx-gray:hover,
 .tag.tag-fx-gray:hover {
     color: #888888;
-    box-shadow: inset 0 0 0 1px #888888, 0 0 8px rgba(136, 136, 136, 0.3);
+    box-shadow: inset 0 0 0 1px #888888, 0 0 6px rgba(136, 136, 136, 0.25);
 }
 
 /* 白色 */
@@ -182,11 +212,12 @@
 .tag-item.tag-fx-white:hover,
 .tag.tag-fx-white:hover {
     color: #ffffff;
-    box-shadow: inset 0 0 0 1px #ffffff, 0 0 8px rgba(255, 255, 255, 0.3);
+    box-shadow: inset 0 0 0 1px #ffffff, 0 0 6px rgba(255, 255, 255, 0.25);
 }
 
-/* ==================== 彩虹特效 ==================== */
+/* ==================== 文字特殊效果 ==================== */
 
+/* 彩虹文字效果 */
 .tag-item.tag-fx-rainbow,
 .tag.tag-fx-rainbow,
 .tag-preview.tag-fx-rainbow {
@@ -195,46 +226,415 @@
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: none;
-    /* 边框也使用彩虹渐变 */
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3),
-                0 0 10px rgba(255, 153, 51, 0.4);
-    animation: rainbow-glow 3s ease-in-out infinite;
+    background-size: 200% 100%;
+    animation: rainbow-text 3s linear infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+    /* 确保背景正确显示 */
+    background-color: transparent;
 }
 
-@keyframes rainbow-glow {
-    0%, 100% {
-        box-shadow: inset 0 0 0 1px rgba(255, 51, 51, 0.5),
-                    0 0 10px rgba(255, 51, 51, 0.4);
-    }
-    20% {
-        box-shadow: inset 0 0 0 1px rgba(255, 153, 51, 0.5),
-                    0 0 10px rgba(255, 153, 51, 0.4);
-    }
-    40% {
-        box-shadow: inset 0 0 0 1px rgba(255, 204, 0, 0.5),
-                    0 0 10px rgba(255, 204, 0, 0.4);
-    }
-    60% {
-        box-shadow: inset 0 0 0 1px rgba(51, 255, 102, 0.5),
-                    0 0 10px rgba(51, 255, 102, 0.4);
-    }
-    80% {
-        box-shadow: inset 0 0 0 1px rgba(51, 153, 255, 0.5),
-                    0 0 10px rgba(51, 153, 255, 0.4);
-    }
+@keyframes rainbow-text {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
 }
 
-.tag-item.tag-fx-rainbow:hover {
+.tag-item.tag-fx-rainbow:hover,
+.tag.tag-fx-rainbow:hover {
     background: linear-gradient(90deg, #ff3333, #ff9933, #ffcc00, #33ff66, #3399ff, #cc66ff);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    box-shadow: inset 0 0 0 1px var(--green),
-                0 0 15px rgba(0, 255, 65, 0.4);
+    background-size: 200% 100%;
+    box-shadow: inset 0 0 0 1px var(--green), 0 0 8px rgba(255, 153, 51, 0.3);
 }
 
-/* ==================== 字体特效 ==================== */
+/* 流光文字效果 */
+.tag-item.tag-fx-flow,
+.tag.tag-fx-flow,
+.tag-preview.tag-fx-flow {
+    background: linear-gradient(90deg, #00ff41, #00e5ff, #d2a8ff, #ffd700, #00ff41);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: flow-text 2s ease-in-out infinite;
+    /* 确保背景正确显示 */
+    background-color: transparent;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+}
+
+@keyframes flow-text {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+.tag-item.tag-fx-flow:hover,
+.tag.tag-fx-flow:hover {
+    background: linear-gradient(90deg, #00ff41, #00e5ff, #d2a8ff, #ffd700, #00ff41);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    box-shadow: inset 0 0 0 1px var(--cyan), 0 0 6px rgba(0, 229, 255, 0.25);
+}
+
+/* 跳动文字效果 - 使用 scale 实现放大缩小，transform-origin 控制中心点 */
+.tag-item.tag-fx-bounce,
+.tag.tag-fx-bounce,
+.tag-preview.tag-fx-bounce {
+    animation: bounce-text 0.6s ease-in-out infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+}
+
+@keyframes bounce-text {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.tag-item.tag-fx-bounce:hover {
+    animation: bounce-text-fast 0.3s ease-in-out infinite;
+}
+
+@keyframes bounce-text-fast {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
+/* 呼吸/脉冲文字效果 */
+.tag-item.tag-fx-pulse,
+.tag.tag-fx-pulse,
+.tag-preview.tag-fx-pulse {
+    animation: pulse-text 1.5s ease-in-out infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+}
+
+@keyframes pulse-text {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.tag-item.tag-fx-pulse:hover,
+.tag.tag-fx-pulse:hover {
+    animation: pulse-text 0.8s ease-in-out infinite;
+}
+
+/* ==================== 边框静态颜色特效 ==================== */
+
+.tag-item.tag-fx-border-red {
+    box-shadow: inset 0 0 0 1px #ff3333, 0 0 4px rgba(255, 51, 51, 0.15);
+}
+.tag-item.tag-fx-border-red:hover {
+    box-shadow: inset 0 0 0 1px #ff3333, 0 0 6px rgba(255, 51, 51, 0.3);
+}
+
+.tag-item.tag-fx-border-blue {
+    box-shadow: inset 0 0 0 1px #3399ff, 0 0 4px rgba(51, 153, 255, 0.15);
+}
+.tag-item.tag-fx-border-blue:hover {
+    box-shadow: inset 0 0 0 1px #3399ff, 0 0 6px rgba(51, 153, 255, 0.3);
+}
+
+.tag-item.tag-fx-border-green {
+    box-shadow: inset 0 0 0 1px #33ff66, 0 0 4px rgba(51, 255, 102, 0.15);
+}
+.tag-item.tag-fx-border-green:hover {
+    box-shadow: inset 0 0 0 1px #33ff66, 0 0 6px rgba(51, 255, 102, 0.3);
+}
+
+.tag-item.tag-fx-border-yellow {
+    box-shadow: inset 0 0 0 1px #ffcc00, 0 0 4px rgba(255, 204, 0, 0.15);
+}
+.tag-item.tag-fx-border-yellow:hover {
+    box-shadow: inset 0 0 0 1px #ffcc00, 0 0 6px rgba(255, 204, 0, 0.3);
+}
+
+.tag-item.tag-fx-border-purple {
+    box-shadow: inset 0 0 0 1px #cc66ff, 0 0 4px rgba(204, 102, 255, 0.15);
+}
+.tag-item.tag-fx-border-purple:hover {
+    box-shadow: inset 0 0 0 1px #cc66ff, 0 0 6px rgba(204, 102, 255, 0.3);
+}
+
+.tag-item.tag-fx-border-orange {
+    box-shadow: inset 0 0 0 1px #ff9933, 0 0 4px rgba(255, 153, 51, 0.15);
+}
+.tag-item.tag-fx-border-orange:hover {
+    box-shadow: inset 0 0 0 1px #ff9933, 0 0 6px rgba(255, 153, 51, 0.3);
+}
+
+.tag-item.tag-fx-border-pink {
+    box-shadow: inset 0 0 0 1px #ff66b2, 0 0 4px rgba(255, 102, 178, 0.15);
+}
+.tag-item.tag-fx-border-pink:hover {
+    box-shadow: inset 0 0 0 1px #ff66b2, 0 0 6px rgba(255, 102, 178, 0.3);
+}
+
+.tag-item.tag-fx-border-cyan {
+    box-shadow: inset 0 0 0 1px #00cccc, 0 0 4px rgba(0, 204, 204, 0.15);
+}
+.tag-item.tag-fx-border-cyan:hover {
+    box-shadow: inset 0 0 0 1px #00cccc, 0 0 6px rgba(0, 204, 204, 0.3);
+}
+
+.tag-item.tag-fx-border-gray {
+    box-shadow: inset 0 0 0 1px #888888, 0 0 4px rgba(136, 136, 136, 0.15);
+}
+.tag-item.tag-fx-border-gray:hover {
+    box-shadow: inset 0 0 0 1px #888888, 0 0 6px rgba(136, 136, 136, 0.3);
+}
+
+.tag-item.tag-fx-border-white {
+    box-shadow: inset 0 0 0 1px #ffffff, 0 0 4px rgba(255, 255, 255, 0.15);
+}
+.tag-item.tag-fx-border-white:hover {
+    box-shadow: inset 0 0 0 1px #ffffff, 0 0 6px rgba(255, 255, 255, 0.3);
+}
+
+/* ==================== 边框特殊效果 ==================== */
+
+/* 发光效果 - 仅 1-2px 范围 */
+.tag-item.tag-fx-glow,
+.tag.tag-fx-glow,
+.tag-preview.tag-fx-glow {
+    box-shadow: inset 0 0 0 1px var(--text), 0 0 4px rgba(255, 255, 255, 0.2);
+    animation: glow-border 2s ease-in-out infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+    /* 确保高度固定 */
+    line-height: 1.4;
+}
+
+@keyframes glow-border {
+    0%, 100% {
+        box-shadow: inset 0 0 0 1px var(--green), 0 0 4px rgba(0, 255, 65, 0.2);
+    }
+    50% {
+        box-shadow: inset 0 0 0 1px var(--cyan), 0 0 6px rgba(0, 229, 255, 0.3);
+    }
+}
+
+.tag-item.tag-fx-glow:hover {
+    box-shadow: inset 0 0 0 1px var(--green), 0 0 6px rgba(0, 255, 65, 0.3);
+}
+
+/* 彩虹边框效果 */
+.tag-item.tag-fx-border-rainbow,
+.tag.tag-fx-border-rainbow,
+.tag-preview.tag-fx-border-rainbow {
+    animation: rainbow-border 3s linear infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+}
+
+@keyframes rainbow-border {
+    0% {
+        box-shadow: inset 0 0 0 1px #ff3333, 0 0 4px rgba(255, 51, 51, 0.25);
+    }
+    20% {
+        box-shadow: inset 0 0 0 1px #ff9933, 0 0 4px rgba(255, 153, 51, 0.25);
+    }
+    40% {
+        box-shadow: inset 0 0 0 1px #ffcc00, 0 0 4px rgba(255, 204, 0, 0.25);
+    }
+    60% {
+        box-shadow: inset 0 0 0 1px #33ff66, 0 0 4px rgba(51, 255, 102, 0.25);
+    }
+    80% {
+        box-shadow: inset 0 0 0 1px #3399ff, 0 0 4px rgba(51, 153, 255, 0.25);
+    }
+    100% {
+        box-shadow: inset 0 0 0 1px #ff3333, 0 0 4px rgba(255, 51, 51, 0.25);
+    }
+}
+
+/* 动态边框流光效果 */
+.tag-item.tag-fx-border-flow,
+.tag.tag-fx-border-flow,
+.tag-preview.tag-fx-border-flow {
+    animation: border-flow 2s linear infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+}
+
+@keyframes border-flow {
+    0% {
+        box-shadow: inset 0 0 0 1px #00ff41, 0 0 4px rgba(0, 255, 65, 0.3);
+    }
+    25% {
+        box-shadow: inset 0 0 0 1px #00e5ff, 0 0 4px rgba(0, 229, 255, 0.3);
+    }
+    50% {
+        box-shadow: inset 0 0 0 1px #d2a8ff, 0 0 4px rgba(210, 168, 255, 0.3);
+    }
+    75% {
+        box-shadow: inset 0 0 0 1px #ffd700, 0 0 4px rgba(255, 215, 0, 0.3);
+    }
+    100% {
+        box-shadow: inset 0 0 0 1px #00ff41, 0 0 4px rgba(0, 255, 65, 0.3);
+    }
+}
+
+/* 边框呼吸效果 - 边框亮度和外发光同步呼吸 */
+.tag-item.tag-fx-border-pulse,
+.tag.tag-fx-border-pulse,
+.tag-preview.tag-fx-border-pulse {
+    animation: border-pulse 1.5s ease-in-out infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+    /* 确保边框特效不受基础样式干扰 */
+    box-shadow: inset 0 0 0 1px rgba(204, 102, 255, 0.6), 0 0 4px rgba(204, 102, 255, 0.3);
+}
+
+@keyframes border-pulse {
+    0%, 100% {
+        /* 边框暗 + 外发光收缩 */
+        box-shadow: inset 0 0 0 1px rgba(204, 102, 255, 0.3), 0 0 2px rgba(204, 102, 255, 0.15);
+    }
+    50% {
+        /* 边框亮 + 外发光扩散 */
+        box-shadow: inset 0 0 0 1px rgba(204, 102, 255, 1), 0 0 8px rgba(204, 102, 255, 0.5);
+    }
+}
+
+/* 跑马灯边框效果 - 使用渐变边框代替伪元素，修复上浮问题 */
+.tag-item.tag-fx-marquee,
+.tag.tag-fx-marquee,
+.tag-preview.tag-fx-marquee {
+    border: none;
+    background:
+        linear-gradient(var(--bg-card), var(--bg-card)) padding-box,
+        linear-gradient(90deg,
+            #ff3333, #ff9933, #ffcc00, #33ff66,
+            #3399ff, #cc66ff, #ff3333) border-box;
+    background-size: 100% 100%, 200% 100%;
+    border-width: 1px;
+    border-style: solid;
+    border-color: transparent;
+    animation: marquee-border-color 2s linear infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+    /* 确保高度固定 */
+    line-height: 1.4;
+}
+
+@keyframes marquee-border-color {
+    0% { background-size: 100% 100%, 200% 100%; background-position: 0 0, 0 0; }
+    50% { background-position: 0 0, 100% 0; }
+    100% { background-size: 100% 100%, 200% 100%; background-position: 0 0, 0 0; }
+}
+
+.tag-item.tag-fx-marquee:hover {
+    background:
+        rgba(0, 255, 65, 0.05) padding-box,
+        linear-gradient(90deg,
+            #ff3333, #ff9933, #ffcc00, #33ff66,
+            #3399ff, #cc66ff, #ff3333) border-box;
+    background-size: 100% 100%, 200% 100%;
+    border-width: 1px;
+    border-style: solid;
+    animation: marquee-border-color 1s linear infinite;
+}
+
+/* ==================== 整体透明特效（可配合文字/边框） ==================== */
+
+/* 玻璃流光效果 - 光线从视窗外右侧划入，从左侧划出 */
+.tag-item.tag-fx-glass,
+.tag.tag-fx-glass,
+.tag-preview.tag-fx-glass {
+    background-color: rgba(255, 255, 255, 0.03);
+    background-image:
+        linear-gradient(
+            60deg,
+            transparent 0%,
+            transparent 30%,
+            rgba(255, 255, 255, 0.2) 42%,
+            rgba(255, 255, 255, 0.25) 50%,
+            rgba(255, 255, 255, 0.2) 58%,
+            transparent 70%,
+            transparent 100%
+        );
+    background-size: 400% 100%;
+    background-position: 100% 0;
+    background-repeat: no-repeat;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    animation: glass-shine 2s linear infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+    /* 确保高度固定 */
+    line-height: 1.4;
+}
+
+/* 光线从右侧视窗外划入，划过整个按钮，从左侧视窗外划出 */
+@keyframes glass-shine {
+    0% { background-position: 100% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.tag-item.tag-fx-glass:hover {
+    background-color: rgba(0, 229, 255, 0.05);
+    border-color: rgba(0, 229, 255, 0.4);
+}
+
+/* ==================== 整体覆盖型特效（独占显示） ==================== */
+
+/* 霓虹灯效果 - 完全覆盖文字和边框 */
+.tag-item.tag-fx-neon,
+.tag.tag-fx-neon,
+.tag-preview.tag-fx-neon {
+    color: #fff !important;
+    background: #1a1a2e !important;
+    border: none !important;
+    box-shadow:
+        0 0 3px #ff00ff,
+        0 0 6px #ff00ff,
+        inset 0 0 3px rgba(255, 0, 255, 0.3);
+    animation: neon-flicker 3s ease-in-out infinite;
+    text-shadow:
+        0 0 2px #ff00ff,
+        0 0 4px #ff00ff;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+    /* 确保高度固定 */
+    line-height: 1.4;
+}
+
+@keyframes neon-flicker {
+    0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+        box-shadow:
+            0 0 3px #ff00ff,
+            0 0 6px #ff00ff,
+            inset 0 0 3px rgba(255, 0, 255, 0.3);
+        text-shadow:
+            0 0 2px #ff00ff,
+            0 0 4px #ff00ff;
+    }
+    20%, 24%, 55% {
+        box-shadow:
+            0 0 1px #ff00ff,
+            0 0 2px #ff00ff,
+            inset 0 0 2px rgba(255, 0, 255, 0.2);
+        text-shadow:
+            0 0 1px #ff00ff;
+    }
+}
+
+.tag-item.tag-fx-neon:hover {
+    box-shadow:
+        0 0 5px #ff00ff,
+        0 0 10px #ff00ff,
+        0 0 15px #00ffff,
+        inset 0 0 5px rgba(255, 0, 255, 0.4);
+    text-shadow:
+        0 0 3px #ff00ff,
+        0 0 6px #ff00ff,
+        0 0 8px #00ffff;
+}
+
+/* ==================== 字体样式特效 ==================== */
 
 /* 粗体 */
 .tag-item.tag-fx-bold,
@@ -250,100 +650,36 @@
     font-style: italic !important;
 }
 
-/* 下划线 */
+/* 下划线 - 仅作用于文字部分 */
 .tag-item.tag-fx-underline,
+.tag.tag-fx-underline,
+.tag-preview.tag-fx-underline {
+    text-decoration: none !important;
+}
+
+.tag-item.tag-fx-underline .tag-text,
 .tag.tag-fx-underline,
 .tag-preview.tag-fx-underline {
     text-decoration: underline !important;
 }
-
-/* ==================== 动态特效 ==================== */
 
 /* 闪烁特效 */
 .tag-item.tag-fx-flash,
 .tag.tag-fx-flash,
 .tag-preview.tag-fx-flash {
     animation: tag-flash 1.5s ease-in-out infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
 }
 
 @keyframes tag-flash {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.4;
-    }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
 }
 
-/* 跑马灯/流光特效 - 使用 box-shadow 动画实现边框流光 */
-.tag-item.tag-fx-marquee,
-.tag.tag-fx-marquee,
-.tag-preview.tag-fx-marquee {
-    position: relative;
-    overflow: visible;
-    animation: marquee-border 2s linear infinite;
-}
+/* ==================== 组合特效示例 ==================== */
 
-.tag-item.tag-fx-marquee::before,
-.tag.tag-fx-marquee::before,
-.tag-preview.tag-fx-marquee::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
-    border-radius: 6px;
-    background: linear-gradient(90deg,
-        #ff3333, #ff9933, #ffcc00, #33ff66,
-        #3399ff, #cc66ff, #ff3333);
-    background-size: 200% 100%;
-    z-index: -1;
-    opacity: 0.6;
-    animation: marquee-gradient 2s linear infinite;
-}
-
-@keyframes marquee-gradient {
-    0% {
-        background-position: 0% 50%;
-    }
-    100% {
-        background-position: 200% 50%;
-    }
-}
-
-@keyframes marquee-border {
-    0% {
-        box-shadow: 0 0 4px rgba(255, 51, 51, 0.5);
-    }
-    16% {
-        box-shadow: 0 0 4px rgba(255, 153, 51, 0.5);
-    }
-    33% {
-        box-shadow: 0 0 4px rgba(255, 204, 0, 0.5);
-    }
-    50% {
-        box-shadow: 0 0 4px rgba(51, 255, 102, 0.5);
-    }
-    66% {
-        box-shadow: 0 0 4px rgba(51, 153, 255, 0.5);
-    }
-    83% {
-        box-shadow: 0 0 4px rgba(204, 102, 255, 0.5);
-    }
-    100% {
-        box-shadow: 0 0 4px rgba(255, 51, 51, 0.5);
-    }
-}
-
-.tag-item.tag-fx-marquee:hover::before {
-    opacity: 0.8;
-    animation-duration: 1s;
-}
-
-/* ==================== 特效组合示例 ==================== */
-
-/* 组合特效：红色 + 粗体 + 闪烁 */
+/* 红色 + 粗体 + 闪烁 */
 .tag-item.tag-fx-red.tag-fx-bold.tag-fx-flash,
 .tag.tag-fx-red.tag-fx-bold.tag-fx-flash,
 .tag-preview.tag-fx-red.tag-fx-bold.tag-fx-flash {
@@ -352,17 +688,74 @@
     animation: tag-flash 1.5s ease-in-out infinite;
 }
 
-/* 组合特效：蓝色 + 跑马灯 */
-.tag-item.tag-fx-blue.tag-fx-marquee,
-.tag.tag-fx-blue.tag-fx-marquee,
-.tag-preview.tag-fx-blue.tag-fx-marquee {
+/* 蓝色 + 边框流光 */
+.tag-item.tag-fx-blue.tag-fx-border-flow,
+.tag.tag-fx-blue.tag-fx-border-flow,
+.tag-preview.tag-fx-blue.tag-fx-border-flow {
     color: #3399ff !important;
 }
 
-/* 组合特效：紫色 + 斜体 */
+/* 紫色 + 斜体 */
 .tag-item.tag-fx-purple.tag-fx-italic,
 .tag.tag-fx-purple.tag-fx-italic,
 .tag-preview.tag-fx-purple.tag-fx-italic {
     color: #cc66ff !important;
     font-style: italic;
+}
+
+/* 玻璃 + 边框发光（组合效果） */
+.tag-item.tag-fx-glass.tag-fx-glow,
+.tag.tag-fx-glass.tag-fx-glow,
+.tag-preview.tag-fx-glass.tag-fx-glow {
+    box-shadow: inset 0 0 0 1px var(--cyan), 0 0 4px rgba(0, 229, 255, 0.2);
+    animation: glass-glow-shine 3s ease-in-out infinite, glow-border 2s ease-in-out infinite;
+}
+
+@keyframes glass-glow-shine {
+    0% { background-position: 0 0, -100% 0; }
+    50% { background-position: 0 0, 0 0; }
+    100% { background-position: 0 0, 100% 0; }
+}
+
+/* 文章详情页和预览页的特殊处理 */
+.tag.tag-fx-rainbow,
+.tag-preview.tag-fx-rainbow {
+    -webkit-text-fill-color: #ff3333;
+}
+
+.tag.tag-fx-flow,
+.tag-preview.tag-fx-flow {
+    background: linear-gradient(90deg, #00ff41, #00e5ff, #d2a8ff, #ffd700, #00ff41);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.tag.tag-fx-bounce,
+.tag-preview.tag-fx-bounce {
+    display: inline;
+}
+
+.tag.tag-fx-pulse,
+.tag-preview.tag-fx-pulse {
+    display: inline;
+}
+
+.tag.tag-fx-neon,
+.tag-preview.tag-fx-neon {
+    display: inline-block;
+}
+
+/* 文章详情页的霓虹效果保持一致 */
+.tag.tag-fx-neon {
+    background: #1a1a2e !important;
+    border: none !important;
+    box-shadow:
+        0 0 2px #ff00ff,
+        0 0 4px #ff00ff;
+}
+
+/* 确保文章页的标签下划线不影响中括号 */
+.post-detail .file-body .meta-line .tag.tag-fx-underline {
+    text-decoration: underline;
 }
