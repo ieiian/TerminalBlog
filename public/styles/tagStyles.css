@@ -3,13 +3,30 @@
  * 使用 :: 作为特效分隔符
  * 例如: tags: ['SSL::red::bold', 'Docker::blue::glow']
  *
- * 特效分类：
- * 1. 文字静态颜色：red, blue, green, yellow, purple, orange, pink, cyan, gray, white
- * 2. 文字特殊效果：rainbow, flow, bounce, pulse
- * 3. 边框静态颜色：border-red, border-blue, border-green 等
- * 4. 边框特殊效果：glow, border-rainbow, border-flow, border-pulse
- * 5. 整体特效（透明）：glass
- * 6. 整体特效（覆盖型）：neon
+ * ================================================
+ * 特效分类说明：
+ * ================================================
+ *
+ * 【文字特效】- 仅作用于标签文字，不影响边框
+ *   - 静态颜色：red, blue, green, yellow, purple, orange, pink, cyan, gray, white
+ *   - 特殊效果：rainbow（彩虹渐变）, flow（流光字）, jump（逐字跳动）
+ *
+ * 【边框特效】- 仅作用于标签边框，不影响文字
+ *   - 静态颜色：border-red, border-blue, border-green, border-yellow, border-purple,
+ *              border-orange, border-pink, border-cyan, border-gray, border-white
+ *   - 特殊效果：glow（发光）, border-rainbow（彩虹边框）, border-flow（流光边框）,
+ *              border-pulse（边框呼吸）, marquee（跑马灯边框）
+ *
+ * 【整体特效 - 透明型】（可与文字/边框特效组合使用）
+ *   - glass（玻璃流光）：光线划过效果
+ *
+ * 【整体特效 - 覆盖型】（使用后禁用其他文字和边框特效）
+ *   - neon（霓虹灯）：完整的霓虹灯效果，包含文字和边框
+ *
+ * 【整体动作特效】（可与其他颜色特效组合使用）
+ *   - bounce（整体跳动）：整个标签作为一个整体放大缩小的弹跳效果
+ *
+ * ================================================
  */
 
 /* ==================== 基础标签样式 ==================== */
@@ -52,6 +69,64 @@
     position: static;
 }
 
+/* 文章详情页：adlight 简化显示 - 彩点围绕标签 */
+.post-detail .file-body .meta-line .tag.tag-fx-adlight,
+.post-detail .file-body .meta-line .tag-preview.tag-fx-adlight {
+    color: var(--cyan);
+    position: static;
+    overflow: visible;
+    font-weight: bold;
+    text-shadow: 0 0 6px rgba(255, 200, 0, 0.8);
+}
+.post-detail .file-body .meta-line .tag.tag-fx-adlight .adlight-svg,
+.post-detail .file-body .meta-line .tag-preview.tag-fx-adlight .adlight-svg {
+    display: none !important;
+}
+
+/* 左侧三个竖排彩点 */
+.post-detail .file-body .meta-line .tag.tag-fx-adlight::before,
+.post-detail .file-body .meta-line .tag-preview.tag-fx-adlight::before {
+    content: '●\A●\A●';
+    display: inline-block;
+    white-space: pre;
+    font-size: 0.22em;
+    line-height: 1;
+    background: linear-gradient(to bottom, #ff3333 0%, #ffcc00 50%, #33ff66 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: adlight-dots-flicker 1.5s ease-in-out infinite;
+    filter: drop-shadow(0 0 2px #ff3333) drop-shadow(0 0 3px #ffcc00);
+    position: relative;
+    top: -0.15em;
+}
+
+/* 右侧三个竖排彩点 */
+.post-detail .file-body .meta-line .tag.tag-fx-adlight::after,
+.post-detail .file-body .meta-line .tag-preview.tag-fx-adlight::after {
+    content: '●\A●\A●';
+    display: inline-block;
+    white-space: pre;
+    font-size: 0.22em;
+    line-height: 1;
+    background: linear-gradient(to bottom, #33ff66 0%, #ffcc00 50%, #ff3333 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: adlight-dots-flicker 1.8s ease-in-out infinite;
+    animation-delay: 0.3s;
+    filter: drop-shadow(0 0 2px #33ff66) drop-shadow(0 0 3px #ffcc00);
+    position: relative;
+    top: -0.15em;
+}
+
+@keyframes adlight-dots-flicker {
+    0%, 100% { opacity: 1; }
+    25% { opacity: 0.6; }
+    50% { opacity: 1; }
+    75% { opacity: 0.5; }
+}
+
 /* 预览页标签（不可点击） */
 .post-detail .file-body .meta-line .tag-preview,
 .post-detail .file-body .meta-line .tag-preview[class*="tag-fx-"] {
@@ -79,11 +154,12 @@
 }
 
 /* 标签项 hover 效果 - 统一终端经典绿 */
+/* 注意：排除 glass 特效，因为它有自定义的背景渐变 */
 .tag-item:hover,
-.tag-item[class*="tag-fx-"]:hover {
+.tag-item[class*="tag-fx-"]:not(.tag-fx-glass):hover {
     border-color: var(--green);
     color: var(--green);
-    background: rgba(0, 255, 65, 0.05);
+    background-color: rgba(0, 255, 65, 0.05);
     box-shadow: inset 0 0 0 1px var(--green), 0 0 6px rgba(0, 255, 65, 0.2);
     z-index: 2;
 }
@@ -280,45 +356,49 @@
     box-shadow: inset 0 0 0 1px var(--cyan), 0 0 6px rgba(0, 229, 255, 0.25);
 }
 
-/* 跳动文字效果 - 使用 scale 实现放大缩小，transform-origin 控制中心点 */
-.tag-item.tag-fx-bounce,
-.tag.tag-fx-bounce,
-.tag-preview.tag-fx-bounce {
-    animation: bounce-text 0.6s ease-in-out infinite;
-    /* 明确指定垂直对齐方式防止上浮 */
+/* 逐字跳动文字效果 - 文字逐个上下跳动（波浪效果） */
+.tag-item.tag-fx-jump,
+.tag.tag-fx-jump,
+.tag-preview.tag-fx-jump {
+    display: inline-block;
     vertical-align: baseline;
 }
 
-@keyframes bounce-text {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+.tag-item.tag-fx-jump .tag-text,
+.tag.tag-fx-jump,
+.tag-preview.tag-fx-jump {
+    display: inline-block;
+    animation: jump-text 0.6s ease-in-out infinite;
+    animation-delay: calc(0.1s * (var(--char-index, 0)));
 }
 
-.tag-item.tag-fx-bounce:hover {
-    animation: bounce-text-fast 0.3s ease-in-out infinite;
+@keyframes jump-text {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
 }
 
-@keyframes bounce-text-fast {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.15); }
-}
-
-/* 呼吸/脉冲文字效果 */
+/* 呼吸效果 - 仅作用于文字透明度，不影响边框 */
 .tag-item.tag-fx-pulse,
 .tag.tag-fx-pulse,
 .tag-preview.tag-fx-pulse {
-    animation: pulse-text 1.5s ease-in-out infinite;
-    /* 明确指定垂直对齐方式防止上浮 */
     vertical-align: baseline;
+}
+
+.tag-item.tag-fx-pulse .tag-text,
+.tag.tag-fx-pulse,
+.tag-preview.tag-fx-pulse {
+    animation: pulse-text 1.5s ease-in-out infinite;
 }
 
 @keyframes pulse-text {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    50% { opacity: 0.6; }
 }
 
+.tag-item.tag-fx-pulse:hover .tag-text,
 .tag-item.tag-fx-pulse:hover,
-.tag.tag-fx-pulse:hover {
+.tag.tag-fx-pulse:hover,
+.tag-preview.tag-fx-pulse:hover {
     animation: pulse-text 0.8s ease-in-out infinite;
 }
 
@@ -561,7 +641,7 @@
     background-position: 100% 0;
     background-repeat: no-repeat;
     border: 1px solid rgba(255, 255, 255, 0.25);
-    animation: glass-shine 2s linear infinite;
+    animation: glass-shine-slow 2s linear infinite;
     /* 明确指定垂直对齐方式防止上浮 */
     vertical-align: baseline;
     /* 确保高度固定 */
@@ -569,7 +649,13 @@
 }
 
 /* 光线从右侧视窗外划入，划过整个按钮，从左侧视窗外划出 */
-@keyframes glass-shine {
+@keyframes glass-shine-slow {
+    0% { background-position: 100% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* 光线快速划动版本（hover 时使用） */
+@keyframes glass-shine-fast {
     0% { background-position: 100% 0; }
     100% { background-position: -200% 0; }
 }
@@ -577,6 +663,60 @@
 .tag-item.tag-fx-glass:hover {
     background-color: rgba(0, 229, 255, 0.05);
     border-color: rgba(0, 229, 255, 0.4);
+    animation: glass-shine-fast 0.8s linear infinite;
+}
+
+/* ==================== 广告灯边框特效 ==================== */
+
+/* 广告灯边框效果 - SVG 彩色虚线围绕旋转 */
+.tag-item.tag-fx-adlight {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+    z-index: 1;
+    vertical-align: baseline;
+    line-height: 1.4;
+    background: var(--bg-card);
+}
+
+/* SVG 容器绝对定位，完美覆盖父级 */
+.tag-item.tag-fx-adlight .adlight-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* SVG 矩形边框样式 */
+.tag-item.tag-fx-adlight .adlight-rect {
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke-width: 2px;
+    stroke-dasharray: 6, 4;
+    stroke-dashoffset: 0;
+    animation: adlight-flow 3s linear infinite;
+    /* 彩色渐变边框 */
+    stroke: url(#adlight-gradient);
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.3));
+}
+
+/* 鼠标悬停：流动速度变快 */
+.tag-item.tag-fx-adlight:hover .adlight-rect {
+    animation-duration: 0.8s;
+    filter: drop-shadow(0 0 4px rgba(255, 102, 0, 0.6));
+}
+
+@keyframes adlight-flow {
+    to {
+        stroke-dashoffset: -20;
+    }
 }
 
 /* ==================== 整体覆盖型特效（独占显示） ==================== */
@@ -634,6 +774,31 @@
         0 0 8px #00ffff;
 }
 
+/* ==================== 整体动作特效（可与其他颜色特效组合） ==================== */
+
+/* 整体跳动效果 - 整个标签作为一个整体放大缩小跳动 */
+.tag-item.tag-fx-bounce,
+.tag.tag-fx-bounce,
+.tag-preview.tag-fx-bounce {
+    animation: bounce-whole 0.6s ease-in-out infinite;
+    /* 明确指定垂直对齐方式防止上浮 */
+    vertical-align: baseline;
+}
+
+@keyframes bounce-whole {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.tag-item.tag-fx-bounce:hover {
+    animation: bounce-whole-fast 0.3s ease-in-out infinite;
+}
+
+@keyframes bounce-whole-fast {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
 /* ==================== 字体样式特效 ==================== */
 
 /* 粗体 */
@@ -663,30 +828,7 @@
     text-decoration: underline !important;
 }
 
-/* 闪烁特效 */
-.tag-item.tag-fx-flash,
-.tag.tag-fx-flash,
-.tag-preview.tag-fx-flash {
-    animation: tag-flash 1.5s ease-in-out infinite;
-    /* 明确指定垂直对齐方式防止上浮 */
-    vertical-align: baseline;
-}
-
-@keyframes tag-flash {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-}
-
 /* ==================== 组合特效示例 ==================== */
-
-/* 红色 + 粗体 + 闪烁 */
-.tag-item.tag-fx-red.tag-fx-bold.tag-fx-flash,
-.tag.tag-fx-red.tag-fx-bold.tag-fx-flash,
-.tag-preview.tag-fx-red.tag-fx-bold.tag-fx-flash {
-    color: #ff3333 !important;
-    font-weight: bold;
-    animation: tag-flash 1.5s ease-in-out infinite;
-}
 
 /* 蓝色 + 边框流光 */
 .tag-item.tag-fx-blue.tag-fx-border-flow,
@@ -739,6 +881,19 @@
 .tag.tag-fx-pulse,
 .tag-preview.tag-fx-pulse {
     display: inline;
+}
+
+/* jump 特效：逐字跳动效果在文章详情页和预览页需要特殊处理 */
+.tag.tag-fx-jump,
+.tag-preview.tag-fx-jump {
+    display: inline;
+}
+
+.tag.tag-fx-jump .tag-text,
+.tag-preview.tag-fx-jump .tag-text {
+    display: inline-block;
+    animation: jump-text 0.6s ease-in-out infinite;
+    animation-delay: calc(0.1s * var(--char-index, 0));
 }
 
 .tag.tag-fx-neon,

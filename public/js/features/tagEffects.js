@@ -3,13 +3,30 @@
  * 统一管理标签的解析、去重和 DOM 生成
  * 使用 :: 作为特效分隔符，例如: SSL::red::bold
  *
- * 特效分类：
- * 1. 文字静态颜色：red, blue, green, yellow, purple, orange, pink, cyan, gray, white
- * 2. 文字特殊效果：rainbow（彩虹渐变）, flow（流光字）, bounce（跳动）, pulse（呼吸）
- * 3. 边框静态颜色：border-red, border-blue, border-green 等
- * 4. 边框特殊效果：glow（发光）, border-rainbow, border-flow, border-pulse
- * 5. 整体特效（透明，可配合文字/边框）：glass（玻璃流光）
- * 6. 整体特效（覆盖型，独占显示）：neon（霓虹灯）
+ * ================================================
+ * 特效分类说明：
+ * ================================================
+ *
+ * 【文字特效】- 仅作用于标签文字，不影响边框
+ *   - 静态颜色：red, blue, green, yellow, purple, orange, pink, cyan, gray, white
+ *   - 特殊效果：rainbow（彩虹渐变）, flow（流光字）, jump（逐字跳动）
+ *
+ * 【边框特效】- 仅作用于标签边框，不影响文字
+ *   - 静态颜色：border-red, border-blue, border-green, border-yellow, border-purple,
+ *              border-orange, border-pink, border-cyan, border-gray, border-white
+ *   - 特殊效果：glow（发光）, border-rainbow（彩虹边框）, border-flow（流光边框）,
+ *              border-pulse（边框呼吸）, marquee（跑马灯边框）
+ *
+ * 【整体特效 - 透明型】（可与文字/边框特效组合使用）
+ *   - glass（玻璃流光）：光线划过效果
+ *
+ * 【整体特效 - 覆盖型】（使用后禁用其他文字和边框特效）
+ *   - neon（霓虹灯）：完整的霓虹灯效果，包含文字和边框
+ *
+ * 【整体动作特效】（可与其他颜色特效组合使用）
+ *   - bounce（整体跳动）：整个标签作为一个整体放大缩小的弹跳效果
+ *
+ * ================================================
  */
 
 (function() {
@@ -50,6 +67,7 @@
     var EFFECT_SEPARATOR = '::';
 
     // 整体特效（覆盖型，使用后禁用文字和边框特效）
+    // neon 是颜色覆盖型，会禁用其他文字和边框特效
     var GLOBAL_EFFECTS = ['neon'];
 
     // ==================== 核心函数 ====================
@@ -229,7 +247,23 @@
             content = displayName + countHtml;
         } else {
             // 不带括号时，文字部分可点击，括号作为普通文本
-            content = '<span class="tag-text">' + tagName + '</span>' + countHtml;
+            // 检查是否有 jump 特效，如果有则将每个字符包装以实现逐字跳动
+            var hasJumpEffect = effects.indexOf('jump') !== -1;
+            var hasAdlightEffect = effects.indexOf('adlight') !== -1;
+            if (hasJumpEffect) {
+                // 将每个字符包装以实现逐字跳动效果
+                var chars = tagName.split('');
+                var wrappedChars = chars.map(function(char, i) {
+                    return '<span class="tag-text" style="--char-index:' + i + '">' + escapeHtml(char) + '</span>';
+                });
+                content = wrappedChars.join('') + countHtml;
+            } else {
+                content = '<span class="tag-text">' + tagName + '</span>' + countHtml;
+            }
+            // 如果有 adlight 特效，添加 SVG 边框
+            if (hasAdlightEffect) {
+                content += '<svg class="adlight-svg" aria-hidden="true"><rect class="adlight-rect" rx="4" ry="4"/></svg>';
+            }
         }
 
         return '<a class="' + allClasses + '"' + styleAttr + ' onclick="navigate(\'tag\', \'' + escapeHtml(tagName) + '\')">' +
@@ -264,8 +298,25 @@
         var styleAttr = effectsStyle ? ' style="' + effectsStyle + '"' : '';
         var allClasses = activeClassNames.join(' ');
 
+        // 检查是否有 jump 特效，如果有则将文字部分包装以实现逐字跳动
+        var hasJumpEffect = effects.indexOf('jump') !== -1;
+        var hasAdlightEffect = effects.indexOf('adlight') !== -1;
+        var displayTagName;
+        if (hasJumpEffect) {
+            // 将标签名每个字符包装以实现逐字跳动效果
+            var chars = tagName.split('');
+            var wrappedChars = chars.map(function(char, i) {
+                return '<span class="tag-text" style="--char-index:' + i + '">' + escapeHtml(char) + '</span>';
+            });
+            displayTagName = wrappedChars.join('');
+        } else {
+            displayTagName = escapeHtml(tagName);
+        }
+
+        var svgHtml = hasAdlightEffect ? '<svg class="adlight-svg" aria-hidden="true"><rect class="adlight-rect" rx="4" ry="4"/></svg>' : '';
+
         return '<a class="' + allClasses + '"' + styleAttr +
-               ' href="javascript:void(0)" onclick="navigate(\'tag\', \'' + escapeHtml(tagName) + '\'); return false;">[' + tagName + ']</a>';
+               ' href="javascript:void(0)" onclick="navigate(\'tag\', \'' + escapeHtml(tagName) + '\'); return false;">[' + displayTagName + ']' + svgHtml + '</a>';
     }
 
     /**
@@ -296,7 +347,24 @@
         var styleAttr = effectsStyle ? ' style="' + effectsStyle + '"' : '';
         var allClasses = activeClassNames.join(' ');
 
-        return '<span class="' + allClasses + '"' + styleAttr + '>[' + tagName + ']</span>';
+        // 检查是否有 jump 特效，如果有则将文字部分包装以实现逐字跳动
+        var hasJumpEffect = effects.indexOf('jump') !== -1;
+        var hasAdlightEffect = effects.indexOf('adlight') !== -1;
+        var displayTagName;
+        if (hasJumpEffect) {
+            // 将标签名每个字符包装以实现逐字跳动效果
+            var chars = tagName.split('');
+            var wrappedChars = chars.map(function(char, i) {
+                return '<span class="tag-text" style="--char-index:' + i + '">' + escapeHtml(char) + '</span>';
+            });
+            displayTagName = wrappedChars.join('');
+        } else {
+            displayTagName = escapeHtml(tagName);
+        }
+
+        var svgHtml = hasAdlightEffect ? '<svg class="adlight-svg" aria-hidden="true"><rect class="adlight-rect" rx="4" ry="4"/></svg>' : '';
+
+        return '<span class="' + allClasses + '"' + styleAttr + '>[' + displayTagName + ']' + svgHtml + '</span>';
     }
 
     /**

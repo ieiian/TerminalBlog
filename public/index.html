@@ -10,6 +10,22 @@
     <link rel="stylesheet" href="/styles/tagStyles.css">
 </head>
 <body>
+    <!-- SVG 渐变定义 - 用于广告灯特效 -->
+    <svg width="0" height="0" style="position: absolute;">
+        <defs>
+            <linearGradient id="adlight-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#ff3333"/>
+                <stop offset="14.3%" stop-color="#ff9933"/>
+                <stop offset="28.6%" stop-color="#ffcc00"/>
+                <stop offset="42.9%" stop-color="#33ff66"/>
+                <stop offset="57.1%" stop-color="#3399ff"/>
+                <stop offset="71.4%" stop-color="#cc66ff"/>
+                <stop offset="85.7%" stop-color="#ff00ff"/>
+                <stop offset="100%" stop-color="#ff3333"/>
+            </linearGradient>
+        </defs>
+    </svg>
+
     <canvas id="matrix-bg"></canvas>
     <canvas id="ai-ripple-canvas"></canvas>
     <div id="toastContainer"></div>

@@ -288,7 +288,10 @@
         }
     }
 
-    function renderPostList(posts) {
+    function renderPostList(posts, options) {
+        options = options || {};
+        const isAdmin = options.isAdmin || false;
+
         if (!posts || posts.length === 0) {
             return '<div class="output"><p style="color: var(--gray);">暂无文章</p></div>';
         }
@@ -296,12 +299,36 @@
         let html = '';
         posts.forEach(post => {
             const lockIcon = post.locked ? '🔒 ' : '';
-            html += `<div class="ls-row posts-scroll-list-row">
-                <span class="perm">${post.locked ? '🔒' : '-rw-r--r--'}</span>
-                <span class="size">${post.size || '---'}</span>
-                <span class="name"><a onclick="viewPost('${post.id}')">${lockIcon}${escapeHtml(post.title)}.md</a></span>
-                <span class="date-col">${post.date || '--'}</span>
-            </div>`;
+            if (isAdmin) {
+                // 管理页：包含操作按钮
+                const btnLabel = post.hidden ? '显示' : '隐藏';
+                const btnColor = post.hidden ? 'var(--red)' : 'var(--green)';
+                const lockBtnColor = post.locked ? 'var(--orange)' : 'var(--gray)';
+                const lockLabel = post.locked ? '🔓' : '🔒';
+                const hiddenTag = post.hidden ? '<span style="color: var(--yellow); font-size: 0.75em;">[隐藏]</span> ' : '';
+                html += `<div class="ls-row posts-scroll-list-row">
+                    <span class="admin-post-info-span">
+                        ${hiddenTag}
+                        <span class="admin-post-id">#${post.id}</span>
+                        ${post.locked ? '<span class="admin-post-lock" style="color: var(--orange); font-size: 0.75em;"> 🔒</span>' : ''}
+                        <a onclick="viewPost('${post.id}')">${escapeHtml(post.title)}</a>
+                        <span class="admin-post-date">${post.date || ''}</span>
+                    </span>
+                    <span class="admin-post-actions-span">
+                        <button class="admin-btn admin-post-btn" onclick="editPost('${post.id}')" title="编辑" style="padding: 3px 6px; font-size: 0.8em;">✏️</button>
+                        <button class="admin-btn admin-post-btn" onclick="toggleVisibility('${post.id}')" title="${btnLabel}" style="color: ${btnColor}; border-color: ${btnColor}; padding: 3px 6px; font-size: 0.8em;">${post.hidden ? '👁' : '👁️'}</button>
+                        <button class="admin-btn admin-post-btn" onclick="showLockDialog('${post.id}', ${post.locked})" title="${post.locked ? '解锁' : '上锁'}" style="color: ${lockBtnColor}; border-color: ${lockBtnColor}; padding: 3px 6px; font-size: 0.8em;">${lockLabel}</button>
+                    </span>
+                </div>`;
+            } else {
+                // 主页：标准行
+                html += `<div class="ls-row posts-scroll-list-row">
+                    <span class="perm">${post.locked ? '🔒' : '-rw-r--r--'}</span>
+                    <span class="size">${post.size || '---'}</span>
+                    <span class="name"><a onclick="viewPost('${post.id}')">${lockIcon}${escapeHtml(post.title)}.md</a></span>
+                    <span class="date-col">${post.date || '--'}</span>
+                </div>`;
+            }
         });
 
         return html;
@@ -441,7 +468,7 @@
                 viewportId: 'adminPostsScrollViewport',
                 trackId: 'adminPostsScrollTrack',
                 progressBarId: 'adminProgressBar',
-                rowSelector: '.admin-post-row',
+                rowSelector: '.ls-row',
                 useStableViewport: true,
                 getPage: function() { return adminPage; },
                 setPage: function(p) { adminPage = p; },
@@ -761,35 +788,6 @@
         scrollToAdminPage(page);
     }
 
-    function renderAdminPostRow(p) {
-        const btnLabel = p.hidden ? '显示' : '隐藏';
-        const btnColor = p.hidden ? 'var(--red)' : 'var(--green)';
-        const lockBtnColor = p.locked ? 'var(--orange)' : 'var(--gray)';
-        const lockLabel = p.locked ? '🔓' : '🔒';
-        const hiddenTag = p.hidden ? '<span style="color: var(--yellow); font-size: 0.75em;">[隐藏]</span> ' : '';
-        return `<div class="admin-post-row posts-scroll-list-row">
-            <div class="admin-post-info">
-                ${hiddenTag}
-                <span class="admin-post-id">#${p.id}</span>
-                ${p.locked ? '<span class="admin-post-lock"> 🔒</span>' : ''}
-                <a class="admin-post-title" onclick="viewPost('${p.id}')">${escapeHtml(p.title)}</a>
-                <span class="admin-post-date">${p.date || ''}</span>
-            </div>
-            <div class="admin-post-actions">
-                <button class="admin-btn admin-post-btn" onclick="editPost('${p.id}')" title="编辑">✏️</button>
-                <button class="admin-btn admin-post-btn" style="color: ${btnColor}; border-color: ${btnColor};" onclick="toggleVisibility('${p.id}')" title="${btnLabel}">${p.hidden ? '👁' : '👁️'}</button>
-                <button class="admin-btn admin-post-btn" style="color: ${lockBtnColor}; border-color: ${lockBtnColor};" onclick="showLockDialog('${p.id}', ${p.locked})" title="${p.locked ? '解锁' : '上锁'}">${lockLabel}</button>
-            </div>
-        </div>`;
-    }
-
-    function renderAdminPostList(posts) {
-        if (!posts || posts.length === 0) {
-            return '<p style="color: var(--gray);">暂无文章</p>';
-        }
-        return posts.map(renderAdminPostRow).join('');
-    }
-
     async function loadAdminPosts() {
         const listEl = document.getElementById('adminPostList');
         if (!listEl) return;
@@ -817,7 +815,7 @@
                 viewportClass: 'admin-posts-scroll-viewport',
                 trackId: 'adminPostsScrollTrack',
                 progressBarId: 'adminProgressBar',
-                rowsHtml: renderAdminPostList(posts.posts),
+                rowsHtml: renderPostList(posts.posts, { isAdmin: true }),
                 paginationHtml: adminTotalPages > 1
                     ? renderPagination(adminPage, adminTotalPages).replace(/goPage/g, 'goAdminPage')
                     : ''

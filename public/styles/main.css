@@ -694,9 +694,12 @@
             box-sizing: content-box;
         }
         .admin-posts-scroll-viewport {
-            padding: 0;
-            overflow: hidden;
+            padding: 0 12px;
+            overflow-x: auto;
+            overflow-y: hidden;
             transition: height 0.3s ease;
+            max-width: 100%;
+            box-sizing: border-box;
         }
         .posts-scroll-track {
             will-change: transform;
@@ -714,6 +717,34 @@
             grid-template-columns: 100px 80px 1fr 80px;
             gap: 12px;
             align-items: center;
+        }
+        /* 管理页：两列布局（信息 + 操作按钮） */
+        .admin-posts-scroll-viewport .ls-row.posts-scroll-list-row {
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+            align-items: center;
+        }
+        .admin-posts-scroll-viewport .ls-row.posts-scroll-list-row .admin-post-info-span {
+            display: inline;
+            min-width: 0;
+        }
+        .admin-posts-scroll-viewport .ls-row.posts-scroll-list-row .admin-post-actions-span {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+        /* 管理页文章链接样式：与主页保持一致 */
+        .admin-posts-scroll-viewport .ls-row.posts-scroll-list-row .admin-post-info-span a {
+            color: var(--cyan);
+            text-decoration: none;
+            transition: color 0.2s;
+            cursor: text;
+        }
+        .admin-posts-scroll-viewport .ls-row.posts-scroll-list-row .admin-post-info-span a:hover {
+            color: var(--green);
+            text-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
         }
         @media (max-width: 600px) {
             .posts-scroll-viewport .ls-row.posts-scroll-list-row {
@@ -739,28 +770,32 @@
         .admin-post-info {
             min-width: 0;
             flex: 1;
-            word-break: break-word;
+            word-break: break-all;
             white-space: normal;
         }
         .admin-post-id {
             color: var(--purple);
             font-size: 0.75em;
+            display: inline;
         }
         .admin-post-lock {
             color: var(--orange);
             font-size: 0.75em;
+            display: inline;
         }
         .admin-post-title {
             color: var(--cyan);
             cursor: pointer;
             text-decoration: none;
-            margin-left: 8px;
-            word-break: break-word;
+            margin-left: 6px;
+            word-break: break-all;
+            display: inline;
         }
         .admin-post-date {
             color: var(--gray);
             font-size: 0.8em;
-            margin-left: 8px;
+            margin-left: 6px;
+            display: inline;
         }
         .admin-post-actions {
             display: flex;
@@ -769,9 +804,10 @@
             align-items: center;
         }
         .admin-post-btn {
-            padding: 1px 5px;
-            font-size: 0.7em;
-            line-height: 1.2;
+            padding: 4px 6px;
+            font-size: 0.8em;
+            flex-shrink: 0;
+            white-space: nowrap;
         }
 
         .posts-scroll-progress {
