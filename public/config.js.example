@@ -1,6 +1,5 @@
 // ============================================================
 // Terminal Blog - 站点配置（示例模板）
-// 复制为 public/config.js 后填写真实密钥；勿将含密钥的 config.js 提交到公开仓库
 // Docker 部署时也可由 entrypoint 根据环境变量生成 config.js
 // ============================================================
 
@@ -14,6 +13,8 @@ const SITE_CONFIG = {
     maxUploadSizeBlogimgsMB: 10,
     // 游客上传上限（MB），未设置时默认 50MB（与管理员上限独立）
     maxUploadSizeGuestMB: 50,
+    // 文章列表中"新文章"的判定天数（最近 N 天发布的文章日期显示为彩色流动效果）
+    recentPostDays: 7,
 };
 
 window.SITE_CONFIG = {

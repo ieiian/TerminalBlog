@@ -2296,6 +2296,21 @@
             box-shadow: 0 0 25px rgba(138, 43, 226, 1), 0 0 50px rgba(255, 0, 128, 0.7), inset 0 0 15px rgba(0, 0, 0, 1);
         }
         
+        /* 新文章日期彩色流动效果 */
+        .recent-post-date {
+            background: linear-gradient(90deg, var(--green), var(--cyan), var(--purple), var(--yellow), var(--green));
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: rainbowFlow 3s linear infinite;
+            font-weight: bold;
+        }
+        @keyframes rainbowFlow {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+
         /* 小球悬停提示 */
         #minimizeBall::after {
             content: '点击恢复';

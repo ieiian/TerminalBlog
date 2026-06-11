@@ -288,6 +288,32 @@
         }
     }
 
+    // 格式化文章日期，如果是最近 N 天内则显示彩色流动效果
+    function formatPostDate(dateStr) {
+        if (!dateStr) return '<span style="color: var(--gray);">--</span>';
+        
+        // 从 SITE_CONFIG 读取配置天数，默认 7 天
+        const recentDays = (typeof SITE_CONFIG !== 'undefined' && SITE_CONFIG.recentPostDays) ? SITE_CONFIG.recentPostDays : 7;
+        
+        try {
+            // 解析文章日期（格式：YYYY/MM/DD 或 YYYY-MM-DD）
+            const postDate = new Date(dateStr.replace(/\//g, '-'));
+            const now = new Date();
+            
+            // 计算相差天数
+            const diffTime = now - postDate;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays >= 0 && diffDays <= recentDays) {
+                // 最近 N 天内：显示彩色流动文字效果
+                return `<span class="recent-post-date">${dateStr}</span>`;
+            }
+        } catch (e) {}
+        
+        // 普通日期：灰色显示
+        return `<span style="color: var(--gray);">${dateStr}</span>`;
+    }
+
     function renderPostList(posts, options) {
         options = options || {};
         const isAdmin = options.isAdmin || false;
@@ -312,7 +338,7 @@
                         <span class="admin-post-id">#${post.id}</span>
                         ${post.locked ? '<span class="admin-post-lock" style="color: var(--orange); font-size: 0.75em;"> 🔒</span>' : ''}
                         <a onclick="viewPost('${post.id}')">${escapeHtml(post.title)}</a>
-                        <span class="admin-post-date">${post.date || ''}</span>
+                        <span class="admin-post-date">${formatPostDate(post.date)}</span>
                     </span>
                     <span class="admin-post-actions-span">
                         <button class="admin-btn admin-post-btn" onclick="editPost('${post.id}')" title="编辑" style="padding: 3px 6px; font-size: 0.8em;">✏️</button>
@@ -326,7 +352,7 @@
                     <span class="perm">${post.locked ? '🔒' : '-rw-r--r--'}</span>
                     <span class="size">${post.size || '---'}</span>
                     <span class="name"><a onclick="viewPost('${post.id}')">${lockIcon}${escapeHtml(post.title)}.md</a></span>
-                    <span class="date-col">${post.date || '--'}</span>
+                    <span class="date-col">${formatPostDate(post.date)}</span>
                 </div>`;
             }
         });
