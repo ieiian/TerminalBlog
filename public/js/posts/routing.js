@@ -127,6 +127,9 @@
     }
 
     async function renderHome(body) {
+        // 主页标签云参数化限制行数（参数化位置 - 请在此处调整）
+        var HOME_TAGS_MAX_ROWS = 4;  // 可调节：限制显示的行数（设为 0 表示不限制）
+        
         // 去除 ~ zsh 后缀
         setTitle(SITE_CONFIG ? SITE_CONFIG.siteTitle : 'TerminalBlog');
         document.getElementById('statusMode').textContent = 'NORMAL';
@@ -183,7 +186,7 @@
 
             ${separator('标签云')}
 
-            ${prompt('hacker', 'blog', 'cat ./tags.json')}
+            ${prompt('hacker', 'blog', 'cat ./tags.json | head -n ' + HOME_TAGS_MAX_ROWS)}
             <div id="homeTags" class="tags-section">
                 <span class="loading"></span>
             </div>
@@ -225,9 +228,19 @@
             const tagsData = await apiGet('/tags');
             const tagsEl = document.getElementById('homeTags');
             if (tagsEl) {
-                tagsEl.innerHTML = tagsData.tags.map(t =>
-                    TagEffects.createTagDOM(t.fullTag || t.name, t.count)
-                ).join('');
+                // 先渲染所有标签，然后动态计算精确行数
+                tagsEl.innerHTML = tagsData.tags.map(function(t) {
+                    return TagEffects.createTagDOM(t.fullTag || t.name, t.count);
+                }).join('');
+                
+                // 使用 requestAnimationFrame 确保 DOM 已渲染，然后精确计算行数
+                if (HOME_TAGS_MAX_ROWS > 0) {
+                    requestAnimationFrame(function() {
+                        requestAnimationFrame(function() {
+                            limitHomeTagsRows(tagsEl, HOME_TAGS_MAX_ROWS);
+                        });
+                    });
+                }
             }
         } catch (e) {
             const tagsEl = document.getElementById('homeTags');
@@ -285,6 +298,31 @@
             if (ipRow) ipRow.style.display = 'none';
             if (timeEl) timeEl.textContent = 'N/A';
             if (browserRow) browserRow.style.display = 'none';
+        }
+    }
+
+    /**
+     * 精确限制主页标签显示行数
+     * @param {HTMLElement} container - 标签容器
+     * @param {number} maxRows - 最大行数
+     */
+    function limitHomeTagsRows(container, maxRows) {
+        var tagItems = container.querySelectorAll('.tag-item');
+        if (!tagItems || tagItems.length === 0) return;
+        
+        var containerTop = container.getBoundingClientRect().top;
+        var maxTop = containerTop + (maxRows * 30);  // 每行约 30px 高度
+        
+        for (var i = 0; i < tagItems.length; i++) {
+            var itemTop = tagItems[i].getBoundingClientRect().top;
+            
+            // 当前标签已超出限制行数：隐藏它及之后所有标签
+            if (itemTop >= maxTop) {
+                for (var j = i; j < tagItems.length; j++) {
+                    tagItems[j].style.display = 'none';
+                }
+                break;
+            }
         }
     }
 
@@ -983,9 +1021,20 @@
 
         const tagsData = await apiGet('/tags');
 
-        let tagsHtml = tagsData.tags.map(t =>
-            TagEffects.createTagDOM(t.fullTag || t.name, t.count)
-        ).join('');
+        // 将标签数据存储到全局变量，供搜索功能使用
+        window.tagsData = tagsData.tags;
+
+        // 构建三层隔离结构的标签 HTML
+        // 结构: .tag-layout-box (动画层) > .tag-effect-hub (特效层) > .tag-item (原始标签)
+        let tagsHtml = tagsData.tags.map((t, index) => {
+            const fullTag = t.fullTag || t.name;
+            const cleanName = TagEffects.getCleanTagName(fullTag);
+            const tagDOM = TagEffects.createTagDOM(fullTag, t.count);
+            // 三层隔离结构，确保动画层不影响特效层
+            return `<div class="tag-layout-box" data-tag="${escapeHtml(fullTag)}" data-tag-name="${cleanName.toLowerCase()}">
+                        <div class="tag-effect-hub">${tagDOM}</div>
+                    </div>`;
+        }).join('');
 
         body.innerHTML = `
             ${prompt('hacker', 'blog', 'cat ./tags.json')}
@@ -999,7 +1048,15 @@
 
             ${separator('全部标签')}
 
-            <div class="tags-section">
+            <div class="tag-search-wrapper">
+                <input type="text" 
+                       class="tag-search-input" 
+                       id="tagSearchInput"
+                       placeholder="搜索标签..."
+                       autocomplete="off" />
+            </div>
+
+            <div class="tags-section terminal-tags-container tags-active" id="tagsContainer">
                 ${tagsHtml || '<p style="color: var(--gray);">暂无标签</p>'}
             </div>
 
@@ -1009,6 +1066,146 @@
                 <span class="user">hacker</span><span class="symbol">@</span><span class="path">blog</span><span class="symbol">:~$</span> <span class="cursor"></span>
             </div>
         `;
+
+        // 初始化标签搜索功能
+        initTagSearch();
+    }
+
+    // 标签搜索功能初始化 - 使用 requestAnimationFrame 节流
+    function initTagSearch() {
+        const input = document.getElementById('tagSearchInput');
+        const container = document.getElementById('tagsContainer');
+        
+        if (!input || !container || !window.tagsData) return;
+
+        let searchTimer = null;
+        
+        // 使用 rAF 节流，确保每帧只计算一次过滤
+        input.addEventListener('input', function(e) {
+            if (searchTimer) cancelAnimationFrame(searchTimer);
+            
+            searchTimer = requestAnimationFrame(function() {
+                doLiveTagSearch(e.target.value, container);
+            });
+        });
+
+        // 动态添加/移除 will-change 优化性能
+        input.addEventListener('focus', function() {
+            container.classList.add('tags-active');
+        });
+
+        let willChangeTimeout;
+        input.addEventListener('blur', function() {
+            // 延迟移除 will-change，让动画完成后再移除
+            clearTimeout(willChangeTimeout);
+            willChangeTimeout = setTimeout(function() {
+                container.classList.remove('tags-active');
+            }, 2000);
+        });
+    }
+
+    /**
+     * 实时索引过滤核心函数 - 读写分离优化版本
+     * @param {string} keyword - 搜索关键字
+     * @param {HTMLElement} container - 标签父容器
+     */
+    function doLiveTagSearch(keyword, container) {
+        const items = Array.from(container.querySelectorAll('.tag-layout-box'));
+        if (items.length === 0) return;
+
+        const cleanKeyword = keyword.toLowerCase().trim();
+
+        // ----------------------------------------------------
+        // STEP 1: FIRST - 批量读取当前可见标签的位置 (避免读写交替引发重排)
+        // ----------------------------------------------------
+        const firstStates = items.map(function(item) {
+            const isVisible = !item.classList.contains('is-hidden');
+            return {
+                element: item,
+                isVisible: isVisible,
+                rect: isVisible ? item.getBoundingClientRect() : null
+            };
+        });
+
+        // ----------------------------------------------------
+        // STEP 2: STATE CHANGE - 批量写入变更状态
+        // ----------------------------------------------------
+        items.forEach(function(item) {
+            const rawTagData = item.getAttribute('data-tag') || '';
+            const tagName = rawTagData.split('::')[0].toLowerCase();
+
+            if (tagName.includes(cleanKeyword) || cleanKeyword === '') {
+                // 匹配成功：确保可见
+                item.classList.remove('is-hidden', 'is-exiting');
+            } else {
+                // 匹配失败：立即脱离布局
+                item.classList.add('is-hidden');
+            }
+        });
+
+        // ----------------------------------------------------
+        // STEP 3: 处理空结果提示 - 黑客风格
+        // ----------------------------------------------------
+        let visibleCount = items.filter(function(item) {
+            return !item.classList.contains('is-hidden');
+        }).length;
+
+        let noResultMsg = container.querySelector('.terminal-no-results');
+        if (visibleCount === 0 && cleanKeyword !== '') {
+            if (!noResultMsg) {
+                noResultMsg = document.createElement('div');
+                noResultMsg.className = 'terminal-no-results';
+                noResultMsg.innerHTML = `<span class="error-bracket">[ERROR]</span> Keyword "<span class="search-keyword">${escapeHtml(cleanKeyword)}</span>" not found in core database.<span class="blink-cursor">_</span>`;
+                container.appendChild(noResultMsg);
+            } else {
+                noResultMsg.querySelector('.search-keyword').textContent = cleanKeyword;
+            }
+        } else if (noResultMsg) {
+            noResultMsg.remove();
+        }
+
+        // ----------------------------------------------------
+        // STEP 4: LAST & INVERT - 批量读取新位置，并计算差值进行"瞬移反转"
+        // ----------------------------------------------------
+        // 关闭所有过渡动画，确保读取的是干净的最后一帧物理坐标
+        items.forEach(function(item) {
+            item.style.transition = 'none';
+            item.style.transform = '';
+        });
+
+        // 强制浏览器重绘
+        container.offsetHeight;
+
+        firstStates.forEach(function(first) {
+            // 如果之前不可见，或者现在被隐藏了，不需要参与平滑移动
+            if (!first.isVisible || first.element.classList.contains('is-hidden')) return;
+
+            const lastRect = first.element.getBoundingClientRect();
+            const deltaX = first.rect.left - lastRect.left;
+            const deltaY = first.rect.top - lastRect.top;
+
+            if (Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5) {
+                // 瞬移回起点（Invert）
+                first.element.style.transform = 'translate(' + deltaX + 'px, ' + deltaY + 'px)';
+            }
+        });
+
+        // ----------------------------------------------------
+        // STEP 5: PLAY - 使用 double rAF 确保浏览器已经渲染了 Invert 状态
+        // ----------------------------------------------------
+        requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+                firstStates.forEach(function(first) {
+                    const item = first.element;
+                    if (item.classList.contains('is-hidden')) return;
+
+                    // 恢复 CSS 中的标准弹性过渡动画
+                    item.style.transition = '';
+                    // 清空 transform，使其平滑地滑行到 Flex 布局计算出的新终点
+                    item.style.transform = '';
+                });
+            });
+        });
     }
 
     async function renderAdmin(body) {

@@ -923,3 +923,113 @@
 .post-detail .file-body .meta-line .tag.tag-fx-underline {
     text-decoration: underline;
 }
+
+/* ==================== 标签页搜索功能样式 ==================== */
+
+/* 搜索容器 */
+.tag-search-wrapper {
+    margin-bottom: 24px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', Courier, monospace;
+}
+
+.tag-search-input {
+    width: 100%;
+    max-width: 300px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--green);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', Courier, monospace;
+    padding: 8px 12px;
+    font-size: 14px;
+    outline: none;
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.2);
+    transition: all 0.2s ease;
+    caret-color: var(--green);
+}
+
+.tag-search-input::placeholder {
+    color: var(--gray);
+}
+
+.tag-search-input:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+}
+
+/* 标签容器 - Flex 布局支持换行 */
+.terminal-tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    position: relative;
+    min-height: 40px;
+    transition: height 300ms ease;
+}
+
+/* 外层布局盒：只操作 transform 和 opacity，与特效完全隔离 */
+.tag-layout-box {
+    transform-origin: center center;
+    /* 精致弹性曲线：渐隐使用标准曲线，出现使用带回弹的曲线 */
+    transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    will-change: transform, opacity;
+    /* 移除额外间距，让标签紧凑排列 */
+    margin: 0;
+}
+
+/* 状态1：正在消失（渐隐、缩小） */
+.tag-layout-box.is-exiting {
+    opacity: 0;
+    transform: scale(0.3);
+    pointer-events: none;
+}
+
+/* 状态2：完全隐藏（不占 Flex 空间） */
+.tag-layout-box.is-hidden {
+    display: none !important;
+}
+
+/* 移动中状态：当应用 FLIP 过渡时激活 */
+.tag-layout-box.is-moving {
+    transition: transform 300ms cubic-bezier(0.25, 1, 0.5, 1) !important;
+}
+
+/* 中层特效容器：承载原有特效样式 */
+.tag-effect-hub {
+    display: inline-block;
+    vertical-align: baseline;
+}
+
+/* 空结果提示 - 系统信息风格 */
+.terminal-no-results {
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', Courier, monospace;
+    font-size: 14px;
+    padding: 20px 0;
+    width: 100%;
+    line-height: 1.6;
+}
+
+.terminal-no-results .error-bracket {
+    color: var(--red);
+    font-weight: bold;
+}
+
+.terminal-no-results .search-keyword {
+    color: var(--yellow);
+}
+
+.terminal-no-results .blink-cursor {
+    color: var(--green);
+    animation: blink-cursor 1s step-end infinite;
+}
+
+@keyframes blink-cursor {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+/* 激活 will-change 的状态类 - 仅在输入框聚焦时开启 */
+.tags-active .tag-layout-box {
+    will-change: transform, opacity;
+}

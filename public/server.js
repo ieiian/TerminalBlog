@@ -2023,7 +2023,25 @@ async function handleRequest(req, res) {
                     count: data.count,
                     fullTag: data.fullTag  // 包含特效的完整标签
                 }))
-                .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN', { sensitivity: 'base' }));  // 按标签名字母/拼音顺序排列
+                .sort((a, b) => {
+                    // 判断是否为中文（通过 Unicode 范围）
+                    const isChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
+                    const aIsChinese = isChinese(a.name);
+                    const bIsChinese = isChinese(b.name);
+                    
+                    // 1. 英文放前面，中文放后面
+                    if (aIsChinese !== bIsChinese) {
+                        return aIsChinese ? 1 : -1;
+                    }
+                    
+                    // 2. 按数量倒序排列（数量多的在前）
+                    if (a.count !== b.count) {
+                        return b.count - a.count;
+                    }
+                    
+                    // 3. 数量相同时按字母顺序排列
+                    return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
+                });
             return jsonResponse(res, { tags });
         }
 

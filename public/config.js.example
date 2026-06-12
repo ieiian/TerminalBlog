@@ -17,6 +17,9 @@ const SITE_CONFIG = {
     recentPostDays: 7,
 };
 
+// 其它参数在代码中的位置：
+// var HOME_TAGS_MAX_ROWS = 4; // 首页标签云最大行数（位于 routing.js 中第 131 行）
+
 window.SITE_CONFIG = {
     // 终端雨配置项
     // ============================================================
