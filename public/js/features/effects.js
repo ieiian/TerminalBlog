@@ -1042,16 +1042,28 @@
             // ========== 4. 正常蠕动 ==========
             stayTimer += dt;
             
-            // 检测鼠标是否悬停在虫子上
+            // 检测鼠标是否悬停在虫子上（使用更稳定的检测方法）
             var containerRect = container.getBoundingClientRect();
             var mouseX = mousePos.x - containerRect.left;
             var mouseY = mousePos.y - containerRect.top;
             
-            var headCenterX = segX[0];
-            var headCenterY = segY[0];
-            var detectRadius = 25;
-            var distToHead = Math.sqrt(Math.pow(mouseX - headCenterX, 2) + Math.pow(mouseY - headCenterY, 2));
-            isHovering = distToHead < detectRadius;
+            // 使用稳定的垂直范围（基于 groundY + 最大拱高），避免上边界抖动
+            var hoverPadding = 5;  // 水平方向扩展 1px
+            var minX = segX[0], maxX = segX[0];
+            for (var hi = 1; hi < segmentCount; hi++) {
+                if (segX[hi] < minX) minX = segX[hi];
+                if (segX[hi] > maxX) maxX = segX[hi];
+            }
+            
+            // 垂直范围基于 groundY（最稳定），上下各扩展一个最大拱高（约 6px）+ padding
+            var verticalExtend = 10;  // 垂直方向扩展（上下各 10px，基于 groundY）
+            var hoverTop = groundY - verticalExtend;
+            var hoverBottom = groundY + verticalExtend;
+            var hoverLeft = minX - hoverPadding;
+            var hoverRight = maxX + segmentSize + hoverPadding;
+            
+            // 矩形边界检测
+            isHovering = (mouseX >= hoverLeft && mouseX <= hoverRight && mouseY >= hoverTop && mouseY <= hoverBottom);
             
             if (isHovering) {
                 if (savedHeadX === 0) {
