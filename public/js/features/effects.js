@@ -305,6 +305,7 @@
 (function() {
     var container = null;
     var wormholeContainer = null;
+    var clickArea = null;  // 专门的可点击区域
     var segments = [];
     var segmentCount = 11;
     var terminalTop = 0;
@@ -500,10 +501,14 @@
     
     function init() {
         container = document.createElement('div');
-        container.style.cssText = 'position:fixed;pointer-events:auto;z-index:9999;left:0;top:0;cursor:pointer;width:100%;height:30px;';
+        container.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;left:0;top:0;width:100%;height:30px;';
+        
+        // 创建专门的点击区域 - 仅覆盖虫子本身
+        clickArea = document.createElement('div');
+        clickArea.style.cssText = 'position:absolute;pointer-events:none;cursor:pointer;opacity:0;background:transparent;';
         
         // 点击事件 - 弹出神秘空间提示
-        container.onclick = function(e) {
+        clickArea.onclick = function(e) {
             e.stopPropagation();
             showWormModal('神秘空间未开放');
         };
@@ -535,6 +540,7 @@
         }
         
         container.appendChild(wormholeContainer);
+        container.appendChild(clickArea);
         document.body.appendChild(container);
         
         setTimeout(function() {
@@ -543,6 +549,36 @@
             scheduleNextAppearance();
             animate();
         }, 800);
+    }
+    
+    // 更新点击区域位置 - 精准覆盖虫子
+    function updateClickArea() {
+        if (!clickArea) return;
+        
+        // 计算虫子的边界（考虑蠕动时的波动）
+        var minX = segX[0], maxX = segX[0];
+        var minY = segY[0], maxY = segY[0];
+        var wobbleAmount = isAwake ? 0.3 * wakeProgress : 0;
+        
+        for (var i = 1; i < segmentCount; i++) {
+            if (segX[i] < minX) minX = segX[i];
+            if (segX[i] > maxX) maxX = segX[i];
+            var segYWithWobble = segY[i] + Math.sin(wavePhase * 1.8 + i * 0.5) * wobbleAmount;
+            if (segYWithWobble < minY) minY = segYWithWobble;
+            if (segYWithWobble > maxY) maxY = segYWithWobble;
+        }
+        
+        // 添加适当的内边距，使点击区域稍微大于可见区域
+        var padding = 3;
+        var left = minX - padding;
+        var top = minY - padding;
+        var width = maxX - minX + segmentSize + padding * 2;
+        var height = maxY - minY + segmentSize + padding * 2;
+        
+        clickArea.style.left = left + 'px';
+        clickArea.style.top = top + 'px';
+        clickArea.style.width = width + 'px';
+        clickArea.style.height = height + 'px';
     }
     
     function scheduleNextAppearance() {
@@ -654,6 +690,18 @@
                 segments[i].el.style.boxShadow = '0 0 2px rgba(' + headRgb.r + ',' + headRgb.g + ',' + headRgb.b + ',0.4)';
             } else {
                 segments[i].el.style.boxShadow = '0 0 1px rgba(' + bodyR + ',' + bodyG + ',' + bodyB + ',0.4)';
+            }
+        }
+        
+        // 更新点击区域位置并控制可见性
+        // 只有在虫子可见且处于活动状态时才显示点击区域
+        var showClickArea = (wormState === 'active' || wormState === 'waking');
+        if (clickArea) {
+            if (showClickArea && opacity > 0.1) {
+                updateClickArea();
+                clickArea.style.pointerEvents = 'auto';
+            } else {
+                clickArea.style.pointerEvents = 'none';
             }
         }
     }
