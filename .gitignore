@@ -56,3 +56,6 @@ Markdown/*
 # Config files
 public/config.js
 public/index.html.backup
+
+# TSE
+tseConfig/
