@@ -154,9 +154,9 @@
 }
 
 /* 标签项 hover 效果 - 统一终端经典绿 */
-/* 注意：排除 glass 特效，因为它有自定义的背景渐变 */
+/* 注意：排除 glass 和 adlight 特效，因为它们有自定义的 hover 效果 */
 .tag-item:hover,
-.tag-item[class*="tag-fx-"]:not(.tag-fx-glass):hover {
+.tag-item[class*="tag-fx-"]:not(.tag-fx-glass):not(.tag-fx-adlight):hover {
     border-color: var(--green);
     color: var(--green);
     background-color: rgba(0, 255, 65, 0.05);
@@ -711,6 +711,15 @@
 .tag-item.tag-fx-adlight:hover .adlight-rect {
     animation-duration: 0.8s;
     filter: drop-shadow(0 0 4px rgba(255, 102, 0, 0.6));
+}
+
+/* adlight hover 时禁用默认绿色边框效果 */
+.tag-item.tag-fx-adlight:hover {
+    border-color: transparent !important;
+    color: var(--text) !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    z-index: 2;
 }
 
 @keyframes adlight-flow {
