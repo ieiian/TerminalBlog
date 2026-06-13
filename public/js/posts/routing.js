@@ -127,8 +127,13 @@
     }
 
     async function renderHome(body) {
-        // 主页标签云参数化限制行数（参数化位置 - 请在此处调整）
-        var HOME_TAGS_MAX_ROWS = 4;  // 可调节：限制显示的行数（设为 0 表示不限制）
+        // 主页标签云参数化限制行数（从 config.js 读取，默认 4/8 行）
+        var HOME_TAGS_MAX_ROWS_DESKTOP = (SITE_CONFIG && SITE_CONFIG.homeTagsMaxRowsDesktop !== undefined) ? SITE_CONFIG.homeTagsMaxRowsDesktop : 4;
+        var HOME_TAGS_MAX_ROWS_MOBILE = (SITE_CONFIG && SITE_CONFIG.homeTagsMaxRowsMobile !== undefined) ? SITE_CONFIG.homeTagsMaxRowsMobile : 8;
+        
+        // 根据设备类型选择限制行数
+        var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+        var HOME_TAGS_MAX_ROWS = isMobile ? HOME_TAGS_MAX_ROWS_MOBILE : HOME_TAGS_MAX_ROWS_DESKTOP;
         
         // 去除 ~ zsh 后缀
         setTitle(SITE_CONFIG ? SITE_CONFIG.siteTitle : 'TerminalBlog');

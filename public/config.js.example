@@ -15,10 +15,11 @@ const SITE_CONFIG = {
     maxUploadSizeGuestMB: 50,
     // 文章列表中"新文章"的判定天数（最近 N 天发布的文章日期显示为彩色流动效果）
     recentPostDays: 7,
+    // 主页标签云限制行数：桌面端和移动端分别设置（设为 0 表示不限制）
+    // 未设置时默认：桌面端 4 行，移动端 8 行
+    homeTagsMaxRowsDesktop: 4,
+    homeTagsMaxRowsMobile: 8,
 };
-
-// 其它参数在代码中的位置：
-// var HOME_TAGS_MAX_ROWS = 4; // 首页标签云最大行数（位于 routing.js 中第 131 行）
 
 window.SITE_CONFIG = {
     // 终端雨配置项
