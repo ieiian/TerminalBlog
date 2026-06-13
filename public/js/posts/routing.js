@@ -80,6 +80,107 @@
         }
     });
 
+    // ============ 作者信息弹窗 ============
+    function showAuthorModal() {
+        var overlay = document.createElement('div');
+        overlay.className = 'preview-overlay';
+        overlay.id = 'authorModal';
+        overlay.innerHTML = `
+            <div class="terminal author-terminal">
+                <div class="title-bar">
+                    <div class="dot red" onclick="closeAuthorModal()"></div>
+                    <div class="dot yellow"></div>
+                    <div class="dot green"></div>
+                    <div class="title">~/author/info.sh</div>
+                    <span class="author-close-btn" onclick="closeAuthorModal()">✕ 关闭</span>
+                </div>
+                <div class="term-body author-body">
+                    <div class="author-header">
+                        <div class="author-ascii">
+  ╔═════════════════════════════════════╗
+  ║   TerminalBlog Author Information   ║
+  ║   ════════════════════════════════  ║
+  ╚═════════════════════════════════════╝</div>
+                    </div>
+                    
+                    <div class="author-content">
+                        <div class="author-prompt">$ cat author.txt</div>
+                        <div class="author-info">
+                            <div class="info-line">
+                                <span class="info-key">author</span>
+                                <span class="info-sep">:</span>
+                                <span class="info-value highlight">TSE</span>
+                            </div>
+                            <div class="info-line">
+                                <span class="info-key">role</span>
+                                <span class="info-sep">:</span>
+                                <span class="info-value">Full-Stack Developer</span>
+                            </div>
+                            <div class="info-line">
+                                <span class="info-key">blog</span>
+                                <span class="info-sep">:</span>
+                                <span class="info-value">Terminal Blog Creator</span>
+                            </div>
+                        </div>
+                        
+                        <div class="author-prompt" style="margin-top: 20px;">$ cat contact.txt</div>
+                        <div class="author-info">
+                            <div class="info-line">
+                                <span class="info-key">email</span>
+                                <span class="info-sep">:</span>
+                                <span class="info-value link" onclick="window.open('mailto:9724370@qq.com', '_blank')">9724370@qq.com</span>
+                            </div>
+                            <div class="info-line">
+                                <span class="info-key">wechat</span>
+                                <span class="info-sep">:</span>
+                                <span class="info-value">9724370</span>
+                            </div>
+                        </div>
+                        
+                        <div class="author-prompt" style="margin-top: 20px;">$ uptime</div>
+                        <div class="author-info">
+                            <div class="info-line">
+                                <span class="info-key">status</span>
+                                <span class="info-sep">:</span>
+                                <span class="info-value online">● Online</span>
+                            </div>
+                            <div class="info-line">
+                                <span class="info-key">lang</span>
+                                <span class="info-sep">:</span>
+                                <span class="info-value">Node.js</span>
+                            </div>
+                        </div>
+                        
+                        <div class="author-prompt" style="margin-top: 20px;">$ cat project.txt</div>
+                        <div class="author-info">
+                            <div class="info-line">
+                                <span class="info-key">github</span>
+                                <span class="info-sep">:</span>
+                                <span class="info-value link" onclick="window.open('https://github.com/ieiian/TerminalBlog', '_blank')">TerminalBlog</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="author-footer">
+                        <span class="cursor-blink">_</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        overlay.scrollTop = 0;
+        
+        // 防止底层页面滚动
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeAuthorModal() {
+        var overlay = document.getElementById('authorModal');
+        if (overlay) overlay.remove();
+        // 恢复页面滚动
+        document.body.style.overflow = '';
+    }
+
     // ============ Renderers ============
     function setTitle(text) {
         document.getElementById('titleBar').textContent = text;

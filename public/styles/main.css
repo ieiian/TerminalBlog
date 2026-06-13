@@ -2328,3 +2328,163 @@
         #minimizeBall:hover::after {
             opacity: 1;
         }
+
+        /* ============ 作者信息弹窗样式 ============ */
+        
+        /* TSE 可点击链接样式 */
+        .tse-link {
+            color: var(--cyan);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-shadow: 0 0 4px rgba(0, 229, 255, 0.3);
+        }
+        .tse-link:hover {
+            color: var(--green);
+            text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+        }
+        
+        /* 作者信息弹窗关闭按钮 */
+        .author-close-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray);
+            cursor: pointer;
+            font-size: 0.8em;
+            padding: 4px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        .author-close-btn:hover {
+            color: var(--red);
+            border-color: var(--red);
+            background: rgba(255, 0, 0, 0.05);
+        }
+        
+        /* 作者信息弹窗终端 */
+        .author-terminal {
+            margin: 60px auto;
+            max-width: 400px;
+            animation: terminalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            border: 1px solid var(--green);
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.3), inset 0 0 20px rgba(0, 255, 65, 0.1);
+            background: var(--bg);
+        }
+        
+        @keyframes terminalSlideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        
+        .author-body {
+            padding: 20px 24px;
+            min-height: 300px;
+            background: var(--bg);
+        }
+        
+        /* ASCII 艺术头部 */
+        .author-header {
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        
+        .author-ascii {
+            display: inline-block;
+            color: var(--green);
+            font-size: 10px;
+            line-height: 1.25;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+            white-space: pre;
+            animation: asciiGlow 2s ease-in-out infinite;
+        }
+        
+        @keyframes asciiGlow {
+            0%, 100% { text-shadow: 0 0 10px rgba(0, 255, 65, 0.3); }
+            50% { text-shadow: 0 0 20px rgba(0, 255, 65, 0.6), 0 0 30px rgba(0, 229, 255, 0.3); }
+        }
+        
+        /* 内容区域 */
+        .author-content {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            padding-right: 60px;
+        }
+        
+        /* 终端提示符 */
+        .author-prompt {
+            color: var(--green);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        
+        /* 信息块 */
+        .author-info {
+            padding-left: 16px;
+            border-left: 2px solid var(--border);
+            margin-bottom: 8px;
+        }
+        
+        .info-line {
+            display: flex;
+            margin: 6px 0;
+            font-size: 13px;
+        }
+        
+        .info-key {
+            color: var(--purple);
+            min-width: 80px;
+        }
+        
+        .info-sep {
+            color: var(--gray);
+            margin: 0 8px;
+        }
+        
+        .info-value {
+            color: var(--text);
+        }
+        
+        .info-value.highlight {
+            color: var(--yellow);
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+        }
+        
+        .info-value.link {
+            color: var(--cyan);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .info-value.link:hover {
+            color: var(--green);
+            text-decoration: underline;
+        }
+        
+        .info-value.online {
+            color: var(--green);
+        }
+        
+        /* 底部闪烁光标 */
+        .author-footer {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px dashed var(--border);
+        }
+        
+        .cursor-blink {
+            color: var(--green);
+            animation: cursorBlink 1s step-end infinite;
+        }
+        
+        @keyframes cursorBlink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
