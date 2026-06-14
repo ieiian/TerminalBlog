@@ -307,7 +307,7 @@
     var wormholeContainer = null;
     var clickArea = null;  // 专门的可点击区域
     var segments = [];
-    var segmentCount = 11;
+    var segmentCount = 13;
     var terminalTop = 0;
 
     // ========== 时空虫星期颜色配置 ==========
@@ -531,8 +531,8 @@
             var bodyR = Math.round(bodyRgb.r * bodyBrightness);
             var bodyG = Math.round(bodyRgb.g * bodyBrightness);
             var bodyB = Math.round(bodyRgb.b * bodyBrightness);
-            // 周日头部添加 1px 发光效果
-            var glowStyle = colors.glow && isHead ? ';box-shadow:0 0 1px ' + colors.body + ', 0 0 3px ' + colors.head : '';
+            // 周日头部添加发光效果（使用filter不影响大小，增强发光）
+            var glowStyle = colors.glow && isHead ? ';filter:drop-shadow(0 0 2px ' + colors.head + ') drop-shadow(0 0 5px ' + colors.head + ') drop-shadow(0 0 8px ' + colors.body + ')' : '';
             var dot = document.createElement('div');
             dot.style.cssText = 'position:absolute;width:' + segmentSize + 'px;height:' + segmentSize + 'px;background:radial-gradient(circle,' + (isHead ? colors.head + ',' + colors.body : 'rgb(' + bodyR + ',' + bodyG + ',' + bodyB + '),rgb(' + Math.round(bodyR * 0.85) + ',' + Math.round(bodyG * 0.85) + ',' + Math.round(bodyB * 0.85) + ')') + ');border-radius:50%;box-shadow:0 0 ' + (isHead ? '2px' : '1px') + ' rgba(' + (isHead ? (headRgb.r + ',' + headRgb.g + ',' + headRgb.b) : (bodyR + ',' + bodyG + ',' + bodyB)) + ',0.4)' + glowStyle + ';opacity:0;transform:scale(0);';
             container.appendChild(dot);
@@ -683,9 +683,9 @@
             segments[i].el.style.transform = 'scale(1)';
             segments[i].el.style.opacity = ((i === 0 ? 0.7 : 0.55) * opacity).toString();
 
-            // 周日头部添加 1px 发光效果
+            // 周日头部添加发光效果（使用filter不影响大小，增强发光）
             if (i === 0 && colors.glow) {
-                segments[i].el.style.boxShadow = '0 0 2px rgba(' + headRgb.r + ',' + headRgb.g + ',' + headRgb.b + ',0.4), 0 0 1px ' + colors.body + ', 0 0 3px ' + colors.head;
+                segments[i].el.style.filter = 'drop-shadow(0 0 2px ' + colors.head + ') drop-shadow(0 0 5px ' + colors.head + ') drop-shadow(0 0 8px ' + colors.body + ')';
             } else if (i === 0) {
                 segments[i].el.style.boxShadow = '0 0 2px rgba(' + headRgb.r + ',' + headRgb.g + ',' + headRgb.b + ',0.4)';
             } else {
